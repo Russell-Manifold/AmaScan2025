@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="AmaScan.SettingsPage"
+             Title="Settings">
+    <VerticalStackLayout Padding="20" Spacing="20">
+
+        <Label Text="API Base URL:" FontAttributes="Bold" />
+        <Entry x:Name="ApiUrlEntry"
+               Placeholder="https://example.com/api/"
+               Keyboard="Url"
+               HorizontalOptions="FillAndExpand" />
+
+        <Label Text="Default Warehouse:" FontAttributes="Bold" />
+        <Picker x:Name="WarehousePicker" Title="Select Warehouse" />
+
+        <Label Text="Reject Warehouse:" FontAttributes="Bold" />
+        <Picker x:Name="WarehousePickerR" Title="Reject Warehouse" />
+        
+        <Button Text="Save"
+                Clicked="OnSaveClicked"
+                BackgroundColor="DarkGreen"
+                TextColor="White" />
+
+        <Label x:Name="ConfirmationLabel"
+               Text=""
+               TextColor="Green"
+               FontSize="12"
+               IsVisible="False"/>
+
+        <Button Text="Update Stock Listing"
+        Clicked="OnUpdateStockClicked"
+        BackgroundColor="DarkBlue"
+        TextColor="White" />
+
+    </VerticalStackLayout>
+</ContentPage>

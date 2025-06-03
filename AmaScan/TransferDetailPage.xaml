@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:local="clr-namespace:AmaScan"
+             x:Class="AmaScan.TransferDetailPage"
+             Title="Transfer Details">
+
+    <StackLayout Padding="10" Spacing="10" VerticalOptions="FillAndExpand">
+
+        <ScrollView VerticalOptions="FillAndExpand">
+            <StackLayout Spacing="10">
+
+                <!-- Header Info -->
+                <Frame BorderColor="Gray" Padding="10" CornerRadius="5">
+                    <StackLayout>
+                        <Label Text="{Binding RequisitionNumber}" FontAttributes="Bold" FontSize="20"/>
+                        <Label Text="{Binding DueDate, StringFormat='Due Date: {0:dd MMM yyyy}'}"/>
+                        <Label Text="{Binding SourceWarehouse, StringFormat='From: {0}'}"/>
+                        <Label Text="{Binding DestinationWarehouse, StringFormat='To: {0}'}"/>
+                    </StackLayout>
+                </Frame>
+
+                <!-- Barcode + Qty Entry + Accept -->
+                <Frame BorderColor="LightGray" Padding="10" CornerRadius="5">
+                    <VerticalStackLayout Spacing="10">
+                        <Entry x:Name="entryBarcode"
+                               Placeholder="Scan or enter barcode"
+                               ReturnType="Next"
+                               Completed="OnBarcodeEntered"/>
+
+                        <Entry x:Name="entryQuantity"
+                               Placeholder="Enter quantity"
+                               Keyboard="Numeric"
+                               ReturnType="Done"/>
+
+                        <Button Text="Accept"
+                                Clicked="OnAcceptClicked"
+                                BackgroundColor="Green"
+                                TextColor="White"/>
+                    </VerticalStackLayout>
+                </Frame>
+
+                <!-- Lines List -->
+                <CollectionView ItemsSource="{Binding TransferLines}" SelectionMode="None" HeightRequest="300">
+                    <CollectionView.ItemTemplate>
+                        <DataTemplate>
+                            <Frame BorderColor="LightGray" Padding="10" Margin="2">
+                                <StackLayout Orientation="Vertical" Spacing="5">
+                                    <Label Text="{Binding StockDescription}" FontAttributes="Bold"/>
+                                    <Label Text="{Binding StockCode}" TextColor="Gray"/>
+
+                                    <Grid ColumnDefinitions="Auto,60,Auto,80" ColumnSpacing="10">
+                                        <Label Text="Requested:" VerticalOptions="Center"/>
+                                        <Label Text="{Binding OutstandingQty}" Grid.Column="1" VerticalOptions="Center"/>
+
+                                        <Label Text="Scanned:" Grid.Column="2" VerticalOptions="Center"/>
+                                        <Entry Text="{Binding ScannedQty, Mode=TwoWay}" Grid.Column="3"
+                                               Keyboard="Numeric" HorizontalTextAlignment="Center"
+                                               IsEnabled="{Binding Source={RelativeSource AncestorType={x:Type local:TransferDetailPage}}, Path=IsScanningEnabled}"/>
+                                    </Grid>
+                                </StackLayout>
+                            </Frame>
+                        </DataTemplate>
+                    </CollectionView.ItemTemplate>
+                </CollectionView>
+
+            </StackLayout>
+        </ScrollView>
+
+        <Button Text="Start Transfer"
+                BackgroundColor="Green"
+                TextColor="White"
+                FontAttributes="Bold"
+                CornerRadius="8"
+                Clicked="StartTransferButton_Clicked"/>
+
+    </StackLayout>
+</ContentPage>

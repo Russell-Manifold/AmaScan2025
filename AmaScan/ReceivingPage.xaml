@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+              xmlns:controls="clr-namespace:AmaScan.Controls"
+             x:Class="AmaScan.ReceivingPage"
+             Title= "Receiving">
+    
+    <ContentPage.ToolbarItems>
+        <ToolbarItem  IconImageSource="save.png" Clicked="OnSave_Click" Order="Primary" Priority="1" />
+        <ToolbarItem  IconImageSource="resumeimg.png" Clicked="OnRestartClicked" Order="Primary" Priority="2" />
+        <ToolbarItem IconImageSource="ticksmallo.png"  Clicked="OnCompleteClicked" Order="Primary" Priority="3" />
+    </ContentPage.ToolbarItems>
+
+    <StackLayout Padding="10">
+        <StackLayout x:Name="ReceivingInputSection" IsVisible="False" Spacing="10">
+            <Label Text="{Binding PoNumber, StringFormat='PO:{0}'}" FontAttributes="Bold" FontSize="Large" HorizontalOptions="Center"/>
+            <Label Text="Scan or Enter Item Barcode:" />
+            <controls:NoKeyboardEntry x:Name="BarcodeEntry" Placeholder="Enter barcode" Completed="OnBarcodeEntered" MaxLength="15" Keyboard="Numeric" />
+            
+            <Label Text="Enter Quantity:" />
+            <Entry x:Name="QuantityEntry" Placeholder="Enter quantity" Keyboard="Numeric" MaxLength="5" TextChanged="QuantityEntry_TextChanged" />
+            <Grid ColumnDefinitions="Auto,Auto,*,Auto,Auto, Auto" Padding="10">
+                <!-- Left side: Reject / Accept Switch -->
+                <Label Grid.Column="0" Text="Reject" VerticalOptions="Center" />
+                <Switch Grid.Column="1" x:Name="AcceptSwitch" IsToggled="True" VerticalOptions="Center" Toggled="AcceptSwitch_Toggled" />
+                <Label Grid.Column="2" Text="Accept" VerticalOptions="Center" />
+                <!-- Right side: Manual Input Switch -->
+                <Label Grid.Column="4" Text="Manual Input" VerticalOptions="Center" HorizontalOptions="End" />
+                <Switch Grid.Column="5" x:Name="ManualInputSwitch" Toggled="OnManualInputToggled" HorizontalOptions="End" />
+            </Grid>
+            <Button x:Name="SaveButton" Text="Accept" Clicked="OnSaveProgressClicked" />
+        </StackLayout>
+        <Button x:Name="StartReceivingButton" Text="Start Receiving" Clicked="OnStartReceivingClicked" />
+        <ScrollView>
+            <!-- List of PO Lines -->
+            <CollectionView ItemsSource="{Binding PoLines}" Margin="10">
+                <CollectionView.ItemTemplate>
+                    <DataTemplate>
+                        <SwipeView>
+                            <SwipeView.RightItems>
+                                <SwipeItems Mode="Reveal">
+                                    <SwipeItem
+                            Text="Reset"
+                            BackgroundColor="OrangeRed" Command="{Binding BindingContext.ResetPoLineCommand, Source={x:Reference ReceivingPage}}"
+                            CommandParameter="{Binding}" />
+                                </SwipeItems>
+                            </SwipeView.RightItems>
+                            <Frame Padding="10" Margin="5" BorderColor="LightGray"  BackgroundColor="{Binding StatusColor}">
+                            <StackLayout>
+                                <Label Text="{Binding CodeAndBarcode}" FontAttributes="Bold" />
+                                <Label Text="{Binding ItemDesc}" FontSize="Small" />
+                                <Label Text="{Binding OrderedQty, StringFormat='Ordered: {0}'}" />
+                                <Label Text="{Binding ScanAcceptQty, StringFormat='Accepted: {0}'}" />
+                                <Label Text="{Binding ScanRejectQty, StringFormat='Rejected: {0}'}" />
+                                <Label Text="{Binding OutstandingQty, StringFormat='Outstanding: {0}'}" />
+                                <Label Text="{Binding ReceivedString, StringFormat='Received: {0}'}" />
+                            </StackLayout>
+                        </Frame>
+                        </SwipeView>
+                    </DataTemplate>
+                </CollectionView.ItemTemplate>
+            </CollectionView>
+        </ScrollView>
+    </StackLayout>
+</ContentPage>

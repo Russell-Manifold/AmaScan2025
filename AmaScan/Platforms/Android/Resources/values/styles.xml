@@ -1,0 +1,22 @@
+﻿<?xml version="1.0" encoding="utf-8" ?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+
+  <!-- Theme for the splash screen -->
+  <style name="Maui.SplashTheme" parent="Theme.SplashScreen">
+    <item name="android:windowBackground">@drawable/splash</item>
+    <item name="android:windowSplashScreenBackground">@android:color/white</item>
+    <item name="android:windowSplashScreenAnimatedIcon">@null</item>
+    <item name="android:windowSplashScreenIconBackgroundColor">@android:color/white</item>
+    <item name="android:windowSplashScreenBrandingImage">@null</item>
+    <item name="android:windowLightNavigationBar">true</item>
+    <item name="android:windowLightStatusBar">true</item>
+    <item name="postSplashScreenTheme">@style/Maui.MainTheme</item>
+  </style>
+
+  <!-- Main application theme -->
+  <style name="Maui.MainTheme" parent="Theme.Material3.DayNight.NoActionBar">
+    <!-- Customize your main app theme here -->
+    <item name="android:colorBackground">@android:color/white</item>
+  </style>
+
+</resources>

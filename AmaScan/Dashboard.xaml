@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="AmaScan.Dashboard"
+             Title="Dashboard">
+    <ContentPage.ToolbarItems>
+        <ToolbarItem IconImageSource="settings.png" Text="" Clicked="OnSettingsClicked" Order="Primary" Priority="1" />
+    </ContentPage.ToolbarItems>
+    <Grid>
+        <!-- Row Definitions for Fixed and Scrollable Content -->
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <!-- For User Info (fixed) -->
+            <RowDefinition Height="*" />
+            <!-- For ScrollView content (flexible) -->
+        </Grid.RowDefinitions>
+
+        <StackLayout Grid.Row="0" Padding="10">
+            <Label x:Name="UserNameLabel" 
+               Text="{Binding UseNRole}" 
+               FontSize="12" 
+               HorizontalOptions="Start" 
+               VerticalOptions="Center" />
+         </StackLayout>
+        <ScrollView Grid.Row="1" Padding="10">
+            <VerticalStackLayout Padding="20" Spacing="30" HorizontalOptions="Fill"  VerticalOptions="Start">
+
+                <!-- 🔘 Image Button 1 -->
+                <ImageButton x:Name="BtnReceiving" Source="receivestck.png" IsVisible="{Binding CanReceive}" 
+                         WidthRequest="50"
+                         HeightRequest="50"
+                         Clicked="OnPage1Clicked"/>
+                <Label Text="Receiving"
+                       HorizontalOptions="Center"
+                       VerticalOptions="Center"/>
+
+                <!-- 🔘 Image Button 2 -->
+                <ImageButton x:Name="btnWhTrf" Source="whtrf.png" IsVisible="{Binding CanTransfer}"
+                         WidthRequest="50"
+                         HeightRequest="50"
+                         Clicked="OnPage2Clicked"/>
+                <Label Text="Warehouse Transfer"
+           HorizontalOptions="Center"
+           VerticalOptions="Center"/>
+
+                <!-- 🔘 Image Button 3 -->
+                <!--<ImageButton Source="icon3.png"
+                         WidthRequest="100"
+                         HeightRequest="100"
+                         Clicked="OnPage3Clicked"/>
+
+            -->
+                <!-- 🔘 Image Button 4 -->
+                <!--
+            <ImageButton Source="icon4.png"
+                         WidthRequest="100"
+                         HeightRequest="100"
+                         Clicked="OnPage4Clicked"/>-->
+            </VerticalStackLayout>
+        </ScrollView>
+    </Grid>
+</ContentPage>

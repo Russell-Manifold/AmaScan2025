@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="AmaScan.ReceivingDocumentsPage"
+             Title="Receiving Documents">
+    <VerticalStackLayout Padding="20" Spacing="5">
+        <Label Text="Receiving PO:" FontAttributes="Bold" />
+        <Label Text="{Binding OrderNo}" FontSize="16" />
+       
+        <Label Text="Into Warehouse" />
+        <Picker x:Name="WarehousePicker"
+                ItemsSource="{Binding WarehouseList}"
+                ItemDisplayBinding="{Binding WarehouseName}"
+                SelectedItem="{Binding SelectedWarehouse}" />
+        
+        <Label Text="Delivery Note Number" />
+        <Entry x:Name="DeliveryNoteEntry" Placeholder="Delivery Note Number" Text="{Binding DNnumber}" />
+
+        <Label Text="Supplier Invoice Number" />
+        <Entry x:Name="InvoiceNumberEntry" Placeholder="Supplier Invoice Number" Text="{Binding SuppInvNumber}" />
+
+        
+        
+        <Button Text="Start Receiving"
+                Clicked="OnAcceptClicked"
+                BackgroundColor="Green"
+                TextColor="White" />
+
+    </VerticalStackLayout>
+</ContentPage>

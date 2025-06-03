@@ -1,0 +1,44 @@
+﻿<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="AmaScan.MainPage">
+
+    
+    <ContentPage.Content>
+        <VerticalStackLayout Padding="30" Spacing="20" VerticalOptions="Center">
+            <!-- 🔼 Your Image -->
+            <Image Source="fdbicon1.png"
+               WidthRequest="100"
+               HeightRequest="100"
+               HorizontalOptions="Center"
+                   VerticalOptions="Start"/>
+
+            <ActivityIndicator x:Name="loadingIndicator"
+           IsRunning="False"
+           IsVisible="False"
+           Color="DarkBlue"
+           HeightRequest="30"
+           WidthRequest="30"
+           HorizontalOptions="Center" />
+            
+            <Label Text="AmaScan Login"
+               FontSize="24"
+               HorizontalOptions="Center" />
+
+            <Entry x:Name="usernameEntry"
+               Placeholder="Username"
+               Keyboard="Default" Text="Russell" />
+
+            <Entry x:Name="passwordEntry"
+               Placeholder="Password"
+               IsPassword="True" Text="rs" />
+
+            <Button Text="Login"
+                Clicked="OnLogin_Clicked"
+                BackgroundColor="#007AFF"
+                TextColor="White"
+                CornerRadius="10" />
+        </VerticalStackLayout>
+    </ContentPage.Content>
+
+</ContentPage>
