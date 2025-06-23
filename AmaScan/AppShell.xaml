@@ -9,4 +9,10 @@
 
     <ShellContent Title="Home" ContentTemplate="{DataTemplate local:MainPage}" Route="MainPage" />
     <ShellContent Title="Receiving" ContentTemplate="{DataTemplate local:ReceivingPage}" Route="ReceivingPage" />
+    <ShellContent Title="Picking" ContentTemplate="{DataTemplate local:PickingMain}" Route="PickingMain" />
+    <ShellContent Title="Picking Detail" ContentTemplate="{DataTemplate local:PickingPage}" Route="PickingPage" />
+    <ShellContent Title="Packing" ContentTemplate="{DataTemplate local:PackingMain}" Route="PackingMain" />
+    <ShellContent Title="Packing Detail" ContentTemplate="{DataTemplate local:PackingPage}" Route="PackingPage" />
+    <ShellContent Title="Checking" ContentTemplate="{DataTemplate local:CheckingMain}" Route="CheckingMain" />
+    <ShellContent Title="Checking Detail" ContentTemplate="{DataTemplate local:CheckingPage}" Route="CheckingPage" />
 </Shell>

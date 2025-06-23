@@ -31,6 +31,20 @@ namespace AmaScan
             builder.Services.AddSingleton<SettingsPage>();
             builder.Services.AddTransient<TransferMainPage>();
             builder.Services.AddTransient<TransferDetailPage>();
+            builder.Services.AddTransient<PickingMain>();
+            builder.Services.AddTransient<PickingDocumentsPage>();
+            builder.Services.AddTransient<PickingPage>();
+            builder.Services.AddTransient<PackingMain>();
+            builder.Services.AddTransient<PackingDocumentsPage>();
+            builder.Services.AddTransient<PackingPage>();
+            builder.Services.AddTransient<CheckingMain>();
+            builder.Services.AddTransient<CheckingDocumentsPage>();
+            builder.Services.AddTransient<CheckingPage>();
+            builder.Services.AddTransient<AuthorizationMain>();
+            builder.Services.AddTransient<AuthorizationDocumentsPage>();
+            builder.Services.AddTransient<AuthorizationPage>();
+
+
 
             return builder.Build();
         }

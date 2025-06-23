@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="AmaScan.PickingMain"
+             Title="Picking - Load SO">
+    <ContentPage.ToolbarItems>
+        <ToolbarItem x:Name="ResetSO" IconImageSource="resumeimg.png" Clicked="OnResetClicked" Order="Primary" Priority="1" />
+    </ContentPage.ToolbarItems>
+
+    <Grid RowDefinitions="Auto,*,Auto" Padding="20">
+        <!-- Top Section -->
+        <VerticalStackLayout Grid.Row="0" Spacing="10">
+            <Label Text="Enter SO Number" FontSize="18" />
+            <Entry x:Name="soEntry" Placeholder="e.g., 000123" Keyboard="Numeric" />
+            <Button Text="Fetch SO" Clicked="OnFetchSOClicked" />
+            <ActivityIndicator x:Name="loadingIndicator" IsVisible="False" IsRunning="False" />
+            <Frame Padding="10" BackgroundColor="LightGray" IsVisible="False" x:Name="soHeaderFrame">
+                <VerticalStackLayout>
+                    <Label x:Name="customerLabel" FontAttributes="Bold" />
+                    <Label x:Name="dueDateLabel" />
+                </VerticalStackLayout>
+            </Frame>
+        </VerticalStackLayout>
+
+        <!-- Middle Section - SO Lines -->
+        <ScrollView Grid.Row="1">
+            <VerticalStackLayout>
+                <CollectionView x:Name="soLinesView" 
+                              IsVisible="False">
+                    <CollectionView.ItemTemplate>
+                        <DataTemplate>
+                            <Frame Padding="10" Margin="0,5" BackgroundColor="{Binding StatusColor}">
+                                <VerticalStackLayout>
+                                    <Label Text="{Binding ItemDesc}" FontAttributes="Bold" />
+                                    <Label Text="{Binding ItemCode, StringFormat='Item Code: {0}'}" />
+                                    <Label Text="{Binding ItemBarcode, StringFormat='Barcode: {0}'}"/>
+                                    <Label Text="{Binding PackSize, StringFormat='Pack Size: {0}'}"/>
+                                    <Label Text="{Binding OrderedQty, StringFormat='Ordered Qty: {0}'}" />
+                                    <Label Text="{Binding DiscrepancyStatus}" 
+                                           TextColor="Red"
+                                           IsVisible="{Binding ShowDiscrepancyStatus}"
+                                           HeightRequest="0"/>
+                                </VerticalStackLayout>
+                            </Frame>
+                        </DataTemplate>
+                    </CollectionView.ItemTemplate>
+                </CollectionView>
+            </VerticalStackLayout>
+        </ScrollView>
+
+        <!-- Bottom Section -->
+        <Button Grid.Row="2" 
+                x:Name="LoadSOButton" 
+                Text="Load SO" 
+                Clicked="OnLoadSOClicked"
+                IsVisible="False"
+                BackgroundColor="DarkGreen"
+                TextColor="White"
+                Margin="0,10,0,0" />
+    </Grid>
+</ContentPage>

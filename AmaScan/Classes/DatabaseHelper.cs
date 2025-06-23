@@ -1,11 +1,5 @@
 ﻿using AmaScan.sqliteModels;
 using SQLite;
-using System;
-using System.Collections.Generic;
-using System.Data.Common;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace AmaScan.Classes
 {
@@ -142,6 +136,168 @@ namespace AmaScan.Classes
         {
             var count = await _dbConnection.Table<Warehouse>().CountAsync();
             return count > 0;
+        }
+
+        // Sales Order Operations
+        public async Task<List<SoLine>> GetSoLinesByOrderNoAsync(string orderNo)
+        {
+            return await _dbConnection.Table<SoLine>()
+                .Where(line => line.DocNum == orderNo)
+                .OrderBy(line => line.Id)
+                .ToListAsync();
+        }
+
+        public async Task UpdateSoLineAsync(SoLine soLine)
+        {
+            await _dbConnection.UpdateAsync(soLine);
+        }
+
+        public async Task UpdateSoHeaderAsync(SoHeader soHeader)
+        {
+            await _dbConnection.UpdateAsync(soHeader);
+        }
+
+        public async Task<SoHeader?> GetSoHeaderByOrderNoAsync(string orderNo)
+        {
+            return await _dbConnection.Table<SoHeader>()
+                .FirstOrDefaultAsync(h => h.Reference == orderNo);
+        }
+
+        public async Task DeleteSoAsync(string orderNo)
+        {
+            var soLines = await _dbConnection.Table<SoLine>().Where(p => p.DocNum == orderNo).ToListAsync();
+            foreach (var line in soLines)
+                await _dbConnection.DeleteAsync(line);
+
+            var soHeader = await _dbConnection.Table<SoHeader>().FirstOrDefaultAsync(p => p.Reference == orderNo);
+            if (soHeader != null)
+                await _dbConnection.DeleteAsync(soHeader);
+        }
+
+        // Find SO line by barcode (for picking validation)
+        public async Task<SoLine?> GetSoLineByBarcodeAsync(string orderNo, string barcode)
+        {
+            // First try to match by ItemBarcode (current behavior)
+            var line = await _dbConnection.Table<SoLine>()
+                .FirstOrDefaultAsync(l => l.DocNum == orderNo && l.ItemBarcode == barcode);
+
+            if (line != null) return line;
+
+            // If no match found, try to match by PackBarcode
+            return await _dbConnection.Table<SoLine>()
+                .FirstOrDefaultAsync(l => l.DocNum == orderNo &&
+                                         !string.IsNullOrEmpty(l.PackBarcode) &&
+                                         l.PackBarcode == barcode);
+        }
+
+        // Check if any user has started a phase at header level
+        public async Task<bool> HasAnyUserStartedPhaseAsync(string orderNo, string phaseField)
+        {
+            var header = await GetSoHeaderByOrderNoAsync(orderNo);
+            if (header == null) return false;
+
+            switch (phaseField.ToLower())
+            {
+                case "picking":
+                    return !string.IsNullOrEmpty(header.Picker);
+                case "packing":
+                    return !string.IsNullOrEmpty(header.Packer);
+                case "checking":
+                    return !string.IsNullOrEmpty(header.Checker);
+                case "authorization":
+                    return !string.IsNullOrEmpty(header.Authorizer);
+                default:
+                    return false;
+            }
+        }
+
+        // Check if a specific user has started a phase at header level
+        public async Task<bool> HasUserStartedPhaseAsync(string orderNo, string userName, string phaseField)
+        {
+            var header = await GetSoHeaderByOrderNoAsync(orderNo);
+            if (header == null) return false;
+
+            switch (phaseField.ToLower())
+            {
+                case "picking":
+                    return header.Picker == userName;
+                case "packing":
+                    return header.Packer == userName;
+                case "checking":
+                    return header.Checker == userName;
+                case "authorization":
+                    return header.Authorizer == userName;
+                default:
+                    return false;
+            }
+        }
+
+        // Set the user who started a phase at header level
+        public async Task SetPhaseUserAsync(string orderNo, string userName, string phaseField)
+        {
+            var header = await GetSoHeaderByOrderNoAsync(orderNo);
+            if (header == null) return;
+
+            switch (phaseField.ToLower())
+            {
+                case "picking":
+                    header.Picker = userName;
+                    header.PickStarted = true;
+                    break;
+                case "packing":
+                    header.Packer = userName;
+                    break;
+                case "checking":
+                    header.Checker = userName;
+                    break;
+                case "authorization":
+                    header.Authorizer = userName;
+                    break;
+            }
+
+            await UpdateSoHeaderAsync(header);
+        }
+
+        // Check if authorization prerequisites are met (all previous phases must be complete)
+        public async Task<bool> CanAuthorizeOrderAsync(string orderNo)
+        {
+            var lines = await GetSoLinesByOrderNoAsync(orderNo);
+            if (!lines.Any()) return false;
+
+            // All lines must have completed picking, packing, and checking phases
+            return lines.All(l => l.Picked && l.Packed && l.Checked);
+        }
+
+        // Check if all lines in an SO have completed picking
+        public async Task<bool> AreAllLinesPickedAsync(string orderNo)
+        {
+            var lines = await GetSoLinesByOrderNoAsync(orderNo);
+            if (!lines.Any()) return false;
+            return lines.All(l => l.Picked);
+        }
+
+        // Check if all lines in an SO have completed packing
+        public async Task<bool> AreAllLinesPackedAsync(string orderNo)
+        {
+            var lines = await GetSoLinesByOrderNoAsync(orderNo);
+            if (!lines.Any()) return false;
+            return lines.All(l => l.Packed);
+        }
+
+        // Check if all lines in an SO have completed checking
+        public async Task<bool> AreAllLinesCheckedAsync(string orderNo)
+        {
+            var lines = await GetSoLinesByOrderNoAsync(orderNo);
+            if (!lines.Any()) return false;
+            return lines.All(l => l.Checked);
+        }
+
+        // Check if all lines in an SO have completed authorization
+        public async Task<bool> AreAllLinesAuthorizedAsync(string orderNo)
+        {
+            var lines = await GetSoLinesByOrderNoAsync(orderNo);
+            if (!lines.Any()) return false;
+            return lines.All(l => l.Authorized);
         }
 
     }

@@ -13,6 +13,23 @@
             Routing.RegisterRoute(nameof(TransferDetailPage), typeof(TransferDetailPage));
 
             Routing.RegisterRoute(nameof(SettingsPage), typeof(SettingsPage));
+
+            Routing.RegisterRoute(nameof(PickingMain), typeof(PickingMain));
+            Routing.RegisterRoute(nameof(PickingPage), typeof(PickingPage));
+            Routing.RegisterRoute(nameof(PickingDocumentsPage), typeof(PickingDocumentsPage));
+            
+            Routing.RegisterRoute(nameof(PackingMain), typeof(PackingMain));
+            Routing.RegisterRoute(nameof(PackingPage), typeof(PackingPage));
+            Routing.RegisterRoute(nameof(PackingDocumentsPage), typeof(PackingDocumentsPage));
+
+            Routing.RegisterRoute(nameof(CheckingMain), typeof(CheckingMain));
+            Routing.RegisterRoute(nameof(CheckingPage), typeof(CheckingPage));
+            Routing.RegisterRoute(nameof(CheckingDocumentsPage), typeof(CheckingDocumentsPage));
+
+            Routing.RegisterRoute(nameof(AuthorizationMain), typeof(AuthorizationMain));
+            Routing.RegisterRoute(nameof(AuthorizationPage), typeof(AuthorizationPage));
+            Routing.RegisterRoute(nameof(AuthorizationDocumentsPage), typeof(AuthorizationDocumentsPage));
+
             InitializeComponent();
             
         }

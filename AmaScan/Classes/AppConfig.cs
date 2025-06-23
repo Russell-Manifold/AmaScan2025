@@ -8,7 +8,8 @@ namespace AmaScan.Classes
 {
     class AppConfig
     {
-        private const string DefaultApiUrl = "http://192.168.0.132:8052/api/";
+        //private const string DefaultApiUrl = "http://192.168.0.132:8052/api/";
+        private const string DefaultApiUrl = "http://192.168.18.111:8084/api/";
 
         public static string ApiBaseUrl
         {

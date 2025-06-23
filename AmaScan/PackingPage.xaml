@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:controls="clr-namespace:AmaScan.Controls"
+             x:Class="AmaScan.PackingPage"
+             Title="Packing">
+
+    <ContentPage.ToolbarItems>
+
+        <ToolbarItem IconImageSource="save.png" Clicked="OnSave_Click" Order="Primary" Priority="1" />
+        <ToolbarItem x:Name="RestartToolbar" IconImageSource="resumeimg.png" Clicked="OnRestartClicked" Order="Primary" Priority="2" />
+        <ToolbarItem IconImageSource="ticksmallo.png" Clicked="OnCompleteClicked" Text="Complete Item" Order="Primary" Priority="3" />
+        <ToolbarItem IconImageSource="double_tick.png" Clicked="OnCompleteHeaderClicked" Order="Primary" Priority="4" />
+    </ContentPage.ToolbarItems>
+
+    <Grid>
+        <!-- Main Content -->
+        <StackLayout Padding="10">
+            <StackLayout x:Name="PackingInputSection" IsVisible="False" Spacing="10">
+                <Label Text="{Binding SoNumber, StringFormat='SO:{0}'}" 
+                       FontAttributes="Bold" 
+                       FontSize="Large" 
+                       HorizontalOptions="Center"/>
+
+                <Label Text="Scan or Enter Item Barcode:" />
+                <controls:NoKeyboardEntry x:Name="BarcodeEntry" 
+                                        Placeholder="Enter barcode" 
+                                        Completed="OnBarcodeEntered" 
+                                        MaxLength="15" 
+                                        Keyboard="Numeric" />
+
+                <Label Text="Enter Quantity:" />
+                <Entry x:Name="QuantityEntry" 
+                       Placeholder="Enter quantity" 
+                       Keyboard="Numeric" 
+                       MaxLength="5" 
+                       TextChanged="QuantityEntry_TextChanged"
+                       Completed="QuantityEntry_Completed" />
+
+                <Grid ColumnDefinitions="*,Auto" Padding="10">
+                    <Label Grid.Column="0" Text="Manual Input" 
+                           VerticalOptions="Center" 
+                           HorizontalOptions="Start" />
+                    <Switch Grid.Column="1" x:Name="ManualInputSwitch" 
+                            IsToggled="False"
+                            Toggled="OnManualInputToggled" 
+                            HorizontalOptions="End" />
+                </Grid>
+
+                <Button x:Name="SaveButton" 
+                        Text="Save" 
+                        BackgroundColor="Green"
+                        TextColor="White"
+                        Clicked="OnSaveProgressClicked" />
+            </StackLayout>
+
+            <Button x:Name="StartPackingButton" 
+                    Text="Start Packing" 
+                    Clicked="OnStartPackingClicked" />
+
+            <!-- Selected Item Display -->
+            <Frame x:Name="SelectedItemFrame" 
+                   Padding="10" 
+                   Margin="10" 
+                   BackgroundColor="{Binding StatusColor}"
+                   BorderColor="LightGray"
+                   IsVisible="False">
+                <StackLayout>
+                    <Label Text="{Binding ItemDesc}" FontAttributes="Bold" />
+                    <Label Text="{Binding ItemCode, StringFormat='Code: {0}'}" />
+                    <Label Text="{Binding ItemBarcode, StringFormat='Barcode: {0}'}" />
+                    <Label Text="{Binding OrderedQty, StringFormat='Ordered: {0}'}" />
+                    <Label Text="{Binding PickedQty, StringFormat='Picked: {0}'}" />
+                    <Label Text="{Binding PackedQty, StringFormat='Packed: {0}'}" />
+                    <Label Text="{Binding PackingOutstandingQty, StringFormat='Outstanding Packing Qty: {0}'}" />
+                    <Label Text="{Binding DiscrepancyStatus}" 
+                       TextColor="Red"
+                       IsVisible="{Binding ShowDiscrepancyStatus}"/>
+                </StackLayout>
+            </Frame>
+        </StackLayout>
+
+        <!-- Loading Indicator - Centered Overlay -->
+        <Grid x:Name="LoadingOverlay" 
+              IsVisible="False"
+              BackgroundColor="Black"
+              Opacity="0.5">
+            <ActivityIndicator x:Name="loadingIndicator" 
+                              IsRunning="False" 
+                              HorizontalOptions="Center" 
+                              VerticalOptions="Center"
+                              Color="White"
+                              Scale="1.5" />
+        </Grid>
+    </Grid>
+</ContentPage> 
