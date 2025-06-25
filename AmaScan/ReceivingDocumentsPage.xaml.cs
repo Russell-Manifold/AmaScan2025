@@ -78,10 +78,9 @@ public partial class ReceivingDocumentsPage : ContentPage, INotifyPropertyChange
         BindingContext = this;
 
         // Initialize PO header fields
-        DNnumber = _poHeader?.DNnumber ?? "";
-        SuppInvNumber = _poHeader?.SuppInvNumber ?? "";
+        //DNnumber = _poHeader?.DNnumber ?? "";
+        //SuppInvNumber = _poHeader?.SuppInvNumber ?? "";
 
-        // Load warehouses (replace with your actual data source or API call)
         LoadWarehouses();
     }
 
@@ -91,21 +90,31 @@ public partial class ReceivingDocumentsPage : ContentPage, INotifyPropertyChange
 
         _poHeader = ReceivingSession.CurrentPoHeader;
 
-        DNnumber = _poHeader?.DNnumber ?? "";
-        SuppInvNumber = _poHeader?.SuppInvNumber ?? "";
+        if (_poHeader == null)
+        {
+            // Show an error if the session is missing
+            MainThread.BeginInvokeOnMainThread(async () =>
+            {
+                await DisplayAlert("Error", "No PO found in session.", "OK");
+                await Shell.Current.GoToAsync("..");
+            });
+            return;
+        }
 
-        // These help update bindings if PO changed
+        DNnumber = _poHeader.DNnumber ?? "";
+        SuppInvNumber = _poHeader.SuppInvNumber ?? "";
+
         OnPropertyChanged(nameof(OrderNo));
     }
 
     private void LoadWarehouses()
     {
         // Example data - replace with API call to get warehouses
-        //WarehouseList = new ObservableCollection<Warehouse>
-        //{
-        //    new Warehouse { Id = "WH1", WarehouseName = "Main Warehouse" },
-        //    new Warehouse { Id = "WH2", WarehouseName = "Secondary Warehouse" },
-        //};
+        WarehouseList = new ObservableCollection<Warehouse>
+        {
+            new Warehouse { Code = "001", Description = "Main Warehouse" },
+            new Warehouse { Code = "003", Description = "Factory Sales" },
+        };
 
         // Optionally select default warehouse here
         SelectedWarehouse = WarehouseList.FirstOrDefault();
@@ -118,19 +127,58 @@ public partial class ReceivingDocumentsPage : ContentPage, INotifyPropertyChange
             await DisplayAlert("Required", "Please enter at least one document number.", "OK");
             return;
         }
+        loadingIndicator.IsVisible = true;
+        loadingIndicator.IsRunning = true;
 
-        _poHeader.DNnumber = DNnumber;
-        _poHeader.SuppInvNumber = SuppInvNumber;
-
+        _poHeader.DNnumber = string.Empty;
+        _poHeader.SuppInvNumber = string.Empty;
+        try
+        {
+            if (!string.IsNullOrWhiteSpace(SuppInvNumber))
+            {
+                _poHeader.SuppInvNumber = SuppInvNumber;
+            }
+        }
+        catch (Exception ex)
+        {
+            await DisplayAlert("Error", $"error 128 occurred: {ex.Message}", "OK");
+        }
+        try
+        {
+            if (!string.IsNullOrWhiteSpace(DNnumber))
+            {
+                _poHeader.DNnumber = DNnumber;
+            }
+        }
+        catch (Exception ex)
+        {
+            await DisplayAlert("Error", $"error 136 occurred: {ex.Message}", "OK");
+        }
+        _poHeader.Status = "Loaded"; // Update status to In Progress
+        try
+        {
+            var databaseHelper = new DatabaseHelper(new SQLiteAsyncConnection(Constants.DatabasePath, Constants.Flags));
+            await databaseHelper.UpdatePoHeaderAsync(_poHeader);
+        }
+        catch (Exception ex)
+        {
+            await DisplayAlert("Error", $"error 145 occurred: {ex.Message}", "OK");
+        }
         // Save updated header
-        var databaseHelper = new DatabaseHelper(new SQLiteAsyncConnection(Constants.DatabasePath, Constants.Flags));
-        await databaseHelper.UpdatePoHeaderAsync(_poHeader);
-
+        
+       
         // Update session data
-        ReceivingSession.CurrentPoHeader = _poHeader;
-        ReceivingSession.DeliveryNote = DNnumber;
-        ReceivingSession.SupplierInvoice = SuppInvNumber;
-
+        try
+        {
+            ReceivingSession.CurrentPoHeader = _poHeader;
+            ReceivingSession.DeliveryNote = DNnumber;
+            ReceivingSession.SupplierInvoice = SuppInvNumber;
+        }
+        catch (Exception ex)
+        {
+            await DisplayAlert("Error", $"error 159 occurred: {ex.Message}", "OK");
+        }
+       
         // TODO: Save the SelectedWarehouse if needed to session or DB
 
         await Shell.Current.GoToAsync(nameof(ReceivingPage));

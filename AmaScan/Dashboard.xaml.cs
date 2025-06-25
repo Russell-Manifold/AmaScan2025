@@ -1,11 +1,9 @@
 using AmaScan.Classes;
 
 namespace AmaScan;
-
 public partial class Dashboard : ContentPage
 {
     private readonly UserSession _userSession;
-
     public bool CanReceive => _userSession.CurrentUser?.CanReceive == true;
     public bool CanTransfer => _userSession.CurrentUser?.CanTransfer == true;
     public bool CanPick => _userSession.CurrentUser?.CanPick == true;
@@ -46,25 +44,7 @@ public partial class Dashboard : ContentPage
 
     private async void OnPage3Clicked(object sender, EventArgs e)
     {
-        var PickingMain = App.Services.GetRequiredService<PickingMain>();
-        await Navigation.PushAsync(PickingMain);
-    }
-
-    private async void OnPage4Clicked(object sender, EventArgs e)
-    {
-        var PackingMain = App.Services.GetRequiredService<PackingMain>();
-        await Navigation.PushAsync(PackingMain);
-    }
-
-    private async void OnPage5Clicked(object sender, EventArgs e)
-    {
-        var CheckingMain = App.Services.GetRequiredService<CheckingMain>();
-        await Navigation.PushAsync(CheckingMain);
-    }
-
-    private async void OnPage6Clicked(object sender, EventArgs e)
-    {
-        var AuthorizationMain = App.Services.GetRequiredService<AuthorizationMain>();
-        await Navigation.PushAsync(AuthorizationMain);
+        var DashboardPicking = App.Services.GetRequiredService<DashboardPicking>();
+        await Navigation.PushAsync(DashboardPicking);
     }
 }

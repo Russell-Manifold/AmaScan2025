@@ -1,11 +1,9 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
-             x:Class="AmaScan.Dashboard"
-             Title="Dashboard">
-    <ContentPage.ToolbarItems>
-        <ToolbarItem IconImageSource="settings.png" Text="" Clicked="OnSettingsClicked" Order="Primary" Priority="1" />
-    </ContentPage.ToolbarItems>
+             x:Class="AmaScan.DashboardPicking"
+             Title="Picking and Packing">
+    
     <Grid>
         <!-- Row Definitions for Fixed and Scrollable Content -->
         <Grid.RowDefinitions>
@@ -25,7 +23,7 @@
         <ScrollView Grid.Row="1" Padding="10">
             <VerticalStackLayout Padding="10" Spacing="10" HorizontalOptions="Fill"  VerticalOptions="Start">
 
-                <!-- 🔘 Image Button 1 -->
+                <!-- 🔘 Image Button 1 --><!--
                 <ImageButton x:Name="BtnReceiving" Source="receivestck.png" IsVisible="{Binding CanReceive}" 
                          WidthRequest="50"
                          HeightRequest="50"
@@ -34,23 +32,52 @@
                        HorizontalOptions="Center"
                        VerticalOptions="Center"/>
 
-                <!-- 🔘 Image Button 2 -->
+                --><!-- 🔘 Image Button 2 --><!--
                 <ImageButton x:Name="btnWhTrf" Source="whtrf.png" IsVisible="{Binding CanTransfer}"
                          WidthRequest="50"
                          HeightRequest="50"
                          Clicked="OnPage2Clicked"/>
                 <Label Text="Warehouse Transfer"
            HorizontalOptions="Center"
-           VerticalOptions="Center"/>
+           VerticalOptions="Center"/>-->
 
                 <!-- 🔘 Image Button 3 - Picking -->
                 <ImageButton x:Name="BtnPicking" Source="receivestck.png" IsVisible="{Binding CanPick}"
                          WidthRequest="50"
                          HeightRequest="50"
                          Clicked="OnPage3Clicked"/>
-                <Label Text="Picking Packing"
+                <Label Text="Picking"
                        HorizontalOptions="Center"
-                       VerticalOptions="Center" IsVisible="{Binding CanPick}" />
+                       VerticalOptions="Center"/>
+
+                <!-- 🔘 Image Button 4 - Packing -->
+                <ImageButton x:Name="BtnPacking" Source="receivestck.png" IsVisible="{Binding CanPack}"
+                         WidthRequest="50"
+                         HeightRequest="50"
+                         Clicked="OnPage4Clicked"/>
+                <Label Text="Packing"
+                       HorizontalOptions="Center"
+                       VerticalOptions="Center"/>
+
+                <!-- 🔘 Image Button 5 - Checking -->
+                <ImageButton x:Name="BtnChecking" Source="receivestck.png" IsVisible="{Binding CanCheck}"
+                         WidthRequest="50"
+                         HeightRequest="50"
+                         Clicked="OnPage5Clicked"/>
+                <Label Text="Checking"
+                       HorizontalOptions="Center"
+                       VerticalOptions="Center"/>
+
+                <!-- 🔘 Image Button 6 - Authorization -->
+                <ImageButton x:Name="BtnAuthorization" Source="receivestck.png" IsVisible="{Binding CanAuth}"
+                         WidthRequest="50"
+                         HeightRequest="50"
+                         Clicked="OnPage6Clicked"/>
+                <Label Text="Authorization"
+                       HorizontalOptions="Center"
+                       VerticalOptions="Center"/>
+
+
             </VerticalStackLayout>
         </ScrollView>
     </Grid>

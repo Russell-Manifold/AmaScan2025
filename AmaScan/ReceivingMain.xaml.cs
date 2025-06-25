@@ -147,6 +147,11 @@ public partial class ReceivingMain : ContentPage
             #endregion
 
             await SaveToLocalDatabaseAsync(_currentPoResponse);
+            if (existingPo == null)
+            {
+                existingPo = await databaseHelper.GetPoHeaderByOrderNoAsync(poNumber);
+                ReceivingSession.CurrentPoHeader = existingPo;
+            }
             await DisplayAlert("Success", "PO has been loaded for offline receiving.", "OK");
 
             bool startReceiving = await DisplayAlert("Start Receiving?", "Would you like to start receiving this PO now?", "Yes", "No");

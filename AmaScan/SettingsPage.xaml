@@ -14,8 +14,11 @@
         <Label Text="Default Warehouse:" FontAttributes="Bold" />
         <Picker x:Name="WarehousePicker" Title="Select Warehouse" />
 
-        <Label Text="Reject Warehouse:" FontAttributes="Bold" />
-        <Picker x:Name="WarehousePickerR" Title="Reject Warehouse" />
+        <Label Text="Reject Warehouse 1:" FontAttributes="Bold" />
+        <Picker x:Name="WarehousePickerR1" Title="Reject Warehouse 1" />
+
+        <Label Text="Reject Warehouse 2:" FontAttributes="Bold" />
+        <Picker x:Name="WarehousePickerR2" Title="Reject Warehouse 2" />
         
         <Button Text="Save"
                 Clicked="OnSaveClicked"

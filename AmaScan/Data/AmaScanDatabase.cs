@@ -18,7 +18,6 @@ public class AmaScanDatabase
     {
         if (_initialized)
             return;
-
         Database = new SQLiteAsyncConnection(Constants.DatabasePath, Constants.Flags);
         await Database.CreateTableAsync<StockItem>();
         await Database.CreateTableAsync<PoHeader>();
@@ -29,6 +28,4 @@ public class AmaScanDatabase
 
         _initialized = true;
     }
-
-
 }

@@ -10,7 +10,7 @@
         <Label Text="Into Warehouse" />
         <Picker x:Name="WarehousePicker"
                 ItemsSource="{Binding WarehouseList}"
-                ItemDisplayBinding="{Binding WarehouseName}"
+                ItemDisplayBinding="{Binding Description}"
                 SelectedItem="{Binding SelectedWarehouse}" />
         
         <Label Text="Delivery Note Number" />
@@ -18,9 +18,9 @@
 
         <Label Text="Supplier Invoice Number" />
         <Entry x:Name="InvoiceNumberEntry" Placeholder="Supplier Invoice Number" Text="{Binding SuppInvNumber}" />
+        <ActivityIndicator x:Name="loadingIndicator" IsVisible="False" IsRunning="False" />
 
-        
-        
+
         <Button Text="Start Receiving"
                 Clicked="OnAcceptClicked"
                 BackgroundColor="Green"

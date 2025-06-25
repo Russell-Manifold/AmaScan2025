@@ -14,10 +14,39 @@ namespace AmaScan
         public ICommand OnPoLineLongPressed { get; }
         public event PropertyChangedEventHandler PropertyChanged;
 
+        private ObservableCollection<Warehouse> _warehouseList = new();
+        public ObservableCollection<Warehouse> WarehouseList
+        {
+            get => _warehouseList;
+            set
+            {
+                if (_warehouseList != value)
+                {
+                    _warehouseList = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        private Warehouse _selectedWarehouse;
+        public Warehouse SelectedWarehouse
+        {
+            get => _selectedWarehouse;
+            set
+            {
+                if (_selectedWarehouse != value)
+                {
+                    _selectedWarehouse = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
         public string PoNumber => _poHeader?.OrderNo ?? "";
         public string DueDateFormatted => _poHeader?.DueDate.ToString("yyyy-MM-dd") ?? "";
         public string Status => _poHeader?.Status ?? "";
 
+        public List<Item> ItemList { get; set; }
         protected override async void OnAppearing()
         {
             base.OnAppearing();
@@ -41,9 +70,24 @@ namespace AmaScan
         {
             InitializeComponent();
             BindingContext = this;
-            _dbHelper = new DatabaseHelper(new SQLiteAsyncConnection(Constants.DatabasePath, Constants.Flags));
-
-            _poHeader = ReceivingSession.CurrentPoHeader;
+            try
+            {
+                _dbHelper = new DatabaseHelper(new SQLiteAsyncConnection(Constants.DatabasePath, Constants.Flags));
+                _poHeader = ReceivingSession.CurrentPoHeader;
+            }
+            catch (Exception ex)
+            {
+                // Handle any exceptions that occur during initialization
+                DisplayAlert("Error", $"Failed to initialize database: {ex.Message}", "OK");
+            }
+            try
+            {
+                LoadWarehouses();
+            } catch (Exception ex)
+            {
+                // Handle any exceptions that occur during warehouse loading
+                DisplayAlert("Error", $"Failed to load warehouses: {ex.Message}", "OK");
+            }
 
             if (_poHeader == null)
             {
@@ -95,6 +139,9 @@ namespace AmaScan
             var stockItem = await _dbHelper.ResolveStockItemByBarcodeAsync(scannedBarcode);
             if (stockItem == null || string.IsNullOrEmpty(stockItem.bar_code))
             {
+                BarcodeEntry.Text = string.Empty;
+                QuantityEntry.Text = "0";
+                BarcodeEntry.Focus();
                 await DisplayAlert("Error", $"Scanned barcode '{scannedBarcode}' not found in stock items.", "OK");
                 return;
             }
@@ -104,6 +151,9 @@ namespace AmaScan
 
             if (matchingLine == null)
             {
+                BarcodeEntry.Text = string.Empty;
+                QuantityEntry.Text = "0";
+                BarcodeEntry.Focus();
                 await DisplayAlert("Error", $"Item '{stockItem.bar_code}' not found in this PO.", "OK");
                 return;
             }
@@ -112,6 +162,7 @@ namespace AmaScan
             if (!decimal.TryParse(QuantityEntry.Text, out decimal thisQty) || thisQty <= 0)
             {
                 await DisplayAlert("Error", "Invalid quantity entered.", "OK");
+                QuantityEntry.Text = "0";
                 return;
             }
 
@@ -251,6 +302,8 @@ namespace AmaScan
                 SaveButton.BackgroundColor = Colors.Green;
                 SaveButton.TextColor = Colors.White;
                 SaveButton.Text = "Accept";
+                RejStorePicker.IsVisible = false;
+                lblRejStore.IsVisible = false;
             }
             else
             {
@@ -258,6 +311,9 @@ namespace AmaScan
                 SaveButton.BackgroundColor = Colors.Red;
                 SaveButton.TextColor = Colors.White;
                 SaveButton.Text = "Save as Rejected";
+                LoadWarehouses();
+                RejStorePicker.IsVisible = true;
+                lblRejStore.IsVisible = true;
             }
         }
 
@@ -293,5 +349,25 @@ namespace AmaScan
                 }
             }      
         }
+
+        public class Item
+        {
+            public string Name { get; set; }
+        }
+
+        private void LoadWarehouses()
+        {
+           
+            // Example data - replace with API call to get warehouses
+            WarehouseList = new ObservableCollection<Warehouse>
+        {
+            new Warehouse { Code = "001", Description = "Main Warehouse" },
+            new Warehouse { Code = "003", Description = "Factory Sales" },
+        };
+
+            // Optionally select default warehouse here
+            SelectedWarehouse = WarehouseList.FirstOrDefault();
+        }
+
     }
 }

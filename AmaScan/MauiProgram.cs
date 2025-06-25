@@ -24,6 +24,7 @@ namespace AmaScan
             builder.Services.AddSingleton<AmaScanDatabase>();
             builder.Services.AddSingleton<UserSession>();
             builder.Services.AddTransient<Dashboard>();
+            builder.Services.AddTransient<DashboardPicking>();
             builder.Services.AddSingleton<MainPage>();
             builder.Services.AddSingleton<ReceivingMain>();
             builder.Services.AddTransient<ReceivingDocumentsPage>();
@@ -43,8 +44,6 @@ namespace AmaScan
             builder.Services.AddTransient<AuthorizationMain>();
             builder.Services.AddTransient<AuthorizationDocumentsPage>();
             builder.Services.AddTransient<AuthorizationPage>();
-
-
 
             return builder.Build();
         }

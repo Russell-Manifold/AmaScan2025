@@ -93,5 +93,11 @@ namespace AmaScan
                 return null;
             }
         }
+        private async void OnSettingsClicked(object sender, EventArgs e)
+        {
+            var SettingsPage = App.Services.GetRequiredService<SettingsPage>();
+            await Navigation.PushAsync(SettingsPage);
+            //await Shell.Current.GoToAsync(nameof(SettingsPage));
+        }
     }
 }
