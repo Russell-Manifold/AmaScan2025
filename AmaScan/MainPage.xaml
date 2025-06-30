@@ -28,17 +28,23 @@
 
             <Entry x:Name="usernameEntry"
                Placeholder="Username"
-               Keyboard="Default" Text="Russell" />
+               Keyboard="Default" Text="Pack" />
 
             <Entry x:Name="passwordEntry"
                Placeholder="Password"
-               IsPassword="True" Text="rs" />
+               IsPassword="True" Text="pa" />
 
             <Button Text="Login"
                 Clicked="OnLogin_Clicked"
                 BackgroundColor="#007AFF"
                 TextColor="White"
                 CornerRadius="10" />
+
+            <Button Text="Test Connection"
+     Clicked="Button_Clicked"
+     BackgroundColor="#007AFF"
+     TextColor="White"
+     CornerRadius="10" />
         </VerticalStackLayout>
     </ContentPage.Content>
 

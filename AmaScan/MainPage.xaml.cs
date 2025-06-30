@@ -27,7 +27,7 @@ namespace AmaScan
             try
             {
                 var username = usernameEntry.Text?.Trim();
-                var password = passwordEntry.Text;
+                var password = passwordEntry.Text.Trim();
 
                 if (string.IsNullOrWhiteSpace(username) || string.IsNullOrWhiteSpace(password))
                 {
@@ -73,7 +73,7 @@ namespace AmaScan
 
             try
             {
-                var response = await client.PostAsync($"{AppConfig.ApiBaseUrl}/GetUser/GetUserAsync", content);
+                var response = await client.PostAsync($"{AppConfig.ApiBaseUrl}GetUser/GetUserAsync", content);
                 if (response.IsSuccessStatusCode)
                 {
                     string responseContent = await response.Content.ReadAsStringAsync();
@@ -98,6 +98,30 @@ namespace AmaScan
             var SettingsPage = App.Services.GetRequiredService<SettingsPage>();
             await Navigation.PushAsync(SettingsPage);
             //await Shell.Current.GoToAsync(nameof(SettingsPage));
+        }
+
+        private async void Button_Clicked(object sender, EventArgs e)
+        {
+            var client = new HttpClient();
+            try
+            {
+                var response = await client.GetAsync($"{AppConfig.ApiBaseUrl}connection/check-connection");
+                if (response.IsSuccessStatusCode)
+                {
+                    string responseContent = await response.Content.ReadAsStringAsync();
+                    var user = JsonConvert.DeserializeObject<User>(responseContent);
+                    await DisplayAlert("Connection Test","Connection Successful.", "OK");
+                }
+                else
+                {
+                    string error = await response.Content.ReadAsStringAsync();
+                    await DisplayAlert("Connection Test", $"Connection failed: {response.StatusCode} - {error}", "OK");
+                }
+            }
+            catch (Exception ex)
+            {
+                await DisplayAlert("Connection Test", $"Connection failed 2: {ex.Message}", "OK");
+            }
         }
     }
 }
