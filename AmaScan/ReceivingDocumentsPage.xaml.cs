@@ -11,7 +11,7 @@ public partial class ReceivingDocumentsPage : ContentPage, INotifyPropertyChange
     //private PoHeader _poHeader => ReceivingSession.CurrentPoHeader;
 
     private PoHeader _poHeader;
-
+    private DatabaseHelper _dbHelper;
     private string _dnNumber;
     public string DNnumber
     {
@@ -75,16 +75,11 @@ public partial class ReceivingDocumentsPage : ContentPage, INotifyPropertyChange
     public ReceivingDocumentsPage()
     {
         InitializeComponent();
-        BindingContext = this;
-
-        // Initialize PO header fields
-        //DNnumber = _poHeader?.DNnumber ?? "";
-        //SuppInvNumber = _poHeader?.SuppInvNumber ?? "";
-
-        LoadWarehouses();
+        BindingContext = this; 
+        _dbHelper = new DatabaseHelper(new SQLiteAsyncConnection(Constants.DatabasePath, Constants.Flags));
     }
 
-    protected override void OnAppearing()
+    protected override async void OnAppearing()
     {
         base.OnAppearing();
 
@@ -105,19 +100,40 @@ public partial class ReceivingDocumentsPage : ContentPage, INotifyPropertyChange
         SuppInvNumber = _poHeader.SuppInvNumber ?? "";
 
         OnPropertyChanged(nameof(OrderNo));
+        await LoadWarehousesAsync();
     }
 
-    private void LoadWarehouses()
+    private async Task LoadWarehousesAsync()
     {
-        // Example data - replace with API call to get warehouses
-        WarehouseList = new ObservableCollection<Warehouse>
+        try
         {
-            new Warehouse { Code = "001", Description = "Main Warehouse" },
-            new Warehouse { Code = "003", Description = "Factory Sales" },
-        };
+            var savedCode = Preferences.Get("DefaultWarehouseCode", "");
+            var localWarehouses = await _dbHelper.GetWarehousesAsync();
 
-        // Optionally select default warehouse here
-        SelectedWarehouse = WarehouseList.FirstOrDefault();
+            var fullList = new ObservableCollection<Warehouse>(
+                new[] { new Warehouse { Code = "", Description = "Select Warehouse" } }.Concat(localWarehouses)
+            );
+
+            WarehouseList = fullList;
+
+            // Delay to avoid auto-popup on Picker
+            await Task.Delay(100);
+            try
+            {
+                if (!string.IsNullOrWhiteSpace(savedCode))
+                {
+                    SelectedWarehouse = WarehouseList.FirstOrDefault(w => w.Code == savedCode) ?? WarehouseList.FirstOrDefault();
+                }
+            }
+            catch (Exception ex)
+            {
+                await DisplayAlert("Error", $"Failed to set default warehouse: {ex.Message}", "OK");
+            }
+        }
+        catch (Exception ex)
+        {
+            await DisplayAlert("Error", $"Failed to load warehouses: {ex.Message}", "OK");
+        }
     }
 
     private async void OnAcceptClicked(object sender, EventArgs e)
@@ -178,9 +194,10 @@ public partial class ReceivingDocumentsPage : ContentPage, INotifyPropertyChange
         {
             await DisplayAlert("Error", $"error 159 occurred: {ex.Message}", "OK");
         }
-       
-        // TODO: Save the SelectedWarehouse if needed to session or DB
 
+        // TODO: Save the SelectedWarehouse if needed to session or DB
+        loadingIndicator.IsRunning = false;
+        loadingIndicator.IsVisible = false;
         await Shell.Current.GoToAsync(nameof(ReceivingPage));
     }
 

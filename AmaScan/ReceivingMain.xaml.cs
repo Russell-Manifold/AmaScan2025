@@ -4,7 +4,6 @@ using Data.Model;
 using SQLite;
 using System.Diagnostics;
 using System.Net.Http.Json;
-using System.Reflection.PortableExecutable;
 using System.Text.Json;
 
 namespace AmaScan;
@@ -220,37 +219,41 @@ public partial class ReceivingMain : ContentPage
 
     private async void Reset_Clicked(object sender, EventArgs e)
     {
-        if (string.IsNullOrWhiteSpace(_currentPoResponse.OrderNo))
+        if (_currentPoResponse != null)
         {
-            await DisplayAlert("Error", "No PO loaded to reset.", "OK");
-            return;
-        }
+            if (string.IsNullOrWhiteSpace(_currentPoResponse.OrderNo))
+            {
+                await DisplayAlert("Error", "No PO loaded to reset.", "OK");
+                return;
+            }
+            bool confirm = await DisplayAlert("Reset PO", $"Are you sure you want to remove PO {_currentPoResponse.OrderNo} from this device?", "Yes", "No");
+            if (!confirm) return;
 
-        bool confirm = await DisplayAlert("Reset PO", $"Are you sure you want to remove PO {_currentPoResponse.OrderNo} from this device?", "Yes", "No");
-        if (!confirm) return;
+            try
+            {
+                // Delete from database
+                var databaseHelper = new DatabaseHelper(new SQLiteAsyncConnection(Constants.DatabasePath, Constants.Flags));
+                await databaseHelper.DeletePoAsync(_currentPoResponse.OrderNo);
 
-        try
-        {
-            // Delete from database
-             var databaseHelper = new DatabaseHelper(new SQLiteAsyncConnection(Constants.DatabasePath, Constants.Flags));
-            await databaseHelper.DeletePoAsync(_currentPoResponse.OrderNo);
+                ReceivingSession.SupplierInvoice = null;
+                ReceivingSession.DeliveryNote = null;
 
-            ReceivingSession.SupplierInvoice = null;
-            ReceivingSession.DeliveryNote = null;
+                _currentPoResponse = null;
 
-            supplierLabel.Text = string.Empty;
-            dueDateLabel.Text = string.Empty;
-            poHeaderFrame.IsVisible = false;
-            LoadPOButton.IsVisible = false;
+                supplierLabel.Text = string.Empty;
+                dueDateLabel.Text = string.Empty;
+                poHeaderFrame.IsVisible = false;
+                LoadPOButton.IsVisible = false;
 
-            poLinesView.ItemsSource = null;
-            poLinesView.IsVisible = false;
+                poLinesView.ItemsSource = null;
+                poLinesView.IsVisible = false;
 
-            await DisplayAlert("Reset", "PO removed from device. You can fetch it again.", "OK");
-        }
-        catch (Exception ex)
-        {
-            await DisplayAlert("Error", $"Failed to reset PO. {ex.Message}", "OK");
+                await DisplayAlert("Reset", "PO removed from device. You can fetch it again.", "OK");
+            }
+            catch (Exception ex)
+            {
+                await DisplayAlert("Error", $"Failed to reset PO. {ex.Message}", "OK");
+            }
         }
     }
 }

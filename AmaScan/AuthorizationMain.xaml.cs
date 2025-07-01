@@ -219,12 +219,10 @@ public partial class AuthorizationMain : ContentPage
 
     private async void OnResetClicked(object sender, EventArgs e)
     {
-        bool confirm = await DisplayAlert("Reset",
-            "Are you sure you want to reset? This will clear all current data.", "Yes", "No");
-
-        if (confirm)
+        if (_currentSoResponse != null)
         {
-            ClearSessionAndUI();
+            bool confirm = await DisplayAlert("Reset", "Are you sure you want to reset? This will clear all current data.", "Yes", "No");
+            if (confirm) ClearSessionAndUI();
         }
     }
 }
