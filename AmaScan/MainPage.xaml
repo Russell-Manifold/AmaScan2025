@@ -9,8 +9,8 @@
         <VerticalStackLayout Padding="30" Spacing="20" VerticalOptions="Center">
             <!-- 🔼 Your Image -->
             <Image Source="fdbicon1.png"
-               WidthRequest="100"
-               HeightRequest="100"
+               WidthRequest="70"
+               HeightRequest="70"
                HorizontalOptions="Center"
                    VerticalOptions="Start"/>
 
@@ -23,7 +23,7 @@
            HorizontalOptions="Center" />
             
             <Label Text="AmaScan Login"
-               FontSize="24"
+               FontSize="18"
                HorizontalOptions="Center" />
 
             <Entry x:Name="usernameEntry"

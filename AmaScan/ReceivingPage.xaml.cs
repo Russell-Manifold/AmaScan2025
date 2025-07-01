@@ -1,9 +1,10 @@
-using System.Collections.ObjectModel;
-using System.ComponentModel;
-using System.Windows.Input;
 using AmaScan.Classes;
 using AmaScan.sqliteModels;
 using SQLite;
+using System.Collections.ObjectModel;
+using System.ComponentModel;
+using System.Runtime.CompilerServices;
+using System.Windows.Input;
 
 namespace AmaScan
 {
@@ -47,54 +48,100 @@ namespace AmaScan
         public string Status => _poHeader?.Status ?? "";
 
         public List<Item> ItemList { get; set; }
-        protected override async void OnAppearing()
-        {
-            base.OnAppearing();
+        //protected override async void OnAppearing()
+        //{
+        //    base.OnAppearing();
 
-            _poHeader = ReceivingSession.CurrentPoHeader;  // Refresh PO header here
+        //    _poHeader = ReceivingSession.CurrentPoHeader;  // Refresh PO header here
 
-            // Update UI bindings
-            OnPropertyChanged(nameof(PoNumber));
-            OnPropertyChanged(nameof(DueDateFormatted));
-            OnPropertyChanged(nameof(Status));
+        //    bool confirm = await DisplayAlert("Reset", "PO Header successfully loaded", "Yes", "No");
+        //    if (confirm)
+        //    {
+        //        // Update UI bindings
+        //        OnPropertyChanged(nameof(PoNumber));
+        //        OnPropertyChanged(nameof(DueDateFormatted));
+        //        OnPropertyChanged(nameof(Status));
 
-            AcceptSwitch_Toggled(AcceptSwitch, new ToggledEventArgs(AcceptSwitch.IsToggled));
+        //        AcceptSwitch_Toggled(AcceptSwitch, new ToggledEventArgs(AcceptSwitch.IsToggled));
+        //        if (confirm)
+        //        {
+        //            if (!string.IsNullOrEmpty(_poHeader?.OrderNo))
+        //            {
+        //                try {                             // Load PO lines for the current PO header
+        //                    await LoadPoLinesAsync(_poHeader.OrderNo);
+        //                }
+        //                catch (Exception ex)
+        //                {
+        //                    // Handle any exceptions that occur during loading
+        //                    await DisplayAlert("Error", $"Failed to load PO lines: {ex.Message}", "OK");
+        //                }   
+        //            }
+        //        }
+        //    }
+        //}
 
-            if (!string.IsNullOrEmpty(_poHeader?.OrderNo))
-            {
-                await LoadPoLinesAsync(_poHeader.OrderNo);
-            }
-        }
 
         public ReceivingPage()
         {
             InitializeComponent();
             BindingContext = this;
-            try
-            {
-                _dbHelper = new DatabaseHelper(new SQLiteAsyncConnection(Constants.DatabasePath, Constants.Flags));
-                _poHeader = ReceivingSession.CurrentPoHeader;
-            }
-            catch (Exception ex)
-            {
-                // Handle any exceptions that occur during initialization
-                DisplayAlert("Error", $"Failed to initialize database: {ex.Message}", "OK");
-            }
-            try
-            {
-                LoadWarehouses();
-            } catch (Exception ex)
-            {
-                // Handle any exceptions that occur during warehouse loading
-                DisplayAlert("Error", $"Failed to load warehouses: {ex.Message}", "OK");
-            }
+
+            _dbHelper = new DatabaseHelper(new SQLiteAsyncConnection(Constants.DatabasePath, Constants.Flags));
+        }
+
+        protected override async void OnAppearing()
+        {
+            base.OnAppearing();
+            loadingIndicator.IsVisible = true;
+            loadingIndicator.IsRunning = true;
+            _poHeader = ReceivingSession.CurrentPoHeader;
 
             if (_poHeader == null)
             {
-                // Handle missing session case gracefully
-                Shell.Current.GoToAsync("..");
+                await MainThread.InvokeOnMainThreadAsync(async () =>
+                await DisplayAlert("Error", "No PO found in session.", "OK"));
+                await Shell.Current.GoToAsync("..");
+                return;
+            }
+
+            try
+            {
+                // Show confirmation that PO header was loaded
+                //bool confirm = await DisplayAlert("Reset", "PO Header successfully loaded", "Yes", "No");
+                //if (!confirm) return;
+
+                // Refresh UI bindings
+                OnPropertyChanged(nameof(PoNumber));
+                OnPropertyChanged(nameof(DueDateFormatted));
+                OnPropertyChanged(nameof(Status));
+
+                // Handle switch toggle (if needed)
+                AcceptSwitch_Toggled(AcceptSwitch, new ToggledEventArgs(AcceptSwitch.IsToggled));
+
+                // Load PO lines
+                if (!string.IsNullOrEmpty(_poHeader?.OrderNo))
+                    await LoadPoLinesAsync(_poHeader.OrderNo);
+                loadingIndicator.IsVisible = false;
+                loadingIndicator.IsRunning = false;
+            }
+            catch (Exception ex)
+            {
+                await DisplayAlert("Error", $"Failed to load PO data: {ex.Message}", "OK");
             }
         }
+
+        //private async void LoadWarehouses()
+        //{
+        //    try
+        //    {
+        //        // Load warehouses if needed here (optional or stub)
+        //    }
+        //    catch (Exception ex)
+        //    {
+        //        await DisplayAlert("Error", $"Failed to load warehouses: {ex.Message}", "OK");
+        //    }
+        //}
+
 
         protected void OnPropertyChanged(string propertyName) =>
          PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));

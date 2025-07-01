@@ -13,6 +13,7 @@ public partial class ReceivingDocumentsPage : ContentPage, INotifyPropertyChange
     private PoHeader _poHeader;
     private DatabaseHelper _dbHelper;
     private string _dnNumber;
+    private readonly DatabaseHelper _databaseHelper = new(new SQLiteAsyncConnection(Constants.DatabasePath, Constants.Flags));
     public string DNnumber
     {
         get => _dnNumber;
@@ -76,7 +77,6 @@ public partial class ReceivingDocumentsPage : ContentPage, INotifyPropertyChange
     {
         InitializeComponent();
         BindingContext = this; 
-        _dbHelper = new DatabaseHelper(new SQLiteAsyncConnection(Constants.DatabasePath, Constants.Flags));
     }
 
     protected override async void OnAppearing()
@@ -84,10 +84,8 @@ public partial class ReceivingDocumentsPage : ContentPage, INotifyPropertyChange
         base.OnAppearing();
 
         _poHeader = ReceivingSession.CurrentPoHeader;
-
         if (_poHeader == null)
         {
-            // Show an error if the session is missing
             MainThread.BeginInvokeOnMainThread(async () =>
             {
                 await DisplayAlert("Error", "No PO found in session.", "OK");
@@ -98,8 +96,8 @@ public partial class ReceivingDocumentsPage : ContentPage, INotifyPropertyChange
 
         DNnumber = _poHeader.DNnumber ?? "";
         SuppInvNumber = _poHeader.SuppInvNumber ?? "";
-
         OnPropertyChanged(nameof(OrderNo));
+
         await LoadWarehousesAsync();
     }
 
@@ -108,7 +106,7 @@ public partial class ReceivingDocumentsPage : ContentPage, INotifyPropertyChange
         try
         {
             var savedCode = Preferences.Get("DefaultWarehouseCode", "");
-            var localWarehouses = await _dbHelper.GetWarehousesAsync();
+            var localWarehouses = await _databaseHelper.GetWarehousesAsync();
 
             var fullList = new ObservableCollection<Warehouse>(
                 new[] { new Warehouse { Code = "", Description = "Select Warehouse" } }.Concat(localWarehouses)
@@ -120,10 +118,7 @@ public partial class ReceivingDocumentsPage : ContentPage, INotifyPropertyChange
             await Task.Delay(100);
             try
             {
-                if (!string.IsNullOrWhiteSpace(savedCode))
-                {
-                    SelectedWarehouse = WarehouseList.FirstOrDefault(w => w.Code == savedCode) ?? WarehouseList.FirstOrDefault();
-                }
+                SelectedWarehouse = WarehouseList.FirstOrDefault(w => w.Description.ToString().ToLower().Contains("main")) ?? WarehouseList.FirstOrDefault();
             }
             catch (Exception ex)
             {
