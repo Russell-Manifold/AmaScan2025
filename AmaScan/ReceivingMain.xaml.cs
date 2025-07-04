@@ -34,11 +34,6 @@ public partial class ReceivingMain : ContentPage
         _currentPoResponse = null;
         _poHeader = null;
 
-        // Clear session state
-        ReceivingSession.CurrentPoHeader = null;
-        ReceivingSession.SupplierInvoice = null;
-        ReceivingSession.DeliveryNote = null;
-
         // Clear UI elements
         poEntry.Text = string.Empty;
         supplierLabel.Text = string.Empty;
@@ -65,11 +60,6 @@ public partial class ReceivingMain : ContentPage
 
         try
         {
-            // Clear session values related to header
-            ReceivingSession.CurrentPoHeader = null;
-            ReceivingSession.SupplierInvoice = null;
-            ReceivingSession.DeliveryNote = null;
-
             string url = $"{AppConfig.ApiBaseUrl}GetPurchaseOrder/{Uri.EscapeDataString(poNumber)}";
             _currentPoResponse = await _httpClient.GetFromJsonAsync<PurchaseOrderResponse>(url);
 
@@ -81,7 +71,7 @@ public partial class ReceivingMain : ContentPage
 
             _currentPoResponse.OrderNo = poNumber;
 
-            ReceivingSession.CurrentPoHeader = new PoHeader
+            PoHeader CurrentPoHeader = new PoHeader
             {
                 OrderNo = _currentPoResponse.OrderNo,
                 Status = "Started",
@@ -126,15 +116,14 @@ public partial class ReceivingMain : ContentPage
             string poNumber = _currentPoResponse.OrderNo;
             var databaseHelper = new DatabaseHelper(new SQLiteAsyncConnection(Constants.DatabasePath, Constants.Flags));
 
-            #region Removef For Testing
+            #region Remove For Testing
             var existingPo = await databaseHelper.GetPoHeaderByOrderNoAsync(poNumber);
-            ReceivingSession.CurrentPoHeader = existingPo;
             if (existingPo != null)
             {
                 bool goToReceiving = await DisplayAlert("Resume Receiving?", "This PO is already loaded. Would you like to resume receiving?", "Yes", "No");
                 if (goToReceiving)
                 {
-                    await Shell.Current.GoToAsync(nameof(ReceivingDocumentsPage));
+                    await Shell.Current.GoToAsync($"{nameof(ReceivingDocumentsPage)}?po={poNumber}");
                     return;
                 }
                 else
@@ -149,14 +138,13 @@ public partial class ReceivingMain : ContentPage
             if (existingPo == null)
             {
                 existingPo = await databaseHelper.GetPoHeaderByOrderNoAsync(poNumber);
-                ReceivingSession.CurrentPoHeader = existingPo;
             }
             await DisplayAlert("Success", "PO has been loaded for offline receiving.", "OK");
 
             bool startReceiving = await DisplayAlert("Start Receiving?", "Would you like to start receiving this PO now?", "Yes", "No");
             if (startReceiving)
             {
-                await Shell.Current.GoToAsync(nameof(ReceivingDocumentsPage));
+                await Shell.Current.GoToAsync($"{nameof(ReceivingDocumentsPage)}?po={poNumber}");
             }
         }
         catch (Exception ex)
@@ -234,9 +222,6 @@ public partial class ReceivingMain : ContentPage
                 // Delete from database
                 var databaseHelper = new DatabaseHelper(new SQLiteAsyncConnection(Constants.DatabasePath, Constants.Flags));
                 await databaseHelper.DeletePoAsync(_currentPoResponse.OrderNo);
-
-                ReceivingSession.SupplierInvoice = null;
-                ReceivingSession.DeliveryNote = null;
 
                 _currentPoResponse = null;
 

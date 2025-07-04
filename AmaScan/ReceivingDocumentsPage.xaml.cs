@@ -1,19 +1,31 @@
-using System.Collections.ObjectModel;
-using System.ComponentModel;
-using System.Runtime.CompilerServices;
 using AmaScan.Classes;
 using AmaScan.sqliteModels;
 using SQLite;
+using System.Collections.ObjectModel;
+using System.ComponentModel;
+using System.Runtime.CompilerServices;
+using static Android.App.DownloadManager;
 
 namespace AmaScan;
+
+[QueryProperty(nameof(PoQuery), "po")]
 public partial class ReceivingDocumentsPage : ContentPage, INotifyPropertyChanged
 {
-    //private PoHeader _poHeader => ReceivingSession.CurrentPoHeader;
+    private string _poQuery;
+    public string PoQuery
+    {
+        get => _poQuery;
+        set
+        {
+            _poQuery = Uri.UnescapeDataString(value);
+            _ = LoadPoHeaderAsync(_poQuery);
+        }
+    }
 
     private PoHeader _poHeader;
-    private DatabaseHelper _dbHelper;
     private string _dnNumber;
     private readonly DatabaseHelper _databaseHelper = new(new SQLiteAsyncConnection(Constants.DatabasePath, Constants.Flags));
+
     public string DNnumber
     {
         get => _dnNumber;
@@ -41,10 +53,8 @@ public partial class ReceivingDocumentsPage : ContentPage, INotifyPropertyChange
         }
     }
 
-    // New: OrderNo property bound to "Receiving PO" label
     public string OrderNo => _poHeader?.OrderNo ?? "";
 
-    // Warehouse related
     private ObservableCollection<Warehouse> _warehouseList = new();
     public ObservableCollection<Warehouse> WarehouseList
     {
@@ -76,29 +86,32 @@ public partial class ReceivingDocumentsPage : ContentPage, INotifyPropertyChange
     public ReceivingDocumentsPage()
     {
         InitializeComponent();
-        BindingContext = this; 
+        BindingContext = this;
     }
 
-    protected override async void OnAppearing()
+    private async Task LoadPoHeaderAsync(string poNumber)
     {
-        base.OnAppearing();
-
-        _poHeader = ReceivingSession.CurrentPoHeader;
-        if (_poHeader == null)
+        try
         {
-            MainThread.BeginInvokeOnMainThread(async () =>
+            _poHeader = await _databaseHelper.GetPoHeaderByOrderNoAsync(poNumber);
+
+            if (_poHeader == null)
             {
-                await DisplayAlert("Error", "No PO found in session.", "OK");
+                await DisplayAlert("Error", $"PO not found: {poNumber}", "OK");
                 await Shell.Current.GoToAsync("..");
-            });
-            return;
+                return;
+            }
+
+            DNnumber = _poHeader.DNnumber ?? "";
+            SuppInvNumber = _poHeader.SuppInvNumber ?? "";
+            OnPropertyChanged(nameof(OrderNo));
+
+            await LoadWarehousesAsync();
         }
-
-        DNnumber = _poHeader.DNnumber ?? "";
-        SuppInvNumber = _poHeader.SuppInvNumber ?? "";
-        OnPropertyChanged(nameof(OrderNo));
-
-        await LoadWarehousesAsync();
+        catch (Exception ex)
+        {
+            await DisplayAlert("Error", $"Failed to load PO: {ex.Message}", "OK");
+        }
     }
 
     private async Task LoadWarehousesAsync()
@@ -133,70 +146,64 @@ public partial class ReceivingDocumentsPage : ContentPage, INotifyPropertyChange
 
     private async void OnAcceptClicked(object sender, EventArgs e)
     {
-        if (string.IsNullOrWhiteSpace(DNnumber) && string.IsNullOrWhiteSpace(SuppInvNumber))
-        {
-            await DisplayAlert("Required", "Please enter at least one document number.", "OK");
-            return;
-        }
-        loadingIndicator.IsVisible = true;
-        loadingIndicator.IsRunning = true;
-
-        _poHeader.DNnumber = string.Empty;
-        _poHeader.SuppInvNumber = string.Empty;
         try
         {
-            if (!string.IsNullOrWhiteSpace(SuppInvNumber))
+            if (_poHeader == null)
             {
-                _poHeader.SuppInvNumber = SuppInvNumber;
+                await DisplayAlert("Error", "No PO loaded. Please restart the process.", "OK");
+                await Shell.Current.GoToAsync("..");
+                return;
             }
-        }
-        catch (Exception ex)
-        {
-            await DisplayAlert("Error", $"error 128 occurred: {ex.Message}", "OK");
-        }
-        try
-        {
-            if (!string.IsNullOrWhiteSpace(DNnumber))
+            if (string.IsNullOrWhiteSpace(DNnumber) && string.IsNullOrWhiteSpace(SuppInvNumber))
             {
-                _poHeader.DNnumber = DNnumber;
+                await DisplayAlert("Required", "Please enter at least one document number.", "OK");
+                return;
             }
-        }
-        catch (Exception ex)
-        {
-            await DisplayAlert("Error", $"error 136 occurred: {ex.Message}", "OK");
-        }
-        _poHeader.Status = "Loaded"; // Update status to In Progress
-        try
-        {
-            var databaseHelper = new DatabaseHelper(new SQLiteAsyncConnection(Constants.DatabasePath, Constants.Flags));
-            await databaseHelper.UpdatePoHeaderAsync(_poHeader);
-        }
-        catch (Exception ex)
-        {
-            await DisplayAlert("Error", $"error 145 occurred: {ex.Message}", "OK");
-        }
-        // Save updated header
-        
-       
-        // Update session data
-        try
-        {
-            ReceivingSession.CurrentPoHeader = _poHeader;
-            ReceivingSession.DeliveryNote = DNnumber;
-            ReceivingSession.SupplierInvoice = SuppInvNumber;
-        }
-        catch (Exception ex)
-        {
-            await DisplayAlert("Error", $"error 159 occurred: {ex.Message}", "OK");
-        }
+            loadingIndicator.IsVisible = true;
+            loadingIndicator.IsRunning = true;
 
-        // TODO: Save the SelectedWarehouse if needed to session or DB
-        loadingIndicator.IsRunning = false;
-        loadingIndicator.IsVisible = false;
-        await Shell.Current.GoToAsync(nameof(ReceivingPage));
+            try
+            {
+                if (!string.IsNullOrWhiteSpace(SuppInvNumber))
+                {
+                    _poHeader.SuppInvNumber = SuppInvNumber;
+                }
+            }
+            catch (Exception ex)
+            {
+                await DisplayAlert("Error", $"error 128 occurred: {ex.Message}", "OK");
+            }
+            try
+            {
+                if (!string.IsNullOrWhiteSpace(DNnumber))
+                {
+                    _poHeader.DNnumber = DNnumber;
+                }
+            }
+            catch (Exception ex)
+            {
+                await DisplayAlert("Error", $"error 136 occurred: {ex.Message}", "OK");
+            }
+            _poHeader.Status = "Loaded"; // Update status to In Progress
+            try
+            {
+                await _databaseHelper.UpdatePoHeaderAsync(_poHeader);
+            }
+            catch (Exception ex)
+            {
+                await DisplayAlert("Error", $"error 145 occurred: {ex.Message}", "OK");
+            }
+            await Shell.Current.GoToAsync($"{nameof(ReceivingPage)}?po={_poHeader.OrderNo}");
+            loadingIndicator.IsVisible = false;
+            loadingIndicator.IsRunning = false;
+        }
+        catch (Exception ex)
+        {
+            await DisplayAlert("Error", $"Unexpected error: {ex.Message}", "OK");
+        }
     }
 
-    public event PropertyChangedEventHandler PropertyChanged;
+   public event PropertyChangedEventHandler PropertyChanged;
     protected void OnPropertyChanged([CallerMemberName] string name = "") =>
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
 }

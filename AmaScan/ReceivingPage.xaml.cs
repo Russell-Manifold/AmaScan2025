@@ -8,10 +8,23 @@ using System.Windows.Input;
 
 namespace AmaScan
 {
+    [QueryProperty(nameof(PoQuery), "po")]
     public partial class ReceivingPage : ContentPage, INotifyPropertyChanged
     {
-        private readonly DatabaseHelper _dbHelper;
+        private readonly DatabaseHelper _databaseHelper = new(new SQLiteAsyncConnection(Constants.DatabasePath, Constants.Flags));
         private PoHeader _poHeader;
+        private string _poQuery;
+
+        public string PoQuery
+        {
+            get => _poQuery;
+            set
+            {
+                _poQuery = Uri.UnescapeDataString(value);
+                _ = LoadPoAsync(_poQuery);
+            }
+        }
+
         public ICommand OnPoLineLongPressed { get; }
         public event PropertyChangedEventHandler PropertyChanged;
 
@@ -48,100 +61,53 @@ namespace AmaScan
         public string Status => _poHeader?.Status ?? "";
 
         public List<Item> ItemList { get; set; }
-        //protected override async void OnAppearing()
-        //{
-        //    base.OnAppearing();
-
-        //    _poHeader = ReceivingSession.CurrentPoHeader;  // Refresh PO header here
-
-        //    bool confirm = await DisplayAlert("Reset", "PO Header successfully loaded", "Yes", "No");
-        //    if (confirm)
-        //    {
-        //        // Update UI bindings
-        //        OnPropertyChanged(nameof(PoNumber));
-        //        OnPropertyChanged(nameof(DueDateFormatted));
-        //        OnPropertyChanged(nameof(Status));
-
-        //        AcceptSwitch_Toggled(AcceptSwitch, new ToggledEventArgs(AcceptSwitch.IsToggled));
-        //        if (confirm)
-        //        {
-        //            if (!string.IsNullOrEmpty(_poHeader?.OrderNo))
-        //            {
-        //                try {                             // Load PO lines for the current PO header
-        //                    await LoadPoLinesAsync(_poHeader.OrderNo);
-        //                }
-        //                catch (Exception ex)
-        //                {
-        //                    // Handle any exceptions that occur during loading
-        //                    await DisplayAlert("Error", $"Failed to load PO lines: {ex.Message}", "OK");
-        //                }   
-        //            }
-        //        }
-        //    }
-        //}
-
 
         public ReceivingPage()
         {
             InitializeComponent();
             BindingContext = this;
-
-            _dbHelper = new DatabaseHelper(new SQLiteAsyncConnection(Constants.DatabasePath, Constants.Flags));
         }
 
-        protected override async void OnAppearing()
+        private async Task LoadPoAsync(string poNumber)
         {
-            base.OnAppearing();
             loadingIndicator.IsVisible = true;
             loadingIndicator.IsRunning = true;
-            _poHeader = ReceivingSession.CurrentPoHeader;
-
-            if (_poHeader == null)
-            {
-                await MainThread.InvokeOnMainThreadAsync(async () =>
-                await DisplayAlert("Error", "No PO found in session.", "OK"));
-                await Shell.Current.GoToAsync("..");
-                return;
-            }
 
             try
             {
-                // Show confirmation that PO header was loaded
-                //bool confirm = await DisplayAlert("Reset", "PO Header successfully loaded", "Yes", "No");
-                //if (!confirm) return;
+                if (string.IsNullOrWhiteSpace(poNumber))
+                {
+                    await DisplayAlert("Error", "No PO number received.", "OK");
+                    await Shell.Current.GoToAsync("..");
+                    return;
+                }
 
-                // Refresh UI bindings
+                _poHeader = await _databaseHelper.GetPoHeaderByOrderNoAsync(poNumber);
+
+                if (_poHeader == null)
+                {
+                    await DisplayAlert("Error", $"PO not found in local database: {poNumber}", "OK");
+                    await Shell.Current.GoToAsync("..");
+                    return;
+                }
+
                 OnPropertyChanged(nameof(PoNumber));
                 OnPropertyChanged(nameof(DueDateFormatted));
                 OnPropertyChanged(nameof(Status));
 
-                // Handle switch toggle (if needed)
                 AcceptSwitch_Toggled(AcceptSwitch, new ToggledEventArgs(AcceptSwitch.IsToggled));
-
-                // Load PO lines
-                if (!string.IsNullOrEmpty(_poHeader?.OrderNo))
-                    await LoadPoLinesAsync(_poHeader.OrderNo);
-                loadingIndicator.IsVisible = false;
-                loadingIndicator.IsRunning = false;
+                await LoadPoLinesAsync(_poHeader.OrderNo);
             }
             catch (Exception ex)
             {
                 await DisplayAlert("Error", $"Failed to load PO data: {ex.Message}", "OK");
             }
+            finally
+            {
+                loadingIndicator.IsVisible = false;
+                loadingIndicator.IsRunning = false;
+            }
         }
-
-        //private async void LoadWarehouses()
-        //{
-        //    try
-        //    {
-        //        // Load warehouses if needed here (optional or stub)
-        //    }
-        //    catch (Exception ex)
-        //    {
-        //        await DisplayAlert("Error", $"Failed to load warehouses: {ex.Message}", "OK");
-        //    }
-        //}
-
 
         protected void OnPropertyChanged(string propertyName) =>
          PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
@@ -150,7 +116,7 @@ namespace AmaScan
 
         private async Task LoadPoLinesAsync(string poNumber)
         {
-            var lines = await _dbHelper.GetPoLinesByOrderNoAsync(poNumber);
+            var lines = await _databaseHelper.GetPoLinesByOrderNoAsync(poNumber);
 
             PoLines.Clear();
             foreach (var line in lines)
@@ -183,7 +149,7 @@ namespace AmaScan
                 return;
             }
 
-            var stockItem = await _dbHelper.ResolveStockItemByBarcodeAsync(scannedBarcode);
+            var stockItem = await _databaseHelper.ResolveStockItemByBarcodeAsync(scannedBarcode);
             if (stockItem == null || string.IsNullOrEmpty(stockItem.bar_code))
             {
                 BarcodeEntry.Text = string.Empty;
@@ -231,7 +197,7 @@ namespace AmaScan
             else
                 matchingLine.ReceivedString += $" + {thisTotQty}";
 
-            await _dbHelper.UpdatePoLineAsync(matchingLine);
+            await _databaseHelper.UpdatePoLineAsync(matchingLine);
             OnPropertyChanged(nameof(PoLines));
 
             BarcodeEntry.Text = string.Empty;
@@ -247,7 +213,7 @@ namespace AmaScan
                 {
                     line.ScanAcceptQty = 0;
                     line.ScanRejectQty = 0;
-                    await _dbHelper.UpdatePoLineAsync(line);
+                    await _databaseHelper.UpdatePoLineAsync(line);
                 }
                 OnPropertyChanged(nameof(PoLines));
             }
@@ -257,7 +223,13 @@ namespace AmaScan
         {
             try
             {
-                var poLines = await _dbHelper.GetPoLinesByOrderNoAsync(PoNumber);
+                if (_poHeader == null)
+                {
+                    await DisplayAlert("Error", "No PO loaded. Please restart the process.", "OK");
+                    await Shell.Current.GoToAsync("..");
+                    return;
+                }
+                var poLines = await _databaseHelper.GetPoLinesByOrderNoAsync(PoNumber);
 
                 // Step 1: Check for discrepancies
                 bool hasDiscrepancies = poLines.Any(line =>
@@ -289,7 +261,11 @@ namespace AmaScan
                 bool success = await SendToApiForGrvAsync(PoNumber, poLines);
 
                 if (success)
+                {
                     await DisplayAlert("Success", "GRV successfully generated.", "OK");
+                    // Clear session state after PO completion
+                    await Shell.Current.GoToAsync("..");
+                }
                 else
                     await DisplayAlert("Error", "Failed to generate GRV. Please try again.", "OK");
             }
@@ -335,7 +311,7 @@ namespace AmaScan
             line.ScanAcceptQty = 0;
             line.ScanRejectQty = 0;
             line.ReceivedString = string.Empty;
-            await _dbHelper.UpdatePoLineAsync(line);
+            await _databaseHelper.UpdatePoLineAsync(line);
 
             // Refresh the list
             await LoadPoLinesAsync(PoNumber);
@@ -416,5 +392,6 @@ namespace AmaScan
             SelectedWarehouse = WarehouseList.FirstOrDefault();
         }
 
+       
     }
 }
