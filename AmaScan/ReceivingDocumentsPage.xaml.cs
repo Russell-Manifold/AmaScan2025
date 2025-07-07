@@ -3,7 +3,9 @@ using AmaScan.sqliteModels;
 using SQLite;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Net.Http.Json;
 using System.Runtime.CompilerServices;
+using static AmaScan.SettingsPage;
 using static Android.App.DownloadManager;
 
 namespace AmaScan;
@@ -119,24 +121,51 @@ public partial class ReceivingDocumentsPage : ContentPage, INotifyPropertyChange
         try
         {
             var savedCode = Preferences.Get("DefaultWarehouseCode", "");
-            var localWarehouses = await _databaseHelper.GetWarehousesAsync();
+
+            // Check if warehouses exist locally
+            bool hasWarehouses = await _databaseHelper.HasWarehousesAsync();
+
+            if (!hasWarehouses)
+            {
+                string url = $"{AppConfig.ApiBaseUrl}warehouses/get-warehouses";
+                var response = await new HttpClient().GetFromJsonAsync<WarehouseResponse>(url);
+
+                if (response?.data != null && response.data.Any())
+                {
+                    await _databaseHelper.SaveWarehousesAsync(response.data);
+                    Preferences.Set("HasPopulatedWarehouses", true);
+                }
+                else
+                {
+                    await DisplayAlert("Info", "No warehouses found in API response.", "OK");
+                    return;
+                }
+            }
+
+            var warehouseData = await _databaseHelper.GetWarehousesAsync();
 
             var fullList = new ObservableCollection<Warehouse>(
-                new[] { new Warehouse { Code = "", Description = "Select Warehouse" } }.Concat(localWarehouses)
+                new[] { new Warehouse { Code = "", Description = "Select Warehouse" } }.Concat(warehouseData)
             );
 
             WarehouseList = fullList;
 
-            // Delay to avoid auto-popup on Picker
-            await Task.Delay(100);
-            try
+            // Delay to prevent picker popup
+            await Dispatcher.DispatchAsync(async () =>
             {
-                SelectedWarehouse = WarehouseList.FirstOrDefault(w => w.Description.ToString().ToLower().Contains("main")) ?? WarehouseList.FirstOrDefault();
-            }
-            catch (Exception ex)
-            {
-                await DisplayAlert("Error", $"Failed to set default warehouse: {ex.Message}", "OK");
-            }
+                await Task.Delay(150);
+                try
+                {
+                    SelectedWarehouse = WarehouseList.FirstOrDefault(w =>
+                        !string.IsNullOrWhiteSpace(w.Description) &&
+                        w.Description.ToLower().Contains("main"))
+                        ?? WarehouseList.FirstOrDefault();
+                }
+                catch (Exception ex)
+                {
+                    await DisplayAlert("Error", $"Failed to set default warehouse: {ex.Message}", "OK");
+                }
+            });
         }
         catch (Exception ex)
         {
@@ -193,9 +222,7 @@ public partial class ReceivingDocumentsPage : ContentPage, INotifyPropertyChange
             {
                 await DisplayAlert("Error", $"error 145 occurred: {ex.Message}", "OK");
             }
-            await Shell.Current.GoToAsync($"{nameof(ReceivingPage)}?po={_poHeader.OrderNo}");
-            loadingIndicator.IsVisible = false;
-            loadingIndicator.IsRunning = false;
+            await Shell.Current.GoToAsync($"{nameof(ReceivingPage)}?po={_poHeader.OrderNo}"); 
         }
         catch (Exception ex)
         {

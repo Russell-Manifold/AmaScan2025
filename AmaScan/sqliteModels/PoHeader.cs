@@ -8,6 +8,7 @@ namespace AmaScan.sqliteModels
         public int Id { get; set; }
 
         public string? OrderNo { get; set; }
+        public string? SupplierName { get; set; }
         public DateTime DueDate { get; set; }
         public string? Status { get; set; }
         public string? DNnumber { get; set; }
