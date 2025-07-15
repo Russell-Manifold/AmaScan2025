@@ -3,7 +3,8 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              x:Class="AmaScan.MainPage">
     <ContentPage.ToolbarItems>
-        <ToolbarItem IconImageSource="settings.png" Text="" Clicked="OnSettingsClicked"  Order="Primary" Priority="1" />
+        <ToolbarItem Text="Test Connection" Clicked="Button_Clicked" Order="Primary" Priority="1" />
+        <ToolbarItem IconImageSource="settings.png" Text="" Clicked="OnSettingsClicked"  Order="Primary" Priority="2" />
     </ContentPage.ToolbarItems>
     <ContentPage.Content>
         <VerticalStackLayout Padding="30" Spacing="20" VerticalOptions="Center">
@@ -28,23 +29,17 @@
 
             <Entry x:Name="usernameEntry"
                Placeholder="Username"
-               Keyboard="Default" Text="Pick" />
+               Keyboard="Default" Text="Russell" />
 
             <Entry x:Name="passwordEntry"
                Placeholder="Password"
-               IsPassword="True" Text="pi" />
+               IsPassword="True" Text="rs" />
 
             <Button Text="Login"
                 Clicked="OnLogin_Clicked"
                 BackgroundColor="#007AFF"
                 TextColor="White"
                 CornerRadius="10" />
-
-            <Button Text="Test Connection"
-     Clicked="Button_Clicked"
-     BackgroundColor="#007AFF"
-     TextColor="White"
-     CornerRadius="10" />
         </VerticalStackLayout>
     </ContentPage.Content>
 

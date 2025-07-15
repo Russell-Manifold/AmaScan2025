@@ -201,6 +201,13 @@ public partial class PickingPage : ContentPage, INotifyPropertyChanged
         // Set the header-level user for picking
         await _dbHelper.SetPhaseUserAsync(_soHeader.Reference, currentUserName, "picking");;
 
+        // Set the line-level flag
+        if (SelectedLine != null)
+        {
+            SelectedLine.PickStarted = true;
+            await _dbHelper.UpdateSoLineAsync(SelectedLine);
+        }
+
         PickingInputSection.IsVisible = true;
         StartPickingButton.IsVisible = false;
         ClearInputFields();
@@ -551,6 +558,7 @@ public partial class PickingPage : ContentPage, INotifyPropertyChanged
         // Reset the selected line (only picking-related fields)
         SelectedLine.PickedQty = 0;
         SelectedLine.Picked = false;
+        SelectedLine.PickStarted = false;
         SelectedLine.PickStartDateTime = null;
         SelectedLine.PickCompleteDateTime = null;
         SelectedLine.PickedBy = null;
@@ -561,6 +569,7 @@ public partial class PickingPage : ContentPage, INotifyPropertyChanged
         {
             lineInCollection.PickedQty = 0;
             lineInCollection.Picked = false;
+            lineInCollection.PickStarted = false;
             lineInCollection.PickStartDateTime = null;
             lineInCollection.PickCompleteDateTime = null;
             lineInCollection.PickedBy = null;

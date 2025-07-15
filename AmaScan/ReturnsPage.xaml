@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:controls="clr-namespace:AmaScan.Controls"
+             x:Class="AmaScan.ReturnsPage"
+             Title="Returns">
+
+    <ContentPage.ToolbarItems>
+        <ToolbarItem IconImageSource="resumeimg.png" Clicked="OnRestartClicked" Order="Primary" Priority="1" />
+    </ContentPage.ToolbarItems>
+
+    <Grid>
+        <Grid RowDefinitions="Auto,*" Padding="20">
+            <VerticalStackLayout Grid.Row="0" Spacing="15">
+                
+                <Grid ColumnDefinitions="Auto,*" >
+                    <Label Grid.Column="0" Text="Warehouse: " FontAttributes="Bold" FontSize="18" VerticalOptions="Center" />
+                    <Label Grid.Column="1" Text="{Binding ReturnsWarehouse}"  FontSize="18" VerticalOptions="Center" />
+                </Grid>
+
+                <Label Text="SO Number" FontSize="18" />
+                <Entry x:Name="soEntry" Placeholder="(Optional)" Keyboard="Numeric" />
+
+                <Label Text="Barcode" FontSize="18" />
+                <controls:NoKeyboardEntry x:Name="BarcodeEntry"
+                                          Placeholder="Enter barcode"
+                                          MaxLength="15"
+                                          Keyboard="Numeric"
+                                          FontSize="18"
+                                          />
+
+                <Grid ColumnDefinitions="*,Auto" Padding="0,10">
+                    <Label Grid.Column="0" Text="Manual" 
+                           VerticalOptions="Center" 
+                           HorizontalOptions="Start" />
+                    <Switch Grid.Column="1" x:Name="ManualInputSwitch" 
+                            IsToggled="False"
+                            Toggled="OnManualInputToggled" 
+                            HorizontalOptions="End" />
+                </Grid>
+
+                <Grid ColumnDefinitions="*,80" Padding="0,10">
+                    <Label Grid.Column="0" Text="Quantity" VerticalOptions="Center" />
+                    <Entry x:Name="QuantityEntry" 
+                           Placeholder="Qty" 
+                           Keyboard="Numeric" 
+                           MaxLength="5" 
+                           HorizontalTextAlignment="Center"
+                           TextChanged="QuantityEntry_TextChanged"
+                           Grid.Column="1" MinimumWidthRequest="60" MaximumWidthRequest="60" HorizontalOptions="End"  />
+                </Grid>
+
+                <Grid ColumnDefinitions="*,Auto" Padding="0,10">
+                    <Label Grid.Column="0" Text="Reason" VerticalOptions="Center" />
+                    <Picker Grid.Column="1" 
+                            Title="Select Reason"
+                            SelectedItem="{Binding SelectedReturnReason}"
+                            ItemsSource="{Binding ReturnReasons}"
+                            HorizontalTextAlignment="Center"
+                            HorizontalOptions="End"
+                            MinimumWidthRequest="120"
+                            SelectedIndex="0" />
+                </Grid>
+
+                <Button x:Name="ProcessReturnButton" 
+        Text="Process Return" 
+        BackgroundColor="Green"
+        TextColor="White"
+        Clicked="OnSaveProgressClicked"
+         />
+            </VerticalStackLayout>
+        </Grid>
+
+        <Grid x:Name="LoadingOverlay" 
+              IsVisible="False"
+              BackgroundColor="Black"
+              Opacity="0.5">
+            <ActivityIndicator x:Name="loadingIndicator" 
+                              IsRunning="False" 
+                              HorizontalOptions="Center" 
+                              VerticalOptions="Center"
+                              Color="White"
+                              Scale="1.5" />
+        </Grid>
+    </Grid>
+</ContentPage> 

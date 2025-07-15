@@ -95,6 +95,8 @@ namespace AmaScan
                 OnPropertyChanged(nameof(DueDateFormatted));
                 OnPropertyChanged(nameof(Status));
 
+                // Load warehouses first, then set up the switch
+                await LoadWarehousesAsync();
                 AcceptSwitch_Toggled(AcceptSwitch, new ToggledEventArgs(AcceptSwitch.IsToggled));
                 await LoadPoLinesAsync(_poHeader.OrderNo);
             }
@@ -327,6 +329,9 @@ namespace AmaScan
                 SaveButton.Text = "Accept";
                 RejStorePicker.IsVisible = false;
                 lblRejStore.IsVisible = false;
+
+                // Set default receiving warehouse for accepts
+                SetDefaultReceivingWarehouse();
             }
             else
             {
@@ -334,9 +339,51 @@ namespace AmaScan
                 SaveButton.BackgroundColor = Colors.Red;
                 SaveButton.TextColor = Colors.White;
                 SaveButton.Text = "Save as Rejected";
-                LoadWarehouses();
+                LoadRejectWarehouses();
                 RejStorePicker.IsVisible = true;
                 lblRejStore.IsVisible = true;
+            }
+        }
+
+        private void SetDefaultReceivingWarehouse()
+        {
+            string defaultReceivingCode = Preferences.Get("DefaultReceivingWarehouseCode", "");
+            if (!string.IsNullOrEmpty(defaultReceivingCode))
+            {
+                var defaultWarehouse = WarehouseList.FirstOrDefault(w => w.Code == defaultReceivingCode);
+                if (defaultWarehouse != null)
+                {
+                    SelectedWarehouse = defaultWarehouse;
+                }
+            }
+        }
+
+        private void LoadRejectWarehouses()
+        {
+            var rejectWarehouses = new ObservableCollection<Warehouse>();
+
+            // Add reject warehouses from settings
+            AddRejectWarehouse(rejectWarehouses, "RejectWarehouse1Code");
+            AddRejectWarehouse(rejectWarehouses, "RejectWarehouse2Code");
+
+            // Set the reject warehouse list to only show the 2 configured reject warehouses
+            if (rejectWarehouses.Any())
+            {
+                RejStorePicker.ItemsSource = rejectWarehouses;
+                RejStorePicker.SelectedItem = rejectWarehouses.First();
+            }
+        }
+
+        private void AddRejectWarehouse(ObservableCollection<Warehouse> rejectWarehouses, string preferenceKey)
+        {
+            string warehouseCode = Preferences.Get(preferenceKey, "");
+            if (!string.IsNullOrEmpty(warehouseCode))
+            {
+                var warehouse = WarehouseList.FirstOrDefault(w => w.Code == warehouseCode);
+                if (warehouse != null)
+                {
+                    rejectWarehouses.Add(warehouse);
+                }
             }
         }
 
@@ -380,18 +427,44 @@ namespace AmaScan
 
         private void LoadWarehouses()
         {
-           
-            // Example data - replace with API call to get warehouses
-            WarehouseList = new ObservableCollection<Warehouse>
-        {
-            new Warehouse { Code = "001", Description = "Main Warehouse" },
-            new Warehouse { Code = "003", Description = "Factory Sales" },
-        };
 
-            // Optionally select default warehouse here
-            SelectedWarehouse = WarehouseList.FirstOrDefault();
+            // Load all warehouses from database
+            _ = LoadWarehousesAsync();
         }
 
-       
+        private async Task LoadWarehousesAsync()
+        {
+            try
+            {
+                var warehouses = await _databaseHelper.GetWarehousesAsync();
+                var warehouseList = new ObservableCollection<Warehouse>();
+
+                if (warehouses != null && warehouses.Any())
+                {
+                    foreach (var warehouse in warehouses)
+                    {
+                        warehouseList.Add(warehouse);
+                    }
+                }
+
+                WarehouseList = warehouseList;
+
+                // Set default warehouse based on current mode
+                if (AcceptSwitch.IsToggled)
+                {
+                    SetDefaultReceivingWarehouse();
+                }
+                else
+                {
+                    LoadRejectWarehouses();
+                }
+            }
+            catch (Exception ex)
+            {
+                await DisplayAlert("Error", $"Failed to load warehouses: {ex.Message}", "OK");
+            }
+        }
+
+
     }
 }

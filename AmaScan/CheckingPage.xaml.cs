@@ -203,6 +203,13 @@ public partial class CheckingPage : ContentPage, INotifyPropertyChanged
         // Set the header-level user for checking
         await _dbHelper.SetPhaseUserAsync(_soHeader.Reference, currentUserName, "checking");
 
+        // Set the line-level flag
+        if (SelectedLine != null)
+        {
+            SelectedLine.CheckStarted = true;
+            await _dbHelper.UpdateSoLineAsync(SelectedLine);
+        }
+
         CheckingInputSection.IsVisible = true;
         StartCheckingButton.IsVisible = false;
         ClearInputFields();
@@ -555,6 +562,7 @@ public partial class CheckingPage : ContentPage, INotifyPropertyChanged
     {
         // Reset the selected line
         SelectedLine.CheckedQty = 0;
+        SelectedLine.CheckStarted = false;
         SelectedLine.CheckStartDateTime = null;
         SelectedLine.CheckCompleteDateTime = null;
         SelectedLine.CheckedBy = null;
@@ -565,6 +573,7 @@ public partial class CheckingPage : ContentPage, INotifyPropertyChanged
         if (lineInCollection != null)
         {
             lineInCollection.CheckedQty = 0;
+            lineInCollection.CheckStarted = false;
             lineInCollection.CheckStartDateTime = null;
             lineInCollection.CheckCompleteDateTime = null;
             lineInCollection.CheckedBy = null;

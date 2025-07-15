@@ -152,12 +152,12 @@ public partial class PackingDocumentsPage : ContentPage, INotifyPropertyChanged
                 return;
             }
 
-            // Check if checking has started (CheckedBy is set)
-            if (!string.IsNullOrEmpty(soLine.CheckedBy))
+            // Check if checking has started
+            if (soLine.CheckStarted)
             {
                 await DisplayAlert("Packing Unavailable",
-                    $"{soLine.ItemDesc} has already been started for checking by {soLine.CheckedBy}.\n\n" +
-                    "Packing cannot be modified once checking has started.", "OK");
+                    $"{soLine.ItemDesc} has already been started for checking.\n\n" +
+                    "Packing cannot be modified once checking has started. Please complete checking first.", "OK");
                 return;
             }
 

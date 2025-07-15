@@ -12,6 +12,8 @@ public partial class PickingMain : ContentPage
     private SalesOrderResponse _currentSoResponse;
     private SoHeader _soHeader;
 
+
+
     public PickingMain()
     {
         InitializeComponent();
@@ -45,60 +47,39 @@ public partial class PickingMain : ContentPage
 
     private async void OnFetchSOClicked(object sender, EventArgs e)
     {
+        soEntry.Unfocus();
+        string soNumber = soEntry.Text?.Trim();
+        if (string.IsNullOrEmpty(soNumber))
+        {
+            await DisplayAlert("Validation", "Please enter a SO number.", "OK");
+            return;
+        }
+
+        loadingIndicator.IsVisible = true;
+        loadingIndicator.IsRunning = true;
+
+        // Clear session values related to header
+        PickingWorkflowSession.Clear();
+
         try
         {
-            soEntry.Unfocus();
-            string soNumber = soEntry.Text?.Trim();
-            if (string.IsNullOrEmpty(soNumber))
-            {
-                await DisplayAlert("Validation", "Please enter a SO number.", "OK");
-                return;
-            }
-
-            loadingIndicator.IsVisible = true;
-            loadingIndicator.IsRunning = true;
-
-            // Clear session values related to header
-            PickingWorkflowSession.Clear();
-
+            // Fetch from API
             string url = $"{AppConfig.ApiBaseUrl}GetSalesOrder/{Uri.EscapeDataString($"IO{soNumber}")}";
             _currentSoResponse = await _httpClient.GetFromJsonAsync<SalesOrderResponse>(url);
 
             if (_currentSoResponse == null || _currentSoResponse.Lines == null || !_currentSoResponse.Lines.Any())
             {
-                await DisplayAlert("Not Found", "No data found for this SO.", "OK");
+                await DisplayAlert("Not Found", $"SO {soNumber} not found on server.", "OK");
                 return;
             }
 
-            PickingWorkflowSession.CurrentSoHeader = new SoHeader
-            {
-                Reference = _currentSoResponse.Reference,
-                CustomerOrderNo = _currentSoResponse.CustomerOrderNo,
-                CustomerName = _currentSoResponse.CustomerName,
-                DueDate = _currentSoResponse.DueDate,
-                OrderStatus = _currentSoResponse.OrderStatus,
-                JsonData = System.Text.Json.JsonSerializer.Serialize(_currentSoResponse)
-            };
-
-            // Show header
-            customerLabel.Text = $"Customer: {_currentSoResponse.CustomerName}";
-            dueDateLabel.Text = $"Due Date: {_currentSoResponse.DueDate:yyyy-MM-dd}";
-            soHeaderFrame.IsVisible = true;
-
-            // Show lines
-            soLinesView.ItemsSource = _currentSoResponse.Lines;
-            soLinesView.IsVisible = true;
-
-            // Once the fetch is done, make the "Load SO" button visible
-            LoadSOButton.IsVisible = true;
-        }
-        catch (HttpRequestException ex)
-        {
-            await DisplayAlert("Network Error", "Could not connect to the server. Please check your connection and try again.", "OK");
+            // Use merge helper for normal operation
+            await SoMergeHelper.HandleSoFetchAndMergeAsync(soNumber, _currentSoResponse,
+                customerLabel, dueDateLabel, soHeaderFrame, soLinesView, LoadSOButton, "Picking");
         }
         catch (Exception ex)
         {
-            await DisplayAlert("Error", $"Could not load SO: {ex.Message}", "OK");
+            await DisplayAlert("Error", $"Could not load SO: {soNumber} : Message:- {ex.Message}", "OK");
         }
         finally
         {
@@ -106,6 +87,8 @@ public partial class PickingMain : ContentPage
             loadingIndicator.IsRunning = false;
         }
     }
+
+
 
     private async void OnLoadSOClicked(object sender, EventArgs e)
     {
@@ -146,6 +129,11 @@ public partial class PickingMain : ContentPage
             }
 
             await SaveToLocalDatabaseAsync(_currentSoResponse);
+
+            // Set the session header for navigation
+            var savedSo = await databaseHelper.GetSoHeaderByOrderNoAsync(soNumber);
+            PickingWorkflowSession.CurrentSoHeader = savedSo;
+
             await DisplayAlert("Success", "SO has been loaded for offline picking.", "OK");
 
             bool startPicking = await DisplayAlert("Start Picking?",
@@ -219,10 +207,12 @@ public partial class PickingMain : ContentPage
 
     private async void OnResetClicked(object sender, EventArgs e)
     {
-        if (_currentSoResponse != null) 
+        if (_currentSoResponse != null)
         {
-                bool confirm = await DisplayAlert("Reset", "Are you sure you want to reset? This will clear all current data.", "Yes", "No");
-                if (confirm) ClearSessionAndUI();        
-        }  
+            bool confirm = await DisplayAlert("Reset", "Are you sure you want to reset? This will clear all current data.", "Yes", "No");
+            if (confirm) ClearSessionAndUI();
+        }
     }
+
+
 }

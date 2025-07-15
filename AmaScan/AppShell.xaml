@@ -15,4 +15,6 @@
     <ShellContent Title="Packing Detail" ContentTemplate="{DataTemplate local:PackingPage}" Route="PackingPage" />
     <ShellContent Title="Checking" ContentTemplate="{DataTemplate local:CheckingMain}" Route="CheckingMain" />
     <ShellContent Title="Checking Detail" ContentTemplate="{DataTemplate local:CheckingPage}" Route="CheckingPage" />
+    <ShellContent Title="Returns" ContentTemplate="{DataTemplate local:ReturnsPage}" Route="ReturnsPage" />
+
 </Shell>

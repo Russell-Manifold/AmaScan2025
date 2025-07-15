@@ -1,12 +1,12 @@
 using AmaScan.Classes;
 using AmaScan.sqliteModels;
+using Data.Model;
 using SQLite;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Net.Http.Json;
 using System.Runtime.CompilerServices;
 using static AmaScan.SettingsPage;
-using static Android.App.DownloadManager;
 
 namespace AmaScan;
 
@@ -93,6 +93,9 @@ public partial class ReceivingDocumentsPage : ContentPage, INotifyPropertyChange
 
     private async Task LoadPoHeaderAsync(string poNumber)
     {
+        loadingIndicator.IsVisible = true;
+        loadingIndicator.IsRunning = true;
+
         try
         {
             _poHeader = await _databaseHelper.GetPoHeaderByOrderNoAsync(poNumber);
@@ -114,14 +117,17 @@ public partial class ReceivingDocumentsPage : ContentPage, INotifyPropertyChange
         {
             await DisplayAlert("Error", $"Failed to load PO: {ex.Message}", "OK");
         }
-    }
+        finally
+        {
+            loadingIndicator.IsVisible = false;
+            loadingIndicator.IsRunning = false;
+        }
+    }     
 
     private async Task LoadWarehousesAsync()
     {
         try
         {
-            var savedCode = Preferences.Get("DefaultWarehouseCode", "");
-
             // Check if warehouses exist locally
             bool hasWarehouses = await _databaseHelper.HasWarehousesAsync();
 
@@ -150,22 +156,26 @@ public partial class ReceivingDocumentsPage : ContentPage, INotifyPropertyChange
 
             WarehouseList = fullList;
 
-            // Delay to prevent picker popup
-            await Dispatcher.DispatchAsync(async () =>
+            // Set default receiving warehouse from settings
+            string defaultReceivingCode = Preferences.Get("DefaultReceivingWarehouseCode", "");
+            if (!string.IsNullOrEmpty(defaultReceivingCode))
             {
-                await Task.Delay(150);
-                try
+                var defaultWarehouse = WarehouseList.FirstOrDefault(w => w.Code == defaultReceivingCode);
+                if (defaultWarehouse != null)
                 {
-                    SelectedWarehouse = WarehouseList.FirstOrDefault(w =>
-                        !string.IsNullOrWhiteSpace(w.Description) &&
-                        w.Description.ToLower().Contains("main"))
-                        ?? WarehouseList.FirstOrDefault();
+                    SelectedWarehouse = defaultWarehouse;
                 }
-                catch (Exception ex)
+                else
                 {
-                    await DisplayAlert("Error", $"Failed to set default warehouse: {ex.Message}", "OK");
+                    // Fallback to first warehouse if default not found
+                    SelectedWarehouse = WarehouseList.FirstOrDefault();
                 }
-            });
+            }
+            else
+            {
+                // No default set, select first warehouse
+                SelectedWarehouse = WarehouseList.FirstOrDefault();
+            }
         }
         catch (Exception ex)
         {

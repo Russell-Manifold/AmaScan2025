@@ -152,12 +152,12 @@ public partial class CheckingDocumentsPage : ContentPage, INotifyPropertyChanged
                 return;
             }
 
-            // Check if authorization has started (AuthorizedBy is set)
-            if (!string.IsNullOrEmpty(soLine.AuthorizedBy))
+            // Check if authorization has started
+            if (soLine.AuthStarted)
             {
                 await DisplayAlert("Checking Unavailable",
-                    $"{soLine.ItemDesc} has already been started for authorization by {soLine.AuthorizedBy}.\n\n" +
-                    "Checking cannot be modified once authorization has started.", "OK");
+                    $"{soLine.ItemDesc} has already been started for authorization.\n\n" +
+                    "Checking cannot be modified once authorization has started. Please complete authorization first.", "OK");
                 return;
             }
 

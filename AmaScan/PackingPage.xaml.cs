@@ -203,6 +203,13 @@ public partial class PackingPage : ContentPage, INotifyPropertyChanged
         // Set the header-level user for packing
         await _dbHelper.SetPhaseUserAsync(_soHeader.Reference, currentUserName, "packing");
 
+        // Set the line-level flag
+        if (SelectedLine != null)
+        {
+            SelectedLine.PackStarted = true;
+            await _dbHelper.UpdateSoLineAsync(SelectedLine);
+        }
+
         PackingInputSection.IsVisible = true;
         StartPackingButton.IsVisible = false;
         ClearInputFields();
@@ -555,6 +562,7 @@ public partial class PackingPage : ContentPage, INotifyPropertyChanged
     {
         // Reset the selected line
         SelectedLine.PackedQty = 0;
+        SelectedLine.PackStarted = false;
         SelectedLine.PackStartDateTime = null;
         SelectedLine.PackCompleteDateTime = null;
         SelectedLine.PackedBy = null;
@@ -565,6 +573,7 @@ public partial class PackingPage : ContentPage, INotifyPropertyChanged
         if (lineInCollection != null)
         {
             lineInCollection.PackedQty = 0;
+            lineInCollection.PackStarted = false;
             lineInCollection.PackStartDateTime = null;
             lineInCollection.PackCompleteDateTime = null;
             lineInCollection.PackedBy = null;

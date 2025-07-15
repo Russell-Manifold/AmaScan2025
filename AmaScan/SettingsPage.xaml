@@ -12,14 +12,20 @@
                Keyboard="Url"
                HorizontalOptions="FillAndExpand" />
 
-            <Label Text="Default Warehouse:" FontAttributes="Bold" />
-            <Picker x:Name="WarehousePicker" Title="Select Warehouse" />
+            <Label Text="Default Picking Warehouse:" FontAttributes="Bold" />
+            <Picker x:Name="DefaultPickingWarehousePicker" Title="Select Default Picking Warehouse" />
+
+            <Label Text="Default Receiving Warehouse:" FontAttributes="Bold" />
+            <Picker x:Name="DefaultReceivingWarehousePicker" Title="Select Default Receiving Warehouse" />
 
             <Label Text="Reject Warehouse 1:" FontAttributes="Bold" />
             <Picker x:Name="WarehousePickerR1" Title="Reject Warehouse 1" />
 
             <Label Text="Reject Warehouse 2:" FontAttributes="Bold" />
             <Picker x:Name="WarehousePickerR2" Title="Reject Warehouse 2" />
+
+            <Label Text="Returns Warehouse:" FontAttributes="Bold" />
+            <Picker x:Name="ReturnsWarehousePicker" Title="Select Returns Warehouse" />
 
             <Button Text="Save"
                 Clicked="OnSaveClicked"

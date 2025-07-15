@@ -10,18 +10,18 @@ public partial class SettingsPage : ContentPage
 {
     private readonly HttpClient _httpClient = new();
     private readonly UserSession _userSession;
+    private List<Warehouse> _warehouseList = new();
 
     protected override void OnAppearing()
     {
         base.OnAppearing();
-        WarehousePicker.Items.Clear();
+        LoadWarehouses();
     }
 
     public SettingsPage()
     {
         InitializeComponent();
         ApiUrlEntry.Text = AppConfig.ApiBaseUrl;
-        LoadWarehouses();
     }
 
     private async void LoadWarehouses()
@@ -50,31 +50,41 @@ public partial class SettingsPage : ContentPage
 
             // Load from local DB
             var warehouses = await _databaseHelper.GetWarehousesAsync();
-            var warehouseList = new List<Warehouse>
+            _warehouseList = new List<Warehouse>
             {
                 new Warehouse { Code = "", Description = "Select Warehouse" }
             };
 
             if (warehouses != null && warehouses.Any())
             {
-                warehouseList.AddRange(warehouses);
+                _warehouseList.AddRange(warehouses);
             }
-            WarehousePicker.ItemsSource = warehouseList;
-            WarehousePicker.ItemDisplayBinding = new Binding("Description");
+           
+            SetupWarehousePicker(DefaultPickingWarehousePicker, "DefaultPickingWarehouseCode");
+            SetupWarehousePicker(DefaultReceivingWarehousePicker, "DefaultReceivingWarehouseCode");
+            SetupWarehousePicker(WarehousePickerR1, "RejectWarehouse1Code");
+            SetupWarehousePicker(WarehousePickerR2, "RejectWarehouse2Code");
+            SetupWarehousePicker(ReturnsWarehousePicker, "ReturnsWarehouseCode");
 
             foreach (var w in warehouses)
             {
                 Console.WriteLine($"Warehouse: {w.Code} - {w.Description}");
             }
-
-            string savedWarehouseCode = Preferences.Get("DefaultWarehouseCode", "");
-            var selectedIndex = warehouseList.FindIndex(w => w.Code == savedWarehouseCode);
-            WarehousePicker.SelectedIndex = selectedIndex >= 0 ? selectedIndex : 0;
         }
         catch (Exception ex)
         {
             await DisplayAlert("Error", $"Failed to load warehouses: {ex.Message}", "OK");
         }
+    }
+
+    private void SetupWarehousePicker(Picker picker, string preferenceKey)
+    {
+        picker.ItemsSource = _warehouseList;
+        picker.ItemDisplayBinding = new Binding("Description");
+
+        string savedWarehouseCode = Preferences.Get(preferenceKey, "");
+        var selectedIndex = _warehouseList.FindIndex(w => w.Code == savedWarehouseCode);
+        picker.SelectedIndex = selectedIndex >= 0 ? selectedIndex : 0;
     }
 
     private void OnSaveClicked(object sender, EventArgs e)
@@ -85,11 +95,12 @@ public partial class SettingsPage : ContentPage
         {
             AppConfig.ApiBaseUrl = newUrl;
 
-            //var selectedWarehouse = WarehousePicker.SelectedItem as Warehouse;
-            //if (selectedWarehouse != null)
-            //{
-            //    Preferences.Set("DefaultWarehouseCode", selectedWarehouse.code);
-            //}
+            // Save all warehouse selections
+            SaveWarehouseSelection(DefaultPickingWarehousePicker, "DefaultPickingWarehouseCode");
+            SaveWarehouseSelection(DefaultReceivingWarehousePicker, "DefaultReceivingWarehouseCode");
+            SaveWarehouseSelection(WarehousePickerR1, "RejectWarehouse1Code");
+            SaveWarehouseSelection(WarehousePickerR2, "RejectWarehouse2Code");
+            SaveWarehouseSelection(ReturnsWarehousePicker, "ReturnsWarehouseCode");
 
             ConfirmationLabel.Text = "API URL and Default Warehouse saved.";
             ConfirmationLabel.IsVisible = true;
@@ -99,7 +110,16 @@ public partial class SettingsPage : ContentPage
             DisplayAlert("Validation", "Please enter a valid URL.", "OK");
         }
     }
-   
+
+    private void SaveWarehouseSelection(Picker picker, string preferenceKey)
+    {
+        var selectedWarehouse = picker.SelectedItem as Warehouse;
+        if (selectedWarehouse != null)
+        {
+            Preferences.Set(preferenceKey, selectedWarehouse.Code);
+        }
+    }
+
     private async void OnUpdateStockClicked(object sender, EventArgs e)
     {
         try
