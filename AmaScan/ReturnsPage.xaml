@@ -39,7 +39,7 @@
                             HorizontalOptions="End" />
                 </Grid>
 
-                <Grid ColumnDefinitions="*,80" >
+                <Grid ColumnDefinitions="*,80">
                     <Label Grid.Column="0" Text="Quantity" VerticalOptions="Center" />
                     <Entry x:Name="QuantityEntry" 
                            Placeholder="Qty" 
@@ -50,7 +50,7 @@
                            Grid.Column="1" MinimumWidthRequest="60" MaximumWidthRequest="60" HorizontalOptions="End"  />
                 </Grid>
 
-                <Grid ColumnDefinitions="*,Auto" >
+                <Grid ColumnDefinitions="*,Auto">
                     <Label Grid.Column="0" Text="Reason" VerticalOptions="Center" />
                     <Picker Grid.Column="1" 
                             Title="Select Reason"
