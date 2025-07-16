@@ -132,8 +132,8 @@ public partial class ReceivingMain : ContentPage
             };
 
             // Show header
-            supplierLabel.Text = $"Supplier: {existingPo.SupplierName ?? "N/A"}";
-            dueDateLabel.Text = $"Due Date: {existingPo.DueDate:yyyy-MM-dd}";
+           supplierLabel.Text = $"{_currentPoResponse.SupplierName}";
+            dueDateLabel.Text = $"Due: {_currentPoResponse.DueDate:yyyy-MM-dd}";
             poHeaderFrame.IsVisible = true;
 
             // Show lines

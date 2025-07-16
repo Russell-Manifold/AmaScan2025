@@ -1,15 +1,24 @@
 ﻿namespace AmaScan.Classes
 {
-    class AppConfig
+    public static class AppConfig
     {
-        //private const string DefaultApiUrl = "http://192.168.0.132:8052/api/";//
-        private const string DefaultApiUrl = "http://175.25.97.2:8079/api/";
-        //private const string DefaultApiUrl = "http://192.168.18.111:8084/api/";
+        private const string OffSiteApiUrl = "http://192.168.0.132:8052/api/";
+        private const string OnSiteApiUrl = "http://175.25.97.2:8079/api/";
+        private const string ApiModeKey = "ApiMode"; // "OnSite" or "OffSite"
 
         public static string ApiBaseUrl
         {
-            get => Preferences.Get(nameof(ApiBaseUrl), DefaultApiUrl);
-            set => Preferences.Set(nameof(ApiBaseUrl), value);
+            get
+            {
+                var mode = Preferences.Get(ApiModeKey, "OnSite");
+                return mode == "OffSite" ? OffSiteApiUrl : OnSiteApiUrl;
+            }
+        }
+
+        public static bool IsOnSite
+        {
+            get => Preferences.Get(ApiModeKey, "OnSite") == "OnSite";
+            set => Preferences.Set(ApiModeKey, value ? "OnSite" : "OffSite");
         }
 
         // You can add other device-specific settings the same way:
@@ -21,7 +30,7 @@
 
         public static void Reset()
         {
-            Preferences.Remove(nameof(ApiBaseUrl));
+            Preferences.Remove(ApiModeKey);
             Preferences.Remove(nameof(DeviceName));
         }
 

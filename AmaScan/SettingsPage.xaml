@@ -4,13 +4,7 @@
              x:Class="AmaScan.SettingsPage"
              Title="Settings">
     <ScrollView>
-        <VerticalStackLayout Padding="20" Spacing="20">
-
-            <Label Text="API Base URL:" FontAttributes="Bold" />
-            <Entry x:Name="ApiUrlEntry"
-               Placeholder="https://example.com/api/"
-               Keyboard="Url"
-               HorizontalOptions="FillAndExpand" />
+        <VerticalStackLayout Padding="20" Spacing="8">
 
             <Label Text="Default Picking Warehouse:" FontAttributes="Bold" />
             <Picker x:Name="DefaultPickingWarehousePicker" Title="Select Default Picking Warehouse" />
@@ -23,6 +17,21 @@
 
             <Label Text="Reject Warehouse 2:" FontAttributes="Bold" />
             <Picker x:Name="WarehousePickerR2" Title="Reject Warehouse 2" />
+
+            <Label Text="Location:" FontAttributes="Bold" Margin="0,10,0,0"/>
+            <Grid ColumnDefinitions="Auto,Auto,*" RowDefinitions="Auto">
+                <Label Text="Off Site" Grid.Column="0" VerticalOptions="Center"/>
+                <Switch x:Name="LocationSwitch" Grid.Column="1" VerticalOptions="Center" IsToggled="True"/>
+                <Label Text="On Site" Grid.Column="2" VerticalOptions="Center"/>
+            </Grid>
+
+            <Label Text="API Base URL:" FontAttributes="Bold" />
+            <Entry x:Name="ApiUrlEntry"
+               Placeholder="https://example.com/api/"
+               Keyboard="Url"
+               HorizontalOptions="FillAndExpand"
+               IsEnabled="False" />
+            
 
             <Label Text="Returns Warehouse:" FontAttributes="Bold" />
             <Picker x:Name="ReturnsWarehousePicker" Title="Select Returns Warehouse" />
@@ -39,9 +48,9 @@
                IsVisible="False"/>
 
             <Button Text="Update Stock Listing"
-        Clicked="OnUpdateStockClicked"
-        BackgroundColor="DarkBlue"
-        TextColor="White" />
+                Clicked="OnUpdateStockClicked"
+                BackgroundColor="DarkBlue"
+                TextColor="White" />
 
         </VerticalStackLayout>
     </ScrollView>

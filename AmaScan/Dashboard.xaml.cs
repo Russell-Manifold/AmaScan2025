@@ -27,28 +27,22 @@ public partial class Dashboard : ContentPage
 
     private async void OnPage1Clicked(object sender, EventArgs e)
     {
-        var ReceivingMain = App.Services.GetRequiredService<ReceivingMain>();
-        await Navigation.PushAsync(ReceivingMain);
-        //await Shell.Current.GoToAsync(nameof(ReceivingMain));
+        await Navigation.PushAsync(new ReceivingMain());
     }
 
     private async void OnPage2Clicked(object sender, EventArgs e)
     {
-        var TransferMain = App.Services.GetRequiredService<TransferMainPage>();
-        await Navigation.PushAsync(TransferMain);
+        await Navigation.PushAsync(new TransferMainPage());
     }
 
     private async void OnSettingsClicked(object sender, EventArgs e)
     {
-        var SettingsPage = App.Services.GetRequiredService<SettingsPage>();
-        await Navigation.PushAsync(SettingsPage);
-        //await Shell.Current.GoToAsync(nameof(SettingsPage));
+        await Navigation.PushAsync(new SettingsPage());
     }
 
     private async void OnPage3Clicked(object sender, EventArgs e)
     {
-        var DashboardPicking = App.Services.GetRequiredService<DashboardPicking>();
-        await Navigation.PushAsync(DashboardPicking);
+        await Navigation.PushAsync(new DashboardPicking(_userSession));
     }
 
     private async void OnPage4Clicked(object sender, EventArgs e)

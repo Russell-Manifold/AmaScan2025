@@ -13,14 +13,18 @@ namespace AmaScan;
 [QueryProperty(nameof(PoQuery), "po")]
 public partial class ReceivingDocumentsPage : ContentPage, INotifyPropertyChanged
 {
+    private static readonly HttpClient _httpClient = new();
     private string _poQuery;
     public string PoQuery
     {
         get => _poQuery;
         set
         {
-            _poQuery = Uri.UnescapeDataString(value);
-            _ = LoadPoHeaderAsync(_poQuery);
+            if (_poQuery != value)
+            {
+                _poQuery = Uri.UnescapeDataString(value);
+                // Avoid fire-and-forget, use OnAppearing to trigger load
+            }
         }
     }
 
@@ -71,6 +75,9 @@ public partial class ReceivingDocumentsPage : ContentPage, INotifyPropertyChange
         }
     }
 
+    public string SelectedWarehouseCode => SelectedWarehouse?.Code;
+    public string SelectedWarehouseDescription => SelectedWarehouse?.Description;
+
     private Warehouse _selectedWarehouse;
     public Warehouse SelectedWarehouse
     {
@@ -81,6 +88,8 @@ public partial class ReceivingDocumentsPage : ContentPage, INotifyPropertyChange
             {
                 _selectedWarehouse = value;
                 OnPropertyChanged();
+                OnPropertyChanged(nameof(SelectedWarehouseCode));
+                OnPropertyChanged(nameof(SelectedWarehouseDescription));
             }
         }
     }
@@ -89,6 +98,17 @@ public partial class ReceivingDocumentsPage : ContentPage, INotifyPropertyChange
     {
         InitializeComponent();
         BindingContext = this;
+        WarehousePicker.SelectedIndexChanged += WarehousePicker_SelectedIndexChanged;
+        WarehousePicker.IsVisible = false;
+    }
+
+    protected override async void OnAppearing()
+    {
+        base.OnAppearing();
+        if (!string.IsNullOrWhiteSpace(PoQuery) && _poHeader == null)
+        {
+            await LoadPoHeaderAsync(PoQuery);
+        }
     }
 
     private async Task LoadPoHeaderAsync(string poNumber)
@@ -98,24 +118,28 @@ public partial class ReceivingDocumentsPage : ContentPage, INotifyPropertyChange
 
         try
         {
-            _poHeader = await _databaseHelper.GetPoHeaderByOrderNoAsync(poNumber);
-
+            _poHeader = await _databaseHelper.GetPoHeaderByOrderNoAsync(poNumber).ConfigureAwait(false);
             if (_poHeader == null)
             {
-                await DisplayAlert("Error", $"PO not found: {poNumber}", "OK");
-                await Shell.Current.GoToAsync("..");
+                await MainThread.InvokeOnMainThreadAsync(async () =>
+                {
+                    await DisplayAlert("Error", $"PO not found: {poNumber}", "OK");
+                    await Shell.Current.GoToAsync("..");
+                });
                 return;
             }
-
-            DNnumber = _poHeader.DNnumber ?? "";
-            SuppInvNumber = _poHeader.SuppInvNumber ?? "";
-            OnPropertyChanged(nameof(OrderNo));
-
-            await LoadWarehousesAsync();
+            await MainThread.InvokeOnMainThreadAsync(() =>
+            {
+                DNnumber = _poHeader.DNnumber ?? "";
+                SuppInvNumber = _poHeader.SuppInvNumber ?? "";
+                OnPropertyChanged(nameof(OrderNo));
+            });
+            await LoadWarehousesAsync().ConfigureAwait(false);
         }
         catch (Exception ex)
         {
-            await DisplayAlert("Error", $"Failed to load PO: {ex.Message}", "OK");
+            await MainThread.InvokeOnMainThreadAsync(async () =>
+                await DisplayAlert("Error", $"Failed to load PO: {ex.Message}", "OK"));
         }
         finally
         {
@@ -128,31 +152,49 @@ public partial class ReceivingDocumentsPage : ContentPage, INotifyPropertyChange
     {
         try
         {
+
+            var savedCode = Preferences.Get("DefaultWarehouseCode", "");
+            bool hasWarehouses = await _databaseHelper.HasWarehousesAsync().ConfigureAwait(false);
+            if (!hasWarehouses && !Preferences.Get("HasPopulatedWarehouses", false))
+
             // Check if warehouses exist locally
             bool hasWarehouses = await _databaseHelper.HasWarehousesAsync();
 
             if (!hasWarehouses)
+
             {
                 string url = $"{AppConfig.ApiBaseUrl}warehouses/get-warehouses";
-                var response = await new HttpClient().GetFromJsonAsync<WarehouseResponse>(url);
-
+                var response = await _httpClient.GetFromJsonAsync<WarehouseResponse>(url).ConfigureAwait(false);
                 if (response?.data != null && response.data.Any())
                 {
-                    await _databaseHelper.SaveWarehousesAsync(response.data);
+                    await _databaseHelper.SaveWarehousesAsync(response.data).ConfigureAwait(false);
                     Preferences.Set("HasPopulatedWarehouses", true);
                 }
                 else
                 {
-                    await DisplayAlert("Info", "No warehouses found in API response.", "OK");
+                    await MainThread.InvokeOnMainThreadAsync(async () =>
+                        await DisplayAlert("Info", "No warehouses found in API response.", "OK"));
                     return;
                 }
             }
-
-            var warehouseData = await _databaseHelper.GetWarehousesAsync();
-
+            var warehouseData = await _databaseHelper.GetWarehousesAsync().ConfigureAwait(false);
             var fullList = new ObservableCollection<Warehouse>(
                 new[] { new Warehouse { Code = "", Description = "Select Warehouse" } }.Concat(warehouseData)
             );
+
+            await MainThread.InvokeOnMainThreadAsync(() =>
+            {
+                WarehouseList = fullList;
+                // Find the intended default warehouse
+                var mainWarehouse = WarehouseList.FirstOrDefault(w =>
+                    !string.IsNullOrWhiteSpace(w.Description) &&
+                    w.Description.ToLower().Contains("main"))
+                    ?? WarehouseList.FirstOrDefault();
+                // Only set if not already set
+                if (SelectedWarehouse == null)
+                {
+                    SelectedWarehouse = mainWarehouse;
+
 
             WarehouseList = fullList;
 
@@ -169,6 +211,7 @@ public partial class ReceivingDocumentsPage : ContentPage, INotifyPropertyChange
                 {
                     // Fallback to first warehouse if default not found
                     SelectedWarehouse = WarehouseList.FirstOrDefault();
+
                 }
             }
             else
@@ -179,7 +222,8 @@ public partial class ReceivingDocumentsPage : ContentPage, INotifyPropertyChange
         }
         catch (Exception ex)
         {
-            await DisplayAlert("Error", $"Failed to load warehouses: {ex.Message}", "OK");
+            await MainThread.InvokeOnMainThreadAsync(async () =>
+                await DisplayAlert("Error", $"Failed to load warehouses: {ex.Message}", "OK"));
         }
     }
 
@@ -200,47 +244,39 @@ public partial class ReceivingDocumentsPage : ContentPage, INotifyPropertyChange
             }
             loadingIndicator.IsVisible = true;
             loadingIndicator.IsRunning = true;
-
-            try
-            {
-                if (!string.IsNullOrWhiteSpace(SuppInvNumber))
-                {
-                    _poHeader.SuppInvNumber = SuppInvNumber;
-                }
-            }
-            catch (Exception ex)
-            {
-                await DisplayAlert("Error", $"error 128 occurred: {ex.Message}", "OK");
-            }
-            try
-            {
-                if (!string.IsNullOrWhiteSpace(DNnumber))
-                {
-                    _poHeader.DNnumber = DNnumber;
-                }
-            }
-            catch (Exception ex)
-            {
-                await DisplayAlert("Error", $"error 136 occurred: {ex.Message}", "OK");
-            }
-            _poHeader.Status = "Loaded"; // Update status to In Progress
-            try
-            {
-                await _databaseHelper.UpdatePoHeaderAsync(_poHeader);
-            }
-            catch (Exception ex)
-            {
-                await DisplayAlert("Error", $"error 145 occurred: {ex.Message}", "OK");
-            }
-            await Shell.Current.GoToAsync($"{nameof(ReceivingPage)}?po={_poHeader.OrderNo}"); 
+            if (!string.IsNullOrWhiteSpace(SuppInvNumber))
+                _poHeader.SuppInvNumber = SuppInvNumber;
+            if (!string.IsNullOrWhiteSpace(DNnumber))
+                _poHeader.DNnumber = DNnumber;
+            _poHeader.Status = "Loaded";
+            await _databaseHelper.UpdatePoHeaderAsync(_poHeader).ConfigureAwait(false);
+            await MainThread.InvokeOnMainThreadAsync(async () =>
+                await Shell.Current.GoToAsync($"{nameof(ReceivingPage)}?po={_poHeader.OrderNo}"));
         }
         catch (Exception ex)
         {
             await DisplayAlert("Error", $"Unexpected error: {ex.Message}", "OK");
         }
+        finally
+        {
+            loadingIndicator.IsVisible = false;
+            loadingIndicator.IsRunning = false;
+        }
     }
 
-   public event PropertyChangedEventHandler PropertyChanged;
+    private void OnChangeWarehouseClicked(object sender, EventArgs e)
+    {
+        WarehousePicker.IsVisible = true;
+        WarehousePicker.Focus();
+    }
+
+    private void WarehousePicker_SelectedIndexChanged(object sender, EventArgs e)
+    {
+        WarehousePicker.IsVisible = false;
+        // The SelectedWarehouse binding will update the label automatically
+    }
+
+    public event PropertyChangedEventHandler PropertyChanged;
     protected void OnPropertyChanged([CallerMemberName] string name = "") =>
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(name));
 }
