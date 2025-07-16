@@ -143,12 +143,12 @@ public partial class PickingDocumentsPage : ContentPage, INotifyPropertyChanged
                 }
             }
 
-            // Check if packing has started (PackedBy is set)
-            if (!string.IsNullOrEmpty(soLine.PackedBy))
+            // Check if packing has started
+            if (soLine.PackStarted)
             {
                 await DisplayAlert("Picking Unavailable",
-                    $"{soLine.ItemDesc} has already been started for packing by {soLine.PackedBy}.\n\n" +
-                    "Picking cannot be modified once packing has started.", "OK");
+                    $"{soLine.ItemDesc} has already been started for packing.\n\n" +
+                    "Picking cannot be modified once packing has started. Please complete packing first.", "OK");
                 return;
             }
 

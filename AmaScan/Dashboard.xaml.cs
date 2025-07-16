@@ -11,6 +11,9 @@ public partial class Dashboard : ContentPage
     public bool CanCheck => _userSession.CurrentUser?.CanCheck == true;
     public bool CanAuth => _userSession.CurrentUser?.CanAuthPicking == true;
 
+    // New property to show picking workflow access if user has any picking-related permissions
+    public bool CanAccessPickingWorkflow => CanPick || CanPack || CanCheck || CanAuth;
+
     public string UserName => _userSession.CurrentUser?.UserName ?? "Guest";
     public string RoleName => _userSession.CurrentUser?.RoleName ?? "No Role Assigned";
     public string UseNRole => $"User: {UserName} ({RoleName})";
@@ -40,5 +43,11 @@ public partial class Dashboard : ContentPage
     private async void OnPage3Clicked(object sender, EventArgs e)
     {
         await Navigation.PushAsync(new DashboardPicking(_userSession));
+    }
+
+    private async void OnPage4Clicked(object sender, EventArgs e)
+    {
+        var ReturnsPage = App.Services.GetRequiredService<ReturnsPage>();
+        await Navigation.PushAsync(ReturnsPage);
     }
 }

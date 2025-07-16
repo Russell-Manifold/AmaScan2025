@@ -44,13 +44,22 @@
            VerticalOptions="Center"/>
 
                 <!-- 🔘 Image Button 3 - Picking -->
-                <ImageButton x:Name="BtnPicking" Source="receivestck.png" IsVisible="{Binding CanPick}"
+                <ImageButton x:Name="BtnPicking" Source="receivestck.png" IsVisible="{Binding CanAccessPickingWorkflow}"
                          WidthRequest="50"
                          HeightRequest="50"
                          Clicked="OnPage3Clicked"/>
                 <Label Text="Picking Packing"
                        HorizontalOptions="Center"
-                       VerticalOptions="Center" IsVisible="{Binding CanPick}" />
+                       VerticalOptions="Center" IsVisible="{Binding CanAccessPickingWorkflow}" />
+
+                <!-- 🔘 Image Button 4 - Returns -->
+                <ImageButton x:Name="BtnReturns" Source="returns.png"
+                         WidthRequest="50"
+                         HeightRequest="50"
+                         Clicked="OnPage4Clicked"/>
+                <Label Text="Returns"
+                       HorizontalOptions="Center"
+                       VerticalOptions="Center" />
             </VerticalStackLayout>
         </ScrollView>
     </Grid>

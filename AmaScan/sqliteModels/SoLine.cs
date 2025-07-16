@@ -60,6 +60,7 @@ namespace AmaScan.sqliteModels
         public string? PickedBy { get; set; }
         public DateTime? PickStartDateTime { get; set; }
         public DateTime? PickCompleteDateTime { get; set; }
+        public bool PickStarted { get; set; }
 
         // Packing Phase
         private decimal _packedQty;
@@ -83,6 +84,7 @@ namespace AmaScan.sqliteModels
         public string? PackedBy { get; set; }
         public DateTime? PackStartDateTime { get; set; }
         public DateTime? PackCompleteDateTime { get; set; }
+        public bool PackStarted { get; set; }
 
         private bool _packed;
         public bool Packed
@@ -121,6 +123,8 @@ namespace AmaScan.sqliteModels
         public string? CheckedBy { get; set; }
         public DateTime? CheckStartDateTime { get; set; }
         public DateTime? CheckCompleteDateTime { get; set; }
+        public bool CheckStarted { get; set; }
+
         private bool _checked;
         public bool Checked
         {
@@ -158,6 +162,8 @@ namespace AmaScan.sqliteModels
         public string? AuthorizedBy { get; set; }
         public DateTime? AuthStartDateTime { get; set; }
         public DateTime? AuthCompleteDateTime { get; set; }
+        public bool AuthStarted { get; set; }
+
         private bool _authorized;
         public bool Authorized
         {

@@ -44,6 +44,7 @@ namespace AmaScan
             builder.Services.AddTransient<AuthorizationMain>();
             builder.Services.AddTransient<AuthorizationDocumentsPage>();
             builder.Services.AddTransient<AuthorizationPage>();
+            builder.Services.AddTransient<ReturnsPage>();
 
             return builder.Build();
         }

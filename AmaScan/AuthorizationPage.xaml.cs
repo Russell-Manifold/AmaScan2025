@@ -206,6 +206,13 @@ public partial class AuthorizationPage : ContentPage, INotifyPropertyChanged
         // Set the header-level user for authorization
         await _dbHelper.SetPhaseUserAsync(_soHeader.Reference, currentUserName, "authorization");
 
+        // Set the line-level flag
+        if (SelectedLine != null)
+        {
+            SelectedLine.AuthStarted = true;
+            await _dbHelper.UpdateSoLineAsync(SelectedLine);
+        }
+
         AuthorizationInputSection.IsVisible = true;
         StartAuthorizationButton.IsVisible = false;
         ClearInputFields();
@@ -622,6 +629,7 @@ public partial class AuthorizationPage : ContentPage, INotifyPropertyChanged
     {
         // Reset the selected line
         SelectedLine.AuthorizedQty = 0;
+        SelectedLine.AuthStarted = false;
         SelectedLine.AuthStartDateTime = null;
         SelectedLine.AuthCompleteDateTime = null;
         SelectedLine.AuthorizedBy = null;
@@ -632,6 +640,7 @@ public partial class AuthorizationPage : ContentPage, INotifyPropertyChanged
         if (lineInCollection != null)
         {
             lineInCollection.AuthorizedQty = 0;
+            lineInCollection.AuthStarted = false;
             lineInCollection.AuthStartDateTime = null;
             lineInCollection.AuthCompleteDateTime = null;
             lineInCollection.AuthorizedBy = null;

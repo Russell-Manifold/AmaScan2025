@@ -1,12 +1,12 @@
 using AmaScan.Classes;
 using AmaScan.sqliteModels;
+using Data.Model;
 using SQLite;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Net.Http.Json;
 using System.Runtime.CompilerServices;
 using static AmaScan.SettingsPage;
-using static Android.App.DownloadManager;
 
 namespace AmaScan;
 
@@ -113,6 +113,9 @@ public partial class ReceivingDocumentsPage : ContentPage, INotifyPropertyChange
 
     private async Task LoadPoHeaderAsync(string poNumber)
     {
+        loadingIndicator.IsVisible = true;
+        loadingIndicator.IsRunning = true;
+
         try
         {
             _poHeader = await _databaseHelper.GetPoHeaderByOrderNoAsync(poNumber).ConfigureAwait(false);
@@ -138,15 +141,27 @@ public partial class ReceivingDocumentsPage : ContentPage, INotifyPropertyChange
             await MainThread.InvokeOnMainThreadAsync(async () =>
                 await DisplayAlert("Error", $"Failed to load PO: {ex.Message}", "OK"));
         }
-    }
+        finally
+        {
+            loadingIndicator.IsVisible = false;
+            loadingIndicator.IsRunning = false;
+        }
+    }     
 
     private async Task LoadWarehousesAsync()
     {
         try
         {
+
             var savedCode = Preferences.Get("DefaultWarehouseCode", "");
             bool hasWarehouses = await _databaseHelper.HasWarehousesAsync().ConfigureAwait(false);
             if (!hasWarehouses && !Preferences.Get("HasPopulatedWarehouses", false))
+
+            // Check if warehouses exist locally
+            bool hasWarehouses = await _databaseHelper.HasWarehousesAsync();
+
+            if (!hasWarehouses)
+
             {
                 string url = $"{AppConfig.ApiBaseUrl}warehouses/get-warehouses";
                 var response = await _httpClient.GetFromJsonAsync<WarehouseResponse>(url).ConfigureAwait(false);
@@ -166,6 +181,7 @@ public partial class ReceivingDocumentsPage : ContentPage, INotifyPropertyChange
             var fullList = new ObservableCollection<Warehouse>(
                 new[] { new Warehouse { Code = "", Description = "Select Warehouse" } }.Concat(warehouseData)
             );
+
             await MainThread.InvokeOnMainThreadAsync(() =>
             {
                 WarehouseList = fullList;
@@ -178,8 +194,31 @@ public partial class ReceivingDocumentsPage : ContentPage, INotifyPropertyChange
                 if (SelectedWarehouse == null)
                 {
                     SelectedWarehouse = mainWarehouse;
+
+
+            WarehouseList = fullList;
+
+            // Set default receiving warehouse from settings
+            string defaultReceivingCode = Preferences.Get("DefaultReceivingWarehouseCode", "");
+            if (!string.IsNullOrEmpty(defaultReceivingCode))
+            {
+                var defaultWarehouse = WarehouseList.FirstOrDefault(w => w.Code == defaultReceivingCode);
+                if (defaultWarehouse != null)
+                {
+                    SelectedWarehouse = defaultWarehouse;
                 }
-            });
+                else
+                {
+                    // Fallback to first warehouse if default not found
+                    SelectedWarehouse = WarehouseList.FirstOrDefault();
+
+                }
+            }
+            else
+            {
+                // No default set, select first warehouse
+                SelectedWarehouse = WarehouseList.FirstOrDefault();
+            }
         }
         catch (Exception ex)
         {
