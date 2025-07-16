@@ -43,9 +43,7 @@ namespace AmaScan
                 {
                     _userSession.CurrentUser = user;
                     await DisplayAlert("", $"Welcome {user.UserName} ({user.RoleName})", "OK");
-
-                    var dashboardPage = App.Services.GetRequiredService<Dashboard>();
-                    await Navigation.PushAsync(dashboardPage);
+                    await Navigation.PushAsync(new Dashboard(_userSession));
                 }
                 else
                 {
@@ -93,15 +91,16 @@ namespace AmaScan
                 return null;
             }
         }
+
         private async void OnSettingsClicked(object sender, EventArgs e)
         {
-            var SettingsPage = App.Services.GetRequiredService<SettingsPage>();
-            await Navigation.PushAsync(SettingsPage);
-            //await Shell.Current.GoToAsync(nameof(SettingsPage));
+            await Navigation.PushAsync(new SettingsPage());
         }
 
-        private async void Button_Clicked(object sender, EventArgs e)
+        private async void OnTestConnectionClicked(object sender, EventArgs e)
         {
+            loadingIndicator.IsVisible = true;
+            loadingIndicator.IsRunning = true;
             var client = new HttpClient();
             try
             {
@@ -110,7 +109,7 @@ namespace AmaScan
                 {
                     string responseContent = await response.Content.ReadAsStringAsync();
                     var user = JsonConvert.DeserializeObject<User>(responseContent);
-                    await DisplayAlert("Connection Test","Connection Successful.", "OK");
+                    await DisplayAlert("Connection Test", "Connection Successful.", "OK");
                 }
                 else
                 {
@@ -121,6 +120,11 @@ namespace AmaScan
             catch (Exception ex)
             {
                 await DisplayAlert("Connection Test", $"Connection failed 2: {ex.Message}", "OK");
+            }
+            finally
+            {
+                loadingIndicator.IsVisible = false;
+                loadingIndicator.IsRunning = false;
             }
         }
     }

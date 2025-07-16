@@ -373,8 +373,7 @@ public partial class PackingPage : ContentPage, INotifyPropertyChanged
                     $"Next phase: Checking\n\n" +
                     $"Order: {_soHeader.Reference}", "OK");
 
-                var dashboardPage = App.Services.GetRequiredService<Dashboard>();
-                await Navigation.PushAsync(dashboardPage);
+                await Navigation.PushAsync(new Dashboard(_userSession));
             }
             else
             {

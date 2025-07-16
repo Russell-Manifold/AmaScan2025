@@ -25,25 +25,21 @@ public partial class DashboardPicking : ContentPage
 
     private async void OnPage3Clicked(object sender, EventArgs e)
     {
-        var PickingMain = App.Services.GetRequiredService<PickingMain>();
-        await Navigation.PushAsync(PickingMain);
+        await Navigation.PushAsync(new PickingMain());
     }
 
     private async void OnPage4Clicked(object sender, EventArgs e)
     {
-        var PackingMain = App.Services.GetRequiredService<PackingMain>();
-        await Navigation.PushAsync(PackingMain);
+        await Navigation.PushAsync(new PackingMain());
     }
 
     private async void OnPage5Clicked(object sender, EventArgs e)
     {
-        var CheckingMain = App.Services.GetRequiredService<CheckingMain>();
-        await Navigation.PushAsync(CheckingMain);
+        await Navigation.PushAsync(new CheckingMain());
     }
 
     private async void OnPage6Clicked(object sender, EventArgs e)
     {
-        var AuthorizationMain = App.Services.GetRequiredService<AuthorizationMain>();
-        await Navigation.PushAsync(AuthorizationMain);
+        await Navigation.PushAsync(new AuthorizationMain());
     }
 }

@@ -21,7 +21,16 @@ public partial class SettingsPage : ContentPage
     {
         InitializeComponent();
         ApiUrlEntry.Text = AppConfig.ApiBaseUrl;
+        ApiUrlEntry.IsEnabled = false;
+        LocationSwitch.Toggled += LocationSwitch_Toggled;
+        LocationSwitch.IsToggled = AppConfig.IsOnSite;
         LoadWarehouses();
+    }
+
+    private void LocationSwitch_Toggled(object sender, ToggledEventArgs e)
+    {
+        AppConfig.IsOnSite = e.Value;
+        ApiUrlEntry.Text = AppConfig.ApiBaseUrl;
     }
 
     private async void LoadWarehouses()
@@ -79,25 +88,9 @@ public partial class SettingsPage : ContentPage
 
     private void OnSaveClicked(object sender, EventArgs e)
     {
-        var newUrl = ApiUrlEntry.Text?.Trim();
-
-        if (!string.IsNullOrWhiteSpace(newUrl))
-        {
-            AppConfig.ApiBaseUrl = newUrl;
-
-            //var selectedWarehouse = WarehousePicker.SelectedItem as Warehouse;
-            //if (selectedWarehouse != null)
-            //{
-            //    Preferences.Set("DefaultWarehouseCode", selectedWarehouse.code);
-            //}
-
-            ConfirmationLabel.Text = "API URL and Default Warehouse saved.";
-            ConfirmationLabel.IsVisible = true;
-        }
-        else
-        {
-            DisplayAlert("Validation", "Please enter a valid URL.", "OK");
-        }
+        // No need to save ApiUrlEntry.Text, as URL is now controlled by the switch
+        ConfirmationLabel.Text = $"Location mode and Default Warehouse saved.";
+        ConfirmationLabel.IsVisible = true;
     }
    
     private async void OnUpdateStockClicked(object sender, EventArgs e)

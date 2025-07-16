@@ -370,8 +370,7 @@ public partial class PickingPage : ContentPage, INotifyPropertyChanged
                     $"Next phase: Packing\n\n" +
                     $"Order: {_soHeader.Reference}", "OK");
 
-                var dashboardPage = App.Services.GetRequiredService<Dashboard>();
-                await Navigation.PushAsync(dashboardPage);
+                await Navigation.PushAsync(new Dashboard(_userSession));
             }
             else
             {

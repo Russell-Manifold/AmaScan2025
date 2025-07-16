@@ -5,13 +5,18 @@
              Title="Receiving Documents">
     <VerticalStackLayout Padding="20" Spacing="5">
         <Label Text="Receiving PO:" FontAttributes="Bold" />
-        <Label Text="{Binding OrderNo}" FontSize="16" />
+        <Label Text="{Binding OrderNo}" FontSize="20" FontAttributes="Bold" />
        
         <Label Text="Into Warehouse" />
+        <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,0">
+            <Label x:Name="WarehouseLabel" Text="{Binding SelectedWarehouseDescription}" FontAttributes="Bold" VerticalOptions="Center" Grid.Column="0" />
+            <Button Text="Change" Clicked="OnChangeWarehouseClicked" VerticalOptions="Center" HorizontalOptions="End" Grid.Column="1" FontSize="Small" />
+        </Grid>
         <Picker x:Name="WarehousePicker"
                 ItemsSource="{Binding WarehouseList}"
                 ItemDisplayBinding="{Binding Description}"
-                SelectedItem="{Binding SelectedWarehouse}" />
+                SelectedItem="{Binding SelectedWarehouse}"
+                IsVisible="False" />
         
         <Label Text="Delivery Note Number" />
         <Entry x:Name="DeliveryNoteEntry" Placeholder="Delivery Note Number" Text="{Binding DNnumber}" />
@@ -19,7 +24,6 @@
         <Label Text="Supplier Invoice Number" />
         <Entry x:Name="InvoiceNumberEntry" Placeholder="Supplier Invoice Number" Text="{Binding SuppInvNumber}" />
         <ActivityIndicator x:Name="loadingIndicator" IsVisible="False" IsRunning="False" />
-
 
         <Button Text="Start Receiving"
                 Clicked="OnAcceptClicked"

@@ -3,7 +3,8 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              x:Class="AmaScan.MainPage">
     <ContentPage.ToolbarItems>
-        <ToolbarItem IconImageSource="settings.png" Text="" Clicked="OnSettingsClicked"  Order="Primary" Priority="1" />
+        <ToolbarItem IconImageSource="connection.png" Text="Test Connection" Clicked="OnTestConnectionClicked" Order="Primary" Priority="1" />
+        <ToolbarItem IconImageSource="settings.png" Text="" Clicked="OnSettingsClicked"  Order="Primary" Priority="2" />
     </ContentPage.ToolbarItems>
     <ContentPage.Content>
         <VerticalStackLayout Padding="30" Spacing="20" VerticalOptions="Center">
@@ -39,12 +40,6 @@
                 BackgroundColor="#007AFF"
                 TextColor="White"
                 CornerRadius="10" />
-
-            <Button Text="Test Connection"
-     Clicked="Button_Clicked"
-     BackgroundColor="#007AFF"
-     TextColor="White"
-     CornerRadius="10" />
         </VerticalStackLayout>
     </ContentPage.Content>
 
