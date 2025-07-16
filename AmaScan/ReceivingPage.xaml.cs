@@ -124,8 +124,9 @@ namespace AmaScan
             catch (OperationCanceledException)
             {
 
-                // Load warehouses first, then set up the switch
-                //await LoadWarehousesAsync();
+                //Load warehouses first, then set up the switch
+
+               //await LoadWarehousesAsync();
                 //AcceptSwitch_Toggled(AcceptSwitch, new ToggledEventArgs(AcceptSwitch.IsToggled));
                 //await LoadPoLinesAsync(_poHeader.OrderNo);
 
@@ -487,6 +488,23 @@ namespace AmaScan
             {
                 await DisplayAlert("Error", $"Failed to load warehouses: {ex.Message}", "OK");
             }
+        }
+        public void Dispose()
+        {
+            if (_isDisposed) return;
+
+            try
+            {
+                _loadingCts?.Cancel();
+                _loadingCts?.Dispose();
+            }
+            catch
+            {
+                // Ignore disposal errors
+            }
+
+            _isDisposed = true;
+            GC.SuppressFinalize(this);
         }
     }
 }

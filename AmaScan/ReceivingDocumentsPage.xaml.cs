@@ -157,8 +157,8 @@ public partial class ReceivingDocumentsPage : ContentPage, INotifyPropertyChange
             bool hasWarehouses = await _databaseHelper.HasWarehousesAsync().ConfigureAwait(false);
             if (!hasWarehouses && !Preferences.Get("HasPopulatedWarehouses", false))
 
-            // Check if warehouses exist locally
-            bool hasWarehouses = await _databaseHelper.HasWarehousesAsync();
+                // Check if warehouses exist locally
+                //bool hasWarehouses = await _databaseHelper.HasWarehousesAsync();
 
             if (!hasWarehouses)
 
@@ -196,30 +196,35 @@ public partial class ReceivingDocumentsPage : ContentPage, INotifyPropertyChange
                     SelectedWarehouse = mainWarehouse;
 
 
-            WarehouseList = fullList;
+                    WarehouseList = fullList;
 
-            // Set default receiving warehouse from settings
-            string defaultReceivingCode = Preferences.Get("DefaultReceivingWarehouseCode", "");
-            if (!string.IsNullOrEmpty(defaultReceivingCode))
-            {
-                var defaultWarehouse = WarehouseList.FirstOrDefault(w => w.Code == defaultReceivingCode);
-                if (defaultWarehouse != null)
-                {
-                    SelectedWarehouse = defaultWarehouse;
-                }
-                else
-                {
-                    // Fallback to first warehouse if default not found
+                    // Set default receiving warehouse from settings
+                    string defaultReceivingCode = Preferences.Get("DefaultReceivingWarehouseCode", "");
+                    if (!string.IsNullOrEmpty(defaultReceivingCode))
+                    {
+                        var defaultWarehouse = WarehouseList.FirstOrDefault(w => w.Code == defaultReceivingCode);
+                        if (defaultWarehouse != null)
+                        {
+                            SelectedWarehouse = defaultWarehouse;
+                        }
+                        else
+                        {
+                            // Fallback to first warehouse if default not found
+                            SelectedWarehouse = WarehouseList.FirstOrDefault();
+
+                        }
+                    }
+                    else
+                    {
+                        // No default set, select first warehouse
+                    }
                     SelectedWarehouse = WarehouseList.FirstOrDefault();
-
                 }
             }
-            else
-            {
-                // No default set, select first warehouse
-                SelectedWarehouse = WarehouseList.FirstOrDefault();
-            }
+            
+            );
         }
+
         catch (Exception ex)
         {
             await MainThread.InvokeOnMainThreadAsync(async () =>

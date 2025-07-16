@@ -3,9 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              x:Class="AmaScan.MainPage">
     <ContentPage.ToolbarItems>
-
         <ToolbarItem IconImageSource="connection.png" Text="Test Connection" Clicked="OnTestConnectionClicked" Order="Primary" Priority="1" />
-        <ToolbarItem Text="Test Connection" Clicked="Button_Clicked" Order="Primary" Priority="1" />
         <ToolbarItem IconImageSource="settings.png" Text="" Clicked="OnSettingsClicked"  Order="Primary" Priority="2" />
     </ContentPage.ToolbarItems>
     <ContentPage.Content>
@@ -31,11 +29,11 @@
 
             <Entry x:Name="usernameEntry"
                Placeholder="Username"
-               Keyboard="Default" Text="Russell" />
+               Keyboard="Default" Text="Pick" />
 
             <Entry x:Name="passwordEntry"
                Placeholder="Password"
-               IsPassword="True" Text="rs" />
+               IsPassword="True" Text="pi" />
 
             <Button Text="Login"
                 Clicked="OnLogin_Clicked"

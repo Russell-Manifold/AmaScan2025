@@ -19,7 +19,7 @@ namespace AmaScan
         private ObservableCollection<SoLine> _soLines = new();
         private string _returnsWarehouse = "Loading...";
         private string _selectedReturnReason = "Damaged";
-        
+
         public string ReturnsWarehouse
         {
             get => _returnsWarehouse;
@@ -72,6 +72,10 @@ namespace AmaScan
             base.OnAppearing();
             ClearUI();
             await LoadReturnsWarehouseAsync();
+            MainThread.BeginInvokeOnMainThread(() =>
+            {
+                BarcodeEntry?.Focus(); // Auto-focus when page loads
+            });
         }
 
         private void ClearUI()
@@ -139,7 +143,7 @@ namespace AmaScan
                 if (!string.IsNullOrWhiteSpace(soNumber))
                 {
                     await LoadSoDataAsync(soNumber);
-                    
+
                     if (_soHeader != null)
                     {
                         var soLine = await GetItemByBarcode(barcode);
@@ -322,7 +326,20 @@ namespace AmaScan
         {
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
         }
+        private void OnBarcodeFocused(object sender, FocusEventArgs e)
+        {
+            if (sender is VisualElement ve)
+            {
+                ve.BackgroundColor = Color.FromArgb("#E6F7FF"); // Light blue highlight
+            }
+        }
+
+        private void OnBarcodeUnfocused(object sender, FocusEventArgs e)
+        {
+            if (sender is VisualElement ve)
+            {
+                ve.BackgroundColor = Colors.White; // Reset to white
+            }
+        }
     }
-
-
 }
