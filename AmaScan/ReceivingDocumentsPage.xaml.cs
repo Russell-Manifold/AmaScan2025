@@ -105,6 +105,16 @@ public partial class ReceivingDocumentsPage : ContentPage, INotifyPropertyChange
     protected override async void OnAppearing()
     {
         base.OnAppearing();
+        
+        // Check if default receiving warehouse is configured
+        string defaultReceivingCode = Preferences.Get("DefaultReceivingWarehouseCode", "");
+        if (string.IsNullOrWhiteSpace(defaultReceivingCode))
+        {
+            await DisplayAlert("Warehouse Required", 
+                "Please select a warehouse above.", "OK");
+            return;
+        }
+        
         if (!string.IsNullOrWhiteSpace(PoQuery) && _poHeader == null)
         {
             await LoadPoHeaderAsync(PoQuery);
@@ -214,6 +224,14 @@ public partial class ReceivingDocumentsPage : ContentPage, INotifyPropertyChange
             if (string.IsNullOrWhiteSpace(DNnumber) && string.IsNullOrWhiteSpace(SuppInvNumber))
             {
                 await DisplayAlert("Required", "Please enter at least one document number.", "OK");
+                return;
+            }
+            
+            // Validate warehouse selection
+            if (SelectedWarehouse == null || string.IsNullOrWhiteSpace(SelectedWarehouse.Code))
+            {
+                await DisplayAlert("Warehouse Required", 
+                    "Please select a warehouse above.", "OK");
                 return;
             }
             
