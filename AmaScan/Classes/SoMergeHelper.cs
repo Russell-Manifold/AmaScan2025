@@ -138,9 +138,9 @@ public static class SoMergeHelper
 
             // Show merge summary
             var summary = $"Merge Complete!\n\n" +
-                         $"• {updatedLines} lines updated with fresh data\n" +
+                         $"• {updatedLines} lines updated\n" +
                          $"• {newLines} new lines added\n" +
-                         $"• {removedLines} lines removed from source document\n\n" +
+                         $"• {removedLines} lines removed\n\n" +
                          $"Your {workflowName.ToLower()} progress has been preserved.";
 
             if (removedLines > 0)

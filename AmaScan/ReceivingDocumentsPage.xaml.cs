@@ -152,83 +152,52 @@ public partial class ReceivingDocumentsPage : ContentPage, INotifyPropertyChange
     {
         try
         {
-
-            var savedCode = Preferences.Get("DefaultWarehouseCode", "");
-            bool hasWarehouses = await _databaseHelper.HasWarehousesAsync().ConfigureAwait(false);
-            if (!hasWarehouses && !Preferences.Get("HasPopulatedWarehouses", false))
-
-                // Check if warehouses exist locally
-                //bool hasWarehouses = await _databaseHelper.HasWarehousesAsync();
-
+            bool hasWarehouses = await _databaseHelper.HasWarehousesAsync();
             if (!hasWarehouses)
-
             {
                 string url = $"{AppConfig.ApiBaseUrl}warehouses/get-warehouses";
-                var response = await _httpClient.GetFromJsonAsync<WarehouseResponse>(url).ConfigureAwait(false);
+                var response = await _httpClient.GetFromJsonAsync<WarehouseResponse>(url);
                 if (response?.data != null && response.data.Any())
                 {
-                    await _databaseHelper.SaveWarehousesAsync(response.data).ConfigureAwait(false);
+                    await _databaseHelper.SaveWarehousesAsync(response.data);
                     Preferences.Set("HasPopulatedWarehouses", true);
                 }
                 else
                 {
-                    await MainThread.InvokeOnMainThreadAsync(async () =>
-                        await DisplayAlert("Info", "No warehouses found in API response.", "OK"));
+                    await DisplayAlert("Info", "No warehouses found in API response.", "OK");
                     return;
                 }
             }
-            var warehouseData = await _databaseHelper.GetWarehousesAsync().ConfigureAwait(false);
+            
+            var warehouseData = await _databaseHelper.GetWarehousesAsync();
             var fullList = new ObservableCollection<Warehouse>(
                 new[] { new Warehouse { Code = "", Description = "Select Warehouse" } }.Concat(warehouseData)
             );
 
-            await MainThread.InvokeOnMainThreadAsync(() =>
+            WarehouseList = fullList;
+            
+            // Set default receiving warehouse from settings
+            string defaultReceivingCode = Preferences.Get("DefaultReceivingWarehouseCode", "");
+            if (!string.IsNullOrEmpty(defaultReceivingCode))
             {
-                WarehouseList = fullList;
-                // Find the intended default warehouse
-                var mainWarehouse = WarehouseList.FirstOrDefault(w =>
-                    !string.IsNullOrWhiteSpace(w.Description) &&
-                    w.Description.ToLower().Contains("main"))
-                    ?? WarehouseList.FirstOrDefault();
-                // Only set if not already set
-                if (SelectedWarehouse == null)
+                var defaultWarehouse = WarehouseList.FirstOrDefault(w => w.Code == defaultReceivingCode);
+                if (defaultWarehouse != null)
                 {
-                    SelectedWarehouse = mainWarehouse;
-
-
-                    WarehouseList = fullList;
-
-                    // Set default receiving warehouse from settings
-                    string defaultReceivingCode = Preferences.Get("DefaultReceivingWarehouseCode", "");
-                    if (!string.IsNullOrEmpty(defaultReceivingCode))
-                    {
-                        var defaultWarehouse = WarehouseList.FirstOrDefault(w => w.Code == defaultReceivingCode);
-                        if (defaultWarehouse != null)
-                        {
-                            SelectedWarehouse = defaultWarehouse;
-                        }
-                        else
-                        {
-                            // Fallback to first warehouse if default not found
-                            SelectedWarehouse = WarehouseList.FirstOrDefault();
-
-                        }
-                    }
-                    else
-                    {
-                        // No default set, select first warehouse
-                    }
+                    SelectedWarehouse = defaultWarehouse;
+                }
+                else
+                {
                     SelectedWarehouse = WarehouseList.FirstOrDefault();
                 }
             }
-            
-            );
+            else
+            {
+                SelectedWarehouse = WarehouseList.FirstOrDefault();
+            }
         }
-
         catch (Exception ex)
         {
-            await MainThread.InvokeOnMainThreadAsync(async () =>
-                await DisplayAlert("Error", $"Failed to load warehouses: {ex.Message}", "OK"));
+            await DisplayAlert("Error", $"Failed to load warehouses: {ex.Message}", "OK");
         }
     }
 
@@ -247,16 +216,22 @@ public partial class ReceivingDocumentsPage : ContentPage, INotifyPropertyChange
                 await DisplayAlert("Required", "Please enter at least one document number.", "OK");
                 return;
             }
+            
             loadingIndicator.IsVisible = true;
             loadingIndicator.IsRunning = true;
+            
+            // Update header
             if (!string.IsNullOrWhiteSpace(SuppInvNumber))
                 _poHeader.SuppInvNumber = SuppInvNumber;
             if (!string.IsNullOrWhiteSpace(DNnumber))
                 _poHeader.DNnumber = DNnumber;
             _poHeader.Status = "Loaded";
-            await _databaseHelper.UpdatePoHeaderAsync(_poHeader).ConfigureAwait(false);
-            await MainThread.InvokeOnMainThreadAsync(async () =>
-                await Shell.Current.GoToAsync($"{nameof(ReceivingPage)}?po={_poHeader.OrderNo}"));
+            
+            await _databaseHelper.UpdatePoHeaderAsync(_poHeader);
+            
+            // Navigate with proper encoding
+            string poNumber = Uri.EscapeDataString(_poHeader.OrderNo);
+            await Shell.Current.GoToAsync($"{nameof(ReceivingPage)}?po={poNumber}");
         }
         catch (Exception ex)
         {

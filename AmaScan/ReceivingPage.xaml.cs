@@ -25,7 +25,7 @@ namespace AmaScan
                 if (_poQuery != value)
                 {
                     _poQuery = Uri.UnescapeDataString(value);
-                    MainThread.BeginInvokeOnMainThread(async () => await LoadPoAsync(_poQuery));
+                    _ = LoadPoAsync(_poQuery);
                 }
             }
         }
@@ -91,50 +91,35 @@ namespace AmaScan
 
                 _poHeader = await _databaseHelper.GetPoHeaderByOrderNoAsync(poNumber);
                 if (_poHeader == null)
-                {
-                    await MainThread.InvokeOnMainThreadAsync(async () =>
                     {
                         await DisplayAlert("Error", $"PO not found: {poNumber}", "OK");
                         await Shell.Current.GoToAsync("..");
-                    });
                     return;
                 }
 
                 ct.ThrowIfCancellationRequested();
-                MainThread.BeginInvokeOnMainThread(() =>
-                {
+                
                     OnPropertyChanged(nameof(PoNumber));
                     OnPropertyChanged(nameof(DueDateFormatted));
                     OnPropertyChanged(nameof(Status));
                     AcceptSwitch_Toggled(AcceptSwitch, new ToggledEventArgs(AcceptSwitch.IsToggled));
-                });
 
                 var lines = await _databaseHelper.GetPoLinesByOrderNoAsync(_poHeader.OrderNo);
                 ct.ThrowIfCancellationRequested();
 
-                MainThread.BeginInvokeOnMainThread(() =>
-                {
                     _poLines.Clear();
                     foreach (var line in lines)
                     {
                         _poLines.Add(line);
                     }
-                });
             }
             catch (OperationCanceledException)
             {
-
-                //Load warehouses first, then set up the switch
-
-               //await LoadWarehousesAsync();
-                //AcceptSwitch_Toggled(AcceptSwitch, new ToggledEventArgs(AcceptSwitch.IsToggled));
-                //await LoadPoLinesAsync(_poHeader.OrderNo);
-
+                // Operation was cancelled, do nothing
             }
             catch (Exception ex)
             {
-                await MainThread.InvokeOnMainThreadAsync(async () =>
-                    await DisplayAlert("Error", $"Failed to load PO: {ex.Message}", "OK"));
+                await DisplayAlert("Error", $"Failed to load PO: {ex.Message}", "OK");
             }
             finally
             {
@@ -462,17 +447,7 @@ namespace AmaScan
             try
             {
                 var warehouses = await _databaseHelper.GetWarehousesAsync();
-                var warehouseList = new ObservableCollection<Warehouse>();
-
-                if (warehouses != null && warehouses.Any())
-                {
-                    foreach (var warehouse in warehouses)
-                    {
-                        warehouseList.Add(warehouse);
-                    }
-                }
-
-                WarehouseList = warehouseList;
+                WarehouseList = new ObservableCollection<Warehouse>(warehouses ?? new List<Warehouse>());
 
                 // Set default warehouse based on current mode
                 if (AcceptSwitch.IsToggled)

@@ -126,13 +126,14 @@ public partial class ReceivingMain : ContentPage
             _currentPoResponse = new PurchaseOrderResponse
             {
                 OrderNo = existingPo.OrderNo,
+                SupplierName = existingPo.SupplierName,
                 DueDate = existingPo.DueDate,
                 Status = existingPo.Status,
                 Lines = displayLines
             };
 
             // Show header
-           supplierLabel.Text = $"{_currentPoResponse.SupplierName}";
+            supplierLabel.Text = $"Supplier: {existingPo.SupplierName}";
             dueDateLabel.Text = $"Due: {_currentPoResponse.DueDate:yyyy-MM-dd}";
             poHeaderFrame.IsVisible = true;
 
@@ -204,9 +205,9 @@ public partial class ReceivingMain : ContentPage
 
             // Show merge summary
             var summary = $"Merge Complete!\n\n" +
-                         $"� {updatedLines} lines updated with fresh data\n" +
-                         $"� {newLines} new lines added\n" +
-                         $"� {removedLines} lines removed from source document\n\n" +
+                         $"{updatedLines} lines updated\n" +
+                         $"{newLines} new lines added\n" +
+                         $"{removedLines} lines removed\n\n" +
                          $"Your received quantities have been preserved.";
 
             if (removedLines > 0)
