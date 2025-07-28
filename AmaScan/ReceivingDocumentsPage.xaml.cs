@@ -106,15 +106,6 @@ public partial class ReceivingDocumentsPage : ContentPage, INotifyPropertyChange
     {
         base.OnAppearing();
         
-        // Check if default receiving warehouse is configured
-        string defaultReceivingCode = Preferences.Get("DefaultReceivingWarehouseCode", "");
-        if (string.IsNullOrWhiteSpace(defaultReceivingCode))
-        {
-            await DisplayAlert("Warehouse Required", 
-                "Please select a warehouse above.", "OK");
-            return;
-        }
-        
         if (!string.IsNullOrWhiteSpace(PoQuery) && _poHeader == null)
         {
             await LoadPoHeaderAsync(PoQuery);
