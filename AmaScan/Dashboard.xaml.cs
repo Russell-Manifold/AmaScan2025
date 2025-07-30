@@ -50,4 +50,11 @@ public partial class Dashboard : ContentPage
         var ReturnsPage = App.Services.GetRequiredService<ReturnsPage>();
         await Navigation.PushAsync(ReturnsPage);
     }
+
+    private async void OnStockCountClicked(object sender, EventArgs e)
+    {
+        await Navigation.PushAsync(new StockCountMain());
+    }
+
+
 }

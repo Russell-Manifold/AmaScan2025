@@ -26,6 +26,7 @@ public class AmaScanDatabase
         await Database.CreateTableAsync<SoHeader>();
         await Database.CreateTableAsync<SoLine>();
         await Database.CreateTableAsync<ReturnLine>();
+        await Database.CreateTableAsync<StockCountItem>();
 
         _initialized = true;
     }

@@ -1,0 +1,126 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:controls="clr-namespace:AmaScan.Controls"
+             x:Class="AmaScan.StockCountPage"
+             Title="Stock Count">
+
+    <ContentPage.ToolbarItems>
+        <ToolbarItem x:Name="RestartToolbar" IconImageSource="resumeimg.png" Clicked="OnRestartClicked" Order="Primary" Priority="1" />
+        <ToolbarItem IconImageSource="ticksmallo.png" Clicked="OnCompleteClicked" Order="Primary" Priority="2" />
+    </ContentPage.ToolbarItems>
+
+    <Grid>
+        <!-- Main Content -->
+        <StackLayout Padding="10">
+            <StackLayout x:Name="StockCountInputSection" IsVisible="True" Spacing="5">
+                <Label Text="{Binding StockDescription}" 
+                       FontAttributes="Bold"
+                       FontSize="Medium" 
+                       HorizontalOptions="Center"
+                       TextColor="Gray"/>
+                
+                <Grid ColumnDefinitions="*,80" Padding="10,0" RowDefinitions="Auto,Auto">
+                    <Label Grid.Column="0" Text="Barcode:" />
+                    <controls:NoKeyboardEntry x:Name="BarcodeEntry" 
+                                            Placeholder="Enter barcode" 
+                                            Completed="OnBarcodeEntered" 
+                                            MaxLength="15" 
+                                            Keyboard="Numeric" 
+                                            Grid.Row="1" Grid.Column="0" 
+                                            FontSize="18" />
+
+                    <Label Grid.Column="1" Text="Qty:" HorizontalOptions="Center"  />
+                    <Entry x:Name="QuantityEntry" 
+                       Placeholder="Qty" 
+                       Keyboard="Numeric" 
+                       MaxLength="5" 
+                       TextChanged="QuantityEntry_TextChanged"
+                       Completed="QuantityEntry_Completed"
+                       Grid.Row="1" Grid.Column="1" 
+                       MinimumWidthRequest="60" 
+                       MaximumWidthRequest="60" 
+                       HorizontalOptions="End"  />
+                </Grid>
+                
+                <Grid ColumnDefinitions="*,Auto" Padding="10,5">
+                    <Label Grid.Column="0" Text="Manual" 
+                           VerticalOptions="Center" 
+                           HorizontalOptions="Start" />
+                    <Switch Grid.Column="1" x:Name="ManualInputSwitch" 
+                            IsToggled="False"
+                            Toggled="OnManualInputToggled" 
+                            HorizontalOptions="End" />
+                </Grid>
+                
+                <Grid ColumnDefinitions="*,Auto" Padding="10,5">
+                    <Label Grid.Column="0" Text="Scan Mode" 
+                           VerticalOptions="Center" 
+                           HorizontalOptions="Start" />
+                    <HorizontalStackLayout Grid.Column="1" Spacing="5" HorizontalOptions="End">
+                        <Button x:Name="SingleButton" 
+                                Text="Single" 
+                                BackgroundColor="LightGray"
+                                TextColor="Black"
+                                Padding="10,5"
+                                FontSize="14"
+                                Clicked="OnSingleClicked" />
+                        <Button x:Name="PackButton" 
+                                Text="Pack" 
+                                BackgroundColor="#007AFF"
+                                TextColor="White"
+                                Padding="10,5"
+                                FontSize="14"
+                                Clicked="OnPackClicked" />
+                    </HorizontalStackLayout>
+                </Grid>
+                
+                <Button x:Name="SaveButton" 
+                        Margin="5,10"
+                        Text="Save Count" 
+                        BackgroundColor="Green"
+                        TextColor="White"
+                        Clicked="OnSaveCountClicked" />
+            </StackLayout>
+
+            <Button x:Name="StartCountingButton" 
+                    Text="Start Counting" 
+                    Clicked="OnStartCountingClicked" />
+
+            <!-- Current Item Display -->
+            <Frame x:Name="CurrentItemFrame" 
+                   Padding="10" 
+                   Margin="10" 
+                   BackgroundColor="White"
+                   BorderColor="DarkGrey"
+                   IsVisible="True">
+                <StackLayout>
+                    <Label Text="{Binding StockDescription}" FontAttributes="Bold" />
+                    <Label Text="{Binding StockCode, StringFormat='Code: {0}'}" />
+                    <Label Text="{Binding Count1Qty, StringFormat='Count 1: {0}'}"  />
+                    <Label Text="{Binding Count2Qty, StringFormat='Count 2: {0}'}"   />
+                    <Label Text="{Binding ConfirmCountQty, StringFormat='Confirmed: {0}'}" />
+
+                    <!-- Status -->
+                    <Label Text="{Binding StatusText}" 
+                           TextColor="{Binding StatusTextColor}"
+                           Margin="0,5,0,0"/>
+                    
+                </StackLayout>
+            </Frame>
+        </StackLayout>
+
+        <!-- Loading Indicator - Centered Overlay -->
+        <Grid x:Name="LoadingOverlay" 
+              IsVisible="False"
+              BackgroundColor="Black"
+              Opacity="0.5">
+            <ActivityIndicator x:Name="loadingIndicator" 
+                              IsRunning="False" 
+                              HorizontalOptions="Center" 
+                              VerticalOptions="Center"
+                              Color="White"
+                              Scale="1.5" />
+        </Grid>
+    </Grid>
+</ContentPage> 

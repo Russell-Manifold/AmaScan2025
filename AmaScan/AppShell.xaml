@@ -16,5 +16,8 @@
     <ShellContent Title="Checking" ContentTemplate="{DataTemplate local:CheckingMain}" Route="CheckingMain" />
     <ShellContent Title="Checking Detail" ContentTemplate="{DataTemplate local:CheckingPage}" Route="CheckingPage" />
     <ShellContent Title="Returns" ContentTemplate="{DataTemplate local:ReturnsPage}" Route="ReturnsPage" />
+    <ShellContent Title="Stock Count" ContentTemplate="{DataTemplate local:StockCountMain}" Route="StockCountMain" />
+    <ShellContent Title="Stock Count Search" ContentTemplate="{DataTemplate local:StockCountSearchPage}" Route="StockCountSearchPage" />
+    <ShellContent Title="Stock Count Detail" ContentTemplate="{DataTemplate local:StockCountPage}" Route="StockCountPage" />
 
 </Shell>

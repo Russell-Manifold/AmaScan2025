@@ -741,5 +741,110 @@ namespace AmaScan.Classes
             // Insert the return line into the database
             await _dbConnection.InsertAsync(returnLine);
         }
+
+        // Stock Count Operations
+        public async Task SaveStockCountItemsAsync(List<StockCountItem> items)
+        {
+            // Get existing items to preserve progress
+            var existingItems = await _dbConnection.Table<StockCountItem>().ToListAsync();
+            
+            // Create lookup for existing items by StockCode
+            var existingLookup = existingItems.ToDictionary(x => x.StockCode, x => x);
+            
+            // Process each new item
+            foreach (var newItem in items)
+            {
+                if (existingLookup.TryGetValue(newItem.StockCode, out var existingItem))
+                {
+                    // Preserve counting progress from existing item
+                    newItem.Count1Qty = existingItem.Count1Qty;
+                    newItem.Count2Qty = existingItem.Count2Qty;
+                    newItem.ConfirmCountQty = existingItem.ConfirmCountQty;
+                    newItem.CountBy = existingItem.CountBy;
+                    newItem.ConfirmBy = existingItem.ConfirmBy;
+                    newItem.CountComplete = existingItem.CountComplete;
+                    newItem.CountString = existingItem.CountString;
+                    newItem.Phase1Complete = existingItem.Phase1Complete;
+                    newItem.Phase2Complete = existingItem.Phase2Complete;
+                }
+            }
+            
+            // Replace all items (preserving progress)
+            await _dbConnection.DeleteAllAsync<StockCountItem>();
+            await _dbConnection.InsertAllAsync(items);
+        }
+
+        public async Task<List<StockCountItem>> GetStockCountItemsAsync()
+        {
+            return await _dbConnection.Table<StockCountItem>().ToListAsync();
+        }
+
+
+
+        public async Task<StockCountItem?> GetStockCountItemByCodeAsync(string stockCode)
+        {
+            return await _dbConnection.Table<StockCountItem>()
+                .FirstOrDefaultAsync(item => item.StockCode == stockCode);
+        }
+
+        public async Task<StockCountItem?> GetStockCountItemByCodeAndBatchAsync(string stockCode, string batchNo)
+        {
+            return await _dbConnection.Table<StockCountItem>()
+                .FirstOrDefaultAsync(item => item.StockCode == stockCode && item.BatchNo == batchNo);
+        }
+
+        public async Task UpdateStockCountItemAsync(StockCountItem item)
+        {
+            await _dbConnection.UpdateAsync(item);
+        }
+
+        public async Task<List<StockCountItem>> GetIncompleteStockCountsAsync()
+        {
+            return await _dbConnection.Table<StockCountItem>()
+                .Where(item => !item.CountComplete)
+                .ToListAsync();
+        }
+
+
+
+        public async Task<StockCountItem?> ResolveStockCountItemByBarcodeAsync(string scannedBarcode)
+        {
+            var allItems = await _dbConnection.Table<StockCountItem>().ToListAsync();
+
+            // First, try to find matches using synchronous barcode checks
+            var primaryMatch = allItems.FirstOrDefault(item =>
+                (!string.IsNullOrWhiteSpace(item.BarCode) && item.BarCode.Equals(scannedBarcode, StringComparison.OrdinalIgnoreCase)) ||
+                (!string.IsNullOrWhiteSpace(item.BarcodeLmmp) && item.BarcodeLmmp.Equals(scannedBarcode, StringComparison.OrdinalIgnoreCase))
+            );
+
+            if (primaryMatch != null)
+                return primaryMatch;
+
+            // If no primary match, check additional barcodes (async)
+            var additionalBarcodeTasks = allItems.Select(item => CheckAdditionalBarcodes(item.StockCode, scannedBarcode));
+            var additionalBarcodeResults = await Task.WhenAll(additionalBarcodeTasks);
+
+            for (int i = 0; i < allItems.Count; i++)
+            {
+                if (additionalBarcodeResults[i])
+                    return allItems[i];
+            }
+
+            return null;
+        }
+
+        private async Task<bool> CheckAdditionalBarcodes(string stockCode, string scannedBarcode)
+        {
+            var stockItem = await _dbConnection.Table<StockItem>()
+                .FirstOrDefaultAsync(item => item.stock_code == stockCode);
+            
+            if (stockItem?.alternate_bar_codes != null)
+            {
+                var additionalBarcodes = stockItem.alternate_bar_codes
+                    .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                return additionalBarcodes.Any(b => b.Equals(scannedBarcode, StringComparison.OrdinalIgnoreCase));
+            }
+            return false;
+        }
     }
 }

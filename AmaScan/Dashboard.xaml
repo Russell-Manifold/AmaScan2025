@@ -60,6 +60,17 @@
                 <Label Text="Returns"
                        HorizontalOptions="Center"
                        VerticalOptions="Center" />
+
+                <!-- 🔘 Image Button 5 - Stock Count -->
+                <ImageButton x:Name="BtnStockCount" Source="stockcount.png"
+                         WidthRequest="50"
+                         HeightRequest="50"
+                         Clicked="OnStockCountClicked"/>
+                <Label Text="Stock Count"
+                       HorizontalOptions="Center"
+                       VerticalOptions="Center" />
+
+
             </VerticalStackLayout>
         </ScrollView>
     </Grid>

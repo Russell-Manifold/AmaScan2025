@@ -30,6 +30,10 @@
             Routing.RegisterRoute(nameof(AuthorizationPage), typeof(AuthorizationPage));
             Routing.RegisterRoute(nameof(AuthorizationDocumentsPage), typeof(AuthorizationDocumentsPage));
 
+            Routing.RegisterRoute(nameof(StockCountMain), typeof(StockCountMain));
+            Routing.RegisterRoute(nameof(StockCountPage), typeof(StockCountPage));
+            Routing.RegisterRoute(nameof(StockCountSearchPage), typeof(StockCountSearchPage));
+
             InitializeComponent();
             
         }

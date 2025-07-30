@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="AmaScan.StockCountMain"
+             Title="Stock Count">
+
+    <Grid RowDefinitions="Auto,*" Padding="20">
+        <!-- Header Info -->
+        <Frame Grid.Row="0" Padding="10" BackgroundColor="LightGrey" Margin="0,0,0,10">
+            <VerticalStackLayout>
+                <Label Text="Stock Counts" FontSize="18" FontAttributes="Bold"/>
+                <Label Text="Select a stock count to begin counting" FontSize="12"/>
+            </VerticalStackLayout>
+        </Frame>
+
+        <!-- Stock Count Sessions List -->
+        <ScrollView Grid.Row="1">
+            <VerticalStackLayout>
+                <CollectionView ItemsSource="{Binding StockCountSessions}"
+                              SelectionMode="Single"
+                              SelectionChanged="OnSessionSelected">
+                    <CollectionView.ItemTemplate>
+                        <DataTemplate>
+                            <Frame Padding="10" Margin="0,5" 
+                                   BackgroundColor="White"
+                                   BorderColor="DarkGrey">
+                                <Frame.GestureRecognizers>
+                                    <TapGestureRecognizer Tapped="OnSessionTapped" 
+                                                          CommandParameter="{Binding}" />
+                                </Frame.GestureRecognizers>
+                                <Grid ColumnDefinitions="*,Auto">
+                                    <VerticalStackLayout Grid.Column="0">
+                                        <Label Text="{Binding BatchNo}" FontAttributes="Bold" FontSize="16" />
+                                        <Label Text="{Binding TotalItems, StringFormat='Total Items: {0}'}" />
+                                        <Label Text="{Binding CompletedItems, StringFormat='Completed: {0}'}" />
+                                    </VerticalStackLayout>
+                                    <VerticalStackLayout Grid.Column="1" HorizontalOptions="End" VerticalOptions="Center">
+                                        <Button Text="Upload Data" 
+                                                BackgroundColor="{Binding UploadButtonColor}"
+                                                TextColor="White"
+                                                Padding="10,5"
+                                                FontSize="14"
+                                                IsEnabled="{Binding HasCompletedItems}"
+                                                Clicked="OnUploadDataClicked"
+                                                CommandParameter="{Binding}" />
+                                    </VerticalStackLayout>
+                                </Grid>
+                            </Frame>
+                        </DataTemplate>
+                    </CollectionView.ItemTemplate>
+                </CollectionView>
+            </VerticalStackLayout>
+        </ScrollView>
+
+        <!-- Loading Indicator -->
+        <ActivityIndicator Grid.Row="1"
+                          IsRunning="{Binding IsLoading}"
+                          IsVisible="{Binding IsLoading}"
+                          HorizontalOptions="Center"
+                          VerticalOptions="Center"/>
+    </Grid>
+</ContentPage> 
