@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using AmaScan.Classes;
+using AmaScan.Data;
 using AmaScan.sqliteModels;
 using SQLite;
 
@@ -44,12 +45,12 @@ public partial class PackingDocumentsPage : ContentPage, INotifyPropertyChanged
     public string CustomerName => _soHeader?.CustomerName ?? "";
     public DateTime DueDate => _soHeader?.DueDate ?? DateTime.Now;
 
-    public PackingDocumentsPage()
+    public PackingDocumentsPage(DatabaseHelper databaseHelper)
     {
         InitializeComponent();
         BindingContext = this;
         _soLines = new ObservableCollection<SoLine>();
-        _dbHelper = new DatabaseHelper(new SQLiteAsyncConnection(Constants.DatabasePath, Constants.Flags));
+        _dbHelper = databaseHelper;
     }
 
     protected override void OnAppearing()
@@ -62,47 +63,66 @@ public partial class PackingDocumentsPage : ContentPage, INotifyPropertyChanged
     {
         try
         {
-            IsLoading = true;
-
-            // Clear the collection first
-            _soLines.Clear();
+            await MainThread.InvokeOnMainThreadAsync(() =>
+            {
+                IsLoading = true;
+                _soLines.Clear();
+            });
 
             // Get the current SO header from session
             _soHeader = PickingWorkflowSession.CurrentSoHeader;
             if (_soHeader == null)
             {
-                await DisplayAlert("Error", "No SO selected. Please go back and select an SO.", "OK");
-                await Navigation.PopAsync();
+                await MainThread.InvokeOnMainThreadAsync(async () =>
+                {
+                    await DisplayAlert("Error", "No SO selected. Please go back and select an SO.", "OK");
+                    await Navigation.PopAsync();
+                });
                 return;
             }
 
-            // Update UI bindings for SO header
-            OnPropertyChanged(nameof(SoNumber));
-            OnPropertyChanged(nameof(CustomerName));
-            OnPropertyChanged(nameof(DueDate));
-
-            var databaseHelper = new DatabaseHelper(new SQLiteAsyncConnection(Constants.DatabasePath, Constants.Flags));
-
-            // Load all SO lines for the current SO
-            var allLines = await databaseHelper.GetSoLinesByOrderNoAsync(_soHeader.Reference);
-
-            // Clear and reload the collection with all items
-            _soLines.Clear();
-            foreach (var line in allLines)
+            // Update UI bindings for SO header on main thread
+            await MainThread.InvokeOnMainThreadAsync(() =>
             {
-                _soLines.Add(line);
-            }
+                OnPropertyChanged(nameof(SoNumber));
+                OnPropertyChanged(nameof(CustomerName));
+                OnPropertyChanged(nameof(DueDate));
+            });
 
-            // Notify that SoLines collection has changed
-            OnPropertyChanged(nameof(SoLines));
+            // Run database operations on background thread
+            var allLines = await Task.Run(async () =>
+            {
+                var databaseHelper = AmaScanDatabase.GetDatabaseHelper();
+                return await databaseHelper.GetSoLinesByOrderNoAsync(_soHeader.Reference);
+            });
+
+            // Update UI on main thread
+            await MainThread.InvokeOnMainThreadAsync(() =>
+            {
+                // Clear and reload the collection with all items
+                _soLines.Clear();
+                foreach (var line in allLines)
+                {
+                    _soLines.Add(line);
+                }
+
+                // Notify that SoLines collection has changed
+                OnPropertyChanged(nameof(SoLines));
+            });
         }
         catch (Exception ex)
         {
-            await DisplayAlert("Error", $"Failed to load SO lines: {ex.Message}", "OK");
+            await MainThread.InvokeOnMainThreadAsync(async () =>
+            {
+                await DisplayAlert("Error", $"Failed to load SO lines: {ex.Message}", "OK");
+            });
         }
         finally
         {
-            IsLoading = false;
+            await MainThread.InvokeOnMainThreadAsync(() =>
+            {
+                IsLoading = false;
+            });
         }
     }
 

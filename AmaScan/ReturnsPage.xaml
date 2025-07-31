@@ -29,6 +29,7 @@
                                    MaxLength="15"
                                    Keyboard="Numeric"
                                    FontSize="18"
+                                   BackgroundColor="Transparent"
                                    Focused="OnBarcodeFocused"
                                    Unfocused="OnBarcodeUnfocused"/>
 

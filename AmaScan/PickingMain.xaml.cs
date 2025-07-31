@@ -1,8 +1,10 @@
 using AmaScan.Classes;
+using AmaScan.Data;
 using AmaScan.sqliteModels;
 using Data.Model;
 using SQLite;
 using System.Net.Http.Json;
+using Microsoft.Maui.Dispatching;
 
 namespace AmaScan;
 
@@ -55,21 +57,34 @@ public partial class PickingMain : ContentPage
             return;
         }
 
-        loadingIndicator.IsVisible = true;
-        loadingIndicator.IsRunning = true;
+        await MainThread.InvokeOnMainThreadAsync(() =>
+        {
+            loadingIndicator.IsVisible = true;
+            loadingIndicator.IsRunning = true;
+        });
 
         // Clear session values related to header
         PickingWorkflowSession.Clear();
 
         try
         {
-            // Fetch from API
-            string url = $"{AppConfig.ApiBaseUrl}GetSalesOrder/{Uri.EscapeDataString($"IO{soNumber}")}";
-            _currentSoResponse = await _httpClient.GetFromJsonAsync<SalesOrderResponse>(url);
+            // Run heavy operations on background thread
+            var result = await Task.Run(async () =>
+            {
+                // Fetch from API
+                string url = $"{AppConfig.ApiBaseUrl}GetSalesOrder/{Uri.EscapeDataString($"IO{soNumber}")}";
+                var response = await _httpClient.GetFromJsonAsync<SalesOrderResponse>(url);
+                return response;
+            });
+
+            _currentSoResponse = result;
 
             if (_currentSoResponse == null || _currentSoResponse.Lines == null || !_currentSoResponse.Lines.Any())
             {
-                await DisplayAlert("Not Found", $"SO {soNumber} not found on server.", "OK");
+                await MainThread.InvokeOnMainThreadAsync(async () =>
+                {
+                    await DisplayAlert("Not Found", $"SO {soNumber} not found on server.", "OK");
+                });
                 return;
             }
 
@@ -79,12 +94,18 @@ public partial class PickingMain : ContentPage
         }
         catch (Exception ex)
         {
-            await DisplayAlert("Error", $"Could not load SO: {soNumber} : Message:- {ex.Message}", "OK");
+            await MainThread.InvokeOnMainThreadAsync(async () =>
+            {
+                await DisplayAlert("Error", $"Could not load SO: {soNumber} : Message:- {ex.Message}", "OK");
+            });
         }
         finally
         {
-            loadingIndicator.IsVisible = false;
-            loadingIndicator.IsRunning = false;
+            await MainThread.InvokeOnMainThreadAsync(() =>
+            {
+                loadingIndicator.IsVisible = false;
+                loadingIndicator.IsRunning = false;
+            });
         }
     }
 
@@ -107,46 +128,79 @@ public partial class PickingMain : ContentPage
                 return;
             }
 
-            var databaseHelper = new DatabaseHelper(new SQLiteAsyncConnection(Constants.DatabasePath, Constants.Flags));
-
-            var existingSo = await databaseHelper.GetSoHeaderByOrderNoAsync(soNumber);
-            if (existingSo != null)
+            // Run database operations on background thread
+            var result = await Task.Run(async () =>
             {
-                bool goToPicking = await DisplayAlert("Resume Picking?",
-                    "This SO is already loaded. Would you like to resume picking?", "Yes", "No");
+                var databaseHelper = AmaScanDatabase.GetDatabaseHelper();
+                var existingSo = await databaseHelper.GetSoHeaderByOrderNoAsync(soNumber);
+                
+                if (existingSo != null)
+                {
+                    return new { hasExistingSo = true, existingSo, savedSo = (SoHeader)null };
+                }
+
+                await SaveToLocalDatabaseAsync(_currentSoResponse);
+                var savedSo = await databaseHelper.GetSoHeaderByOrderNoAsync(soNumber);
+                
+                return new { hasExistingSo = false, existingSo = (SoHeader)null, savedSo };
+            });
+
+            // Handle existing SO case
+            if (result.hasExistingSo)
+            {
+                bool goToPicking = await MainThread.InvokeOnMainThreadAsync(async () =>
+                {
+                    return await DisplayAlert("Resume Picking?",
+                        "This SO is already loaded. Would you like to resume picking?", "Yes", "No");
+                });
 
                 if (goToPicking)
                 {
-                    PickingWorkflowSession.CurrentSoHeader = existingSo;
-                    await Shell.Current.GoToAsync(nameof(PickingDocumentsPage));
+                    PickingWorkflowSession.CurrentSoHeader = result.existingSo;
+                    await MainThread.InvokeOnMainThreadAsync(async () =>
+                    {
+                        await Shell.Current.GoToAsync(nameof(PickingDocumentsPage));
+                    });
                     return;
                 }
                 else
                 {
-                    await DisplayAlert("Cancelled", "You chose not to resume picking.", "OK");
+                    await MainThread.InvokeOnMainThreadAsync(async () =>
+                    {
+                        await DisplayAlert("Cancelled", "You chose not to resume picking.", "OK");
+                    });
                     return;
                 }
             }
 
-            await SaveToLocalDatabaseAsync(_currentSoResponse);
+            // Handle new SO case
+            PickingWorkflowSession.CurrentSoHeader = result.savedSo;
 
-            // Set the session header for navigation
-            var savedSo = await databaseHelper.GetSoHeaderByOrderNoAsync(soNumber);
-            PickingWorkflowSession.CurrentSoHeader = savedSo;
+            await MainThread.InvokeOnMainThreadAsync(async () =>
+            {
+                await DisplayAlert("Success", "SO has been loaded for offline picking.", "OK");
+            });
 
-            await DisplayAlert("Success", "SO has been loaded for offline picking.", "OK");
-
-            bool startPicking = await DisplayAlert("Start Picking?",
-                "Would you like to start picking this SO now?", "Yes", "No");
+            bool startPicking = await MainThread.InvokeOnMainThreadAsync(async () =>
+            {
+                return await DisplayAlert("Start Picking?",
+                    "Would you like to start picking this SO now?", "Yes", "No");
+            });
 
             if (startPicking)
             {
-                await Shell.Current.GoToAsync(nameof(PickingDocumentsPage));
+                await MainThread.InvokeOnMainThreadAsync(async () =>
+                {
+                    await Shell.Current.GoToAsync(nameof(PickingDocumentsPage));
+                });
             }
         }
         catch (Exception ex)
         {
-            await DisplayAlert("Error", $"Failed to load SO: {ex.Message}", "OK");
+            await MainThread.InvokeOnMainThreadAsync(async () =>
+            {
+                await DisplayAlert("Error", $"Failed to load SO: {ex.Message}", "OK");
+            });
         }
     }
 
@@ -155,7 +209,7 @@ public partial class PickingMain : ContentPage
         if (response == null || response.Lines == null || !response.Lines.Any())
             throw new ArgumentException("Invalid sales order data.");
 
-        var databaseHelper = new DatabaseHelper(new SQLiteAsyncConnection(Constants.DatabasePath, Constants.Flags));
+                    var databaseHelper = AmaScanDatabase.GetDatabaseHelper();
 
         string soNumber = response.Reference; // Use Reference as the SO number
         if (string.IsNullOrEmpty(soNumber))

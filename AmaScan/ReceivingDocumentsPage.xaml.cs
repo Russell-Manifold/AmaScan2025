@@ -1,12 +1,13 @@
-using AmaScan.Classes;
-using AmaScan.sqliteModels;
-using Data.Model;
-using SQLite;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
-using System.Net.Http.Json;
 using System.Runtime.CompilerServices;
+using AmaScan.Classes;
+using AmaScan.sqliteModels;
+using AmaScan.Data;
+using SQLite;
+using System.Net.Http.Json;
 using static AmaScan.SettingsPage;
+using Microsoft.Maui.Dispatching;
 
 namespace AmaScan;
 
@@ -30,7 +31,7 @@ public partial class ReceivingDocumentsPage : ContentPage, INotifyPropertyChange
 
     private PoHeader _poHeader;
     private string _dnNumber;
-    private readonly DatabaseHelper _databaseHelper = new(new SQLiteAsyncConnection(Constants.DatabasePath, Constants.Flags));
+    private readonly DatabaseHelper _databaseHelper = new(AmaScanDatabase.GetConnection());
 
     public string DNnumber
     {
@@ -153,47 +154,64 @@ public partial class ReceivingDocumentsPage : ContentPage, INotifyPropertyChange
     {
         try
         {
-            bool hasWarehouses = await _databaseHelper.HasWarehousesAsync();
-            if (!hasWarehouses)
+            // Run heavy operations on background thread
+            var result = await Task.Run(async () =>
             {
-                string url = $"{AppConfig.ApiBaseUrl}warehouses/get-warehouses";
-                var response = await _httpClient.GetFromJsonAsync<WarehouseResponse>(url);
-                if (response?.data != null && response.data.Any())
+                bool hasWarehouses = await _databaseHelper.HasWarehousesAsync();
+                if (!hasWarehouses)
                 {
-                    await _databaseHelper.SaveWarehousesAsync(response.data);
-                    Preferences.Set("HasPopulatedWarehouses", true);
+                    string url = $"{AppConfig.ApiBaseUrl}warehouses/get-warehouses";
+                    var response = await _httpClient.GetFromJsonAsync<WarehouseResponse>(url);
+                    if (response?.data != null && response.data.Any())
+                    {
+                        await _databaseHelper.SaveWarehousesAsync(response.data);
+                        Preferences.Set("HasPopulatedWarehouses", true);
+                    }
+                    else
+                    {
+                        return new { warehouseData = new List<Warehouse>(), showAlert = true, alertMessage = "No warehouses found in API response." };
+                    }
                 }
-                else
-                {
-                    await DisplayAlert("Info", "No warehouses found in API response.", "OK");
-                    return;
-                }
-            }
-            
-            var warehouseData = await _databaseHelper.GetWarehousesAsync();
-            var fullList = new ObservableCollection<Warehouse>(
-                new[] { new Warehouse { Code = "", Description = "Select Warehouse" } }.Concat(warehouseData)
-            );
+                
+                var warehouseData = await _databaseHelper.GetWarehousesAsync();
+                return new { warehouseData, showAlert = false, alertMessage = "" };
+            });
 
-            WarehouseList = fullList;
-            
-            // Set default receiving warehouse from settings
-            string defaultReceivingCode = Preferences.Get("DefaultReceivingWarehouseCode", "");
-            if (!string.IsNullOrEmpty(defaultReceivingCode))
+            // Update UI on main thread
+            await MainThread.InvokeOnMainThreadAsync(() =>
             {
-                var defaultWarehouse = WarehouseList.FirstOrDefault(w => w.Code == defaultReceivingCode);
-                if (defaultWarehouse != null)
+                var fullList = new ObservableCollection<Warehouse>(
+                    new[] { new Warehouse { Code = "", Description = "Select Warehouse" } }.Concat(result.warehouseData)
+                );
+
+                WarehouseList = fullList;
+                
+                // Set default receiving warehouse from settings
+                string defaultReceivingCode = Preferences.Get("DefaultReceivingWarehouseCode", "");
+                if (!string.IsNullOrEmpty(defaultReceivingCode))
                 {
-                    SelectedWarehouse = defaultWarehouse;
+                    var defaultWarehouse = WarehouseList.FirstOrDefault(w => w.Code == defaultReceivingCode);
+                    if (defaultWarehouse != null)
+                    {
+                        SelectedWarehouse = defaultWarehouse;
+                    }
+                    else
+                    {
+                        SelectedWarehouse = WarehouseList.FirstOrDefault();
+                    }
                 }
                 else
                 {
                     SelectedWarehouse = WarehouseList.FirstOrDefault();
                 }
-            }
-            else
+            });
+
+            if (result.showAlert)
             {
-                SelectedWarehouse = WarehouseList.FirstOrDefault();
+                await MainThread.InvokeOnMainThreadAsync(async () =>
+                {
+                    await DisplayAlert("Info", result.alertMessage, "OK");
+                });
             }
         }
         catch (Exception ex)

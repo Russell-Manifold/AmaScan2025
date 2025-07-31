@@ -39,11 +39,11 @@ public partial class CheckingPage : ContentPage, INotifyPropertyChanged
     #endregion
 
     #region Constructor and Lifecycle
-    public CheckingPage()
+    public CheckingPage(DatabaseHelper databaseHelper)
     {
         InitializeComponent();
         BindingContext = this;
-        _dbHelper = new DatabaseHelper(new SQLiteAsyncConnection(Constants.DatabasePath, Constants.Flags));
+        _dbHelper = databaseHelper;
         _userSession = App.Services.GetRequiredService<UserSession>();
         _soLines = new ObservableCollection<SoLine>();
 
@@ -508,6 +508,12 @@ public partial class CheckingPage : ContentPage, INotifyPropertyChanged
         if (lineInCollection.CheckStartDateTime == null)
         {
             lineInCollection.CheckStartDateTime = DateTime.Now;
+        }
+
+        // Set CheckStarted flag when checking begins (first quantity added)
+        if (!lineInCollection.CheckStarted)
+        {
+            lineInCollection.CheckStarted = true;
         }
 
         await _dbHelper.UpdateSoLineAsync(lineInCollection);

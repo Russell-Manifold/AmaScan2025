@@ -39,11 +39,11 @@ public partial class PickingPage : ContentPage, INotifyPropertyChanged
     #endregion
 
     #region Constructor and Lifecycle
-    public PickingPage()
+    public PickingPage(DatabaseHelper databaseHelper)
     {
         InitializeComponent();
         BindingContext = this;
-        _dbHelper = new DatabaseHelper(new SQLiteAsyncConnection(Constants.DatabasePath, Constants.Flags));
+        _dbHelper = databaseHelper;
         _userSession = App.Services.GetRequiredService<UserSession>();
         _soLines = new ObservableCollection<SoLine>();
 
@@ -377,7 +377,8 @@ public partial class PickingPage : ContentPage, INotifyPropertyChanged
                     $"Next phase: Packing\n\n" +
                     $"Order: {_soHeader.Reference}", "OK");
 
-                await Navigation.PushAsync(new Dashboard(_userSession));
+                var dashboard = App.Services.GetRequiredService<Dashboard>();
+                await Navigation.PushAsync(dashboard);
             }
             else
             {

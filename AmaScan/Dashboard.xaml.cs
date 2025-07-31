@@ -1,4 +1,5 @@
 using AmaScan.Classes;
+using AmaScan.Data;
 
 namespace AmaScan;
 public partial class Dashboard : ContentPage
@@ -18,31 +19,35 @@ public partial class Dashboard : ContentPage
     public string RoleName => _userSession.CurrentUser?.RoleName ?? "No Role Assigned";
     public string UseNRole => $"User: {UserName} ({RoleName})";
     public UserSession UserSession => _userSession;
-    public Dashboard(UserSession userSession)
+    public Dashboard()
     {
         InitializeComponent();
-        _userSession = userSession;
+        _userSession = App.Services.GetRequiredService<UserSession>();
         BindingContext = this;
     }
 
     private async void OnPage1Clicked(object sender, EventArgs e)
     {
-        await Navigation.PushAsync(new ReceivingMain());
+        var receivingMain = App.Services.GetRequiredService<ReceivingMain>();
+        await Navigation.PushAsync(receivingMain);
     }
 
     private async void OnPage2Clicked(object sender, EventArgs e)
     {
-        await Navigation.PushAsync(new TransferMainPage());
+        var transferMainPage = App.Services.GetRequiredService<TransferMainPage>();
+        await Navigation.PushAsync(transferMainPage);
     }
 
     private async void OnSettingsClicked(object sender, EventArgs e)
     {
-        await Navigation.PushAsync(new SettingsPage());
+        var settingsPage = App.Services.GetRequiredService<SettingsPage>();
+        await Navigation.PushAsync(settingsPage);
     }
 
     private async void OnPage3Clicked(object sender, EventArgs e)
     {
-        await Navigation.PushAsync(new DashboardPicking(_userSession));
+        var dashboardPicking = App.Services.GetRequiredService<DashboardPicking>();
+        await Navigation.PushAsync(dashboardPicking);
     }
 
     private async void OnPage4Clicked(object sender, EventArgs e)
@@ -53,7 +58,8 @@ public partial class Dashboard : ContentPage
 
     private async void OnStockCountClicked(object sender, EventArgs e)
     {
-        await Navigation.PushAsync(new StockCountMain());
+        var stockCountMain = App.Services.GetRequiredService<StockCountMain>();
+        await Navigation.PushAsync(stockCountMain);
     }
 
 

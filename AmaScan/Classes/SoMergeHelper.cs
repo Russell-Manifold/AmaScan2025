@@ -2,6 +2,7 @@
 using Data.Model;
 using SQLite;
 using Microsoft.Maui.Dispatching;
+using AmaScan.Data;
 
 namespace AmaScan.Classes;
 
@@ -22,12 +23,17 @@ public static class SoMergeHelper
     {
         try
         {
-            var databaseHelper = new DatabaseHelper(new SQLiteAsyncConnection(Constants.DatabasePath, Constants.Flags));
+            var databaseHelper = AmaScanDatabase.GetDatabaseHelper();
 
+            // Run database operations on background thread
+            var result = await Task.Run(async () =>
+            {
+                // Step 1: Check local database first
+                var existingSo = await databaseHelper.GetSoHeaderByOrderNoAsync(soNumber);
+                return existingSo;
+            });
 
-
-            // Step 1: Check local database first
-            var existingSo = await databaseHelper.GetSoHeaderByOrderNoAsync(soNumber);
+            var existingSo = result;
 
             // Step 2: If SO exists locally, merge fresh data with existing workflow data
             if (existingSo != null)
@@ -37,14 +43,17 @@ public static class SoMergeHelper
             }
             else
             {
-                // Show fresh data from API
-                customerLabel.Text = $"Customer: {freshData.CustomerName}";
-                dueDateLabel.Text = $"Due Date: {freshData.DueDate:yyyy-MM-dd}";
-                soHeaderFrame.IsVisible = true;
+                // Show fresh data from API on main thread
+                await MainThread.InvokeOnMainThreadAsync(() =>
+                {
+                    customerLabel.Text = $"Customer: {freshData.CustomerName}";
+                    dueDateLabel.Text = $"Due Date: {freshData.DueDate:yyyy-MM-dd}";
+                    soHeaderFrame.IsVisible = true;
 
-                soLinesView.ItemsSource = freshData.Lines;
-                soLinesView.IsVisible = true;
-                loadSOButton.IsVisible = true;
+                    soLinesView.ItemsSource = freshData.Lines;
+                    soLinesView.IsVisible = true;
+                    loadSOButton.IsVisible = true;
+                });
             }
 
             return true;
@@ -70,18 +79,27 @@ public static class SoMergeHelper
     {
         try
         {
-            // Load header and lines in parallel for better performance
-            var headerTask = databaseHelper.GetSoHeaderByOrderNoAsync(soNumber);
-            var linesTask = databaseHelper.GetSoLinesByOrderNoAsync(soNumber);
+            // Run database operations on background thread
+            var result = await Task.Run(async () =>
+            {
+                // Load header and lines in parallel for better performance
+                var headerTask = databaseHelper.GetSoHeaderByOrderNoAsync(soNumber);
+                var linesTask = databaseHelper.GetSoLinesByOrderNoAsync(soNumber);
 
-            await Task.WhenAll(headerTask, linesTask);
+                await Task.WhenAll(headerTask, linesTask);
 
-            var existingSo = await headerTask;
-            var existingLines = await linesTask;
+                var existingSo = await headerTask;
+                var existingLines = await linesTask;
+
+                return new { existingSo, existingLines };
+            });
+
+            var existingSo = result.existingSo;
+            var existingLines = result.existingLines;
 
             if (existingSo == null || !existingLines.Any()) return;
 
-            MainThread.BeginInvokeOnMainThread(() =>
+            await MainThread.InvokeOnMainThreadAsync(() =>
             {
                 customerLabel.Text = $"Customer: {existingSo.CustomerName ?? "N/A"}";
                 dueDateLabel.Text = $"Due Date: {existingSo.DueDate:yyyy-MM-dd}";
@@ -116,34 +134,40 @@ public static class SoMergeHelper
     {
         try
         {
-            // Get existing lines before merge for comparison
-            var existingLinesBefore = await databaseHelper.GetSoLinesByOrderNoAsync(soNumber);
-            var existingLineKeys = existingLinesBefore
-                .Select(l => $"{l.ItemCode}_{l.ItemBarcode}")
-                .ToHashSet();
-            var freshLineKeys = freshData.Lines
-                .Select(l => $"{l.ItemCode}_{l.ItemBarcode}")
-                .ToHashSet();
+            // Run database operations on background thread
+            var mergeResult = await Task.Run(async () =>
+            {
+                // Get existing lines before merge for comparison
+                var existingLinesBefore = await databaseHelper.GetSoLinesByOrderNoAsync(soNumber);
+                var existingLineKeys = existingLinesBefore
+                    .Select(l => $"{l.ItemCode}_{l.ItemBarcode}")
+                    .ToHashSet();
+                var freshLineKeys = freshData.Lines
+                    .Select(l => $"{l.ItemCode}_{l.ItemBarcode}")
+                    .ToHashSet();
 
-            // Merge fresh data with existing workflow data
-            await databaseHelper.MergeSoDataAsync(freshData);
+                // Merge fresh data with existing workflow data
+                await databaseHelper.MergeSoDataAsync(freshData);
 
-            // Get lines after merge for comparison
-            var existingLinesAfter = await databaseHelper.GetSoLinesByOrderNoAsync(soNumber);
+                // Get lines after merge for comparison
+                var existingLinesAfter = await databaseHelper.GetSoLinesByOrderNoAsync(soNumber);
 
-            // Calculate merge summary using composite keys
-            var newLines = freshLineKeys.Except(existingLineKeys).Count();
-            var removedLines = existingLineKeys.Except(freshLineKeys).Count();
-            var updatedLines = existingLinesBefore.Count - removedLines;
+                // Calculate merge summary using composite keys
+                var newLines = freshLineKeys.Except(existingLineKeys).Count();
+                var removedLines = existingLineKeys.Except(freshLineKeys).Count();
+                var updatedLines = existingLinesBefore.Count - removedLines;
 
-            // Show merge summary
+                return new { newLines, removedLines, updatedLines };
+            });
+
+            // Show merge summary on main thread
             var summary = $"Merge Complete!\n\n" +
-                         $"• {updatedLines} lines updated\n" +
-                         $"• {newLines} new lines added\n" +
-                         $"• {removedLines} lines removed\n\n" +
+                         $"• {mergeResult.updatedLines} lines updated\n" +
+                         $"• {mergeResult.newLines} new lines added\n" +
+                         $"• {mergeResult.removedLines} lines removed\n\n" +
                          $"Your {workflowName.ToLower()} progress has been preserved.";
 
-            if (removedLines > 0)
+            if (mergeResult.removedLines > 0)
             {
                 await Application.Current.MainPage.DisplayAlert("Merge Summary", summary, "OK");
             }

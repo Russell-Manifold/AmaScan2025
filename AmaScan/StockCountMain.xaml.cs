@@ -7,6 +7,7 @@ using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using Newtonsoft.Json;
 using System.Linq;
+using Microsoft.Maui.Dispatching;
 
 namespace AmaScan;
 
@@ -43,11 +44,11 @@ public partial class StockCountMain : ContentPage, INotifyPropertyChanged
         }
     }
 
-    public StockCountMain()
+    public StockCountMain(DatabaseHelper databaseHelper)
     {
         InitializeComponent();
         BindingContext = this;
-        _databaseHelper = new DatabaseHelper(new SQLiteAsyncConnection(Constants.DatabasePath, Constants.Flags));
+        _databaseHelper = databaseHelper;
         _httpClient = AppConfig.GetHttpClient();
         _stockCountSessions = new ObservableCollection<StockCountSession>();
     }
@@ -62,64 +63,74 @@ public partial class StockCountMain : ContentPage, INotifyPropertyChanged
     {
         try
         {
-            IsLoading = true;
-            StockCountSessions.Clear();
-
             // TODO: When API endpoint for all stock count batches is created, implement proper data loading
             // Example API call: GET /api/GetStockCountBatches
             // This should return all available stock count batches with their progress
             // Then we can replace the dummy data with real data from the API
-            
+            await MainThread.InvokeOnMainThreadAsync(() =>
+            {
+                IsLoading = true;
+                StockCountSessions.Clear();
+            });
+
             // Create dummy sessions for now
             var sessions = CreateDummySessions();
             
-            // For QWERTY session, try to load real data from API
-            var qwertySession = sessions.FirstOrDefault(s => s.BatchNo == "QWERTY");
-            if (qwertySession != null)
+            // Run API operations on background thread
+            var result = await Task.Run(async () =>
             {
-                try
+                // For QWERTY session, try to load real data from API
+                var qwertySession = sessions.FirstOrDefault(s => s.BatchNo == "QWERTY");
+                if (qwertySession != null)
                 {
-                    var stockCountItems = await LoadStockCountDataFromApiAsync("QWERTY");
-                    if (stockCountItems != null && stockCountItems.Any())
+                    try
                     {
-                        // Save the API data to local database
-                        await _databaseHelper.SaveStockCountItemsAsync(stockCountItems);
-                        
-                        // Update the session with real counts
-                        qwertySession.TotalItems = stockCountItems.Count;
-                        qwertySession.CompletedItems = stockCountItems.Count(item => item.CountComplete);
+                        var stockCountItems = await LoadStockCountDataFromApiAsync("QWERTY");
+                        if (stockCountItems != null && stockCountItems.Any())
+                        {
+                            // Save the API data to local database
+                            await _databaseHelper.SaveStockCountItemsAsync(stockCountItems);
+                            
+                            // Update the session with real counts
+                            qwertySession.TotalItems = stockCountItems.Count;
+                            qwertySession.CompletedItems = stockCountItems.Count(item => item.CountComplete);
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        // If API call fails, keep the dummy data
+                        Console.WriteLine($"Failed to load QWERTY data from API: {ex.Message}");
                     }
                 }
-                catch (Exception ex)
-                {
-                    // If API call fails, keep the dummy data
-                    Console.WriteLine($"Failed to load QWERTY data from API: {ex.Message}");
-                    
-                    // TODO: When API fails, check local database for existing stock count data
-                    // var existingItems = await _databaseHelper.GetStockCountItemsAsync();
-                    // if (existingItems != null && existingItems.Any())
-                    // {
-                    //     qwertySession.TotalItems = existingItems.Count;
-                    //     qwertySession.CompletedItems = existingItems.Count(item => item.CountComplete);
-                    // }
-                }
-            }
+                
+                return sessions;
+            });
             
-            foreach (var session in sessions)
+            // Update UI on main thread
+            await MainThread.InvokeOnMainThreadAsync(() =>
             {
-                StockCountSessions.Add(session);
-            }
-            
-            // Notify that StockCountSessions collection has changed
-            OnPropertyChanged(nameof(StockCountSessions));
+                foreach (var session in result)
+                {
+                    StockCountSessions.Add(session);
+                }
+                
+                // Notify that StockCountSessions collection has changed
+                OnPropertyChanged(nameof(StockCountSessions));
+            });
         }
         catch (Exception ex)
         {
-            await DisplayAlert("Error", $"Failed to load stock count sessions: {ex.Message}", "OK");
+            await MainThread.InvokeOnMainThreadAsync(async () =>
+            {
+                await DisplayAlert("Error", $"Failed to load stock count sessions: {ex.Message}", "OK");
+            });
         }
         finally
         {
-            IsLoading = false;
+            await MainThread.InvokeOnMainThreadAsync(() =>
+            {
+                IsLoading = false;
+            });
         }
     }
 

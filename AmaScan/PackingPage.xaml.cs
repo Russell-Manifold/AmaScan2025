@@ -39,11 +39,11 @@ public partial class PackingPage : ContentPage, INotifyPropertyChanged
     #endregion
 
     #region Constructor and Lifecycle
-    public PackingPage()
+    public PackingPage(DatabaseHelper databaseHelper)
     {
         InitializeComponent();
         BindingContext = this;
-        _dbHelper = new DatabaseHelper(new SQLiteAsyncConnection(Constants.DatabasePath, Constants.Flags));
+        _dbHelper = databaseHelper;
         _userSession = App.Services.GetRequiredService<UserSession>();
         _soLines = new ObservableCollection<SoLine>();
 
@@ -88,25 +88,49 @@ public partial class PackingPage : ContentPage, INotifyPropertyChanged
     {
         if (PickingWorkflowSession.CurrentSoLine != null)
         {
-            // Get the fresh line from database to ensure we have the latest data
-            var freshLine = await _dbHelper.GetSoLineByBarcodeAsync(_soHeader.Reference, PickingWorkflowSession.CurrentSoLine.ItemBarcode);
+            try
+            {
+                // Get the fresh line from database to ensure we have the latest data
+                var freshLine = await Task.Run(async () =>
+                {
+                    return await _dbHelper.GetSoLineByBarcodeAsync(_soHeader.Reference, PickingWorkflowSession.CurrentSoLine.ItemBarcode);
+                });
 
-            if (freshLine != null)
-            {
-                // Update the session with the fresh line
-                PickingWorkflowSession.CurrentSoLine = freshLine;
-                StartPackingForSelectedLine(freshLine, false);
+                if (freshLine != null)
+                {
+                    // Update the session with the fresh line
+                    PickingWorkflowSession.CurrentSoLine = freshLine;
+                    await MainThread.InvokeOnMainThreadAsync(() =>
+                    {
+                        StartPackingForSelectedLine(freshLine, false);
+                    });
+                }
+                else
+                {
+                    await MainThread.InvokeOnMainThreadAsync(async () =>
+                    {
+                        await DisplayAlert("Error", "Selected line not found in database.", "OK");
+                        await Shell.Current.GoToAsync("..");
+                    });
+                }
             }
-            else
+            catch (Exception ex)
             {
-                await DisplayAlert("Error", "Selected line not found in database.", "OK");
-                await Shell.Current.GoToAsync("..");
+                await MainThread.InvokeOnMainThreadAsync(async () =>
+                {
+                    await DisplayAlert("Error", $"Failed to load selected line: {ex.Message}", "OK");
+                    await Shell.Current.GoToAsync("..");
+                });
             }
         }
         else
         {
-            SelectedLine = null;
-            MainThread.BeginInvokeOnMainThread(async () =>
+            await MainThread.InvokeOnMainThreadAsync(() =>
+            {
+                SelectedLine = null;
+            });
+            
+            await MainThread.InvokeOnMainThreadAsync(async () =>
             {
                 await DisplayAlert("No Item Selected", "Please select an item to pack.", "OK");
                 await Shell.Current.GoToAsync("..");
@@ -179,18 +203,27 @@ public partial class PackingPage : ContentPage, INotifyPropertyChanged
     {
         try
         {
-            var allLines = await _dbHelper.GetSoLinesByOrderNoAsync(_soHeader.Reference);
-
-            _soLines.Clear();
-            foreach (var line in allLines)
+            var allLines = await Task.Run(async () =>
             {
-                _soLines.Add(line);
-            }
-            OnPropertyChanged(nameof(SoLines));
+                return await _dbHelper.GetSoLinesByOrderNoAsync(_soHeader.Reference);
+            });
+
+            await MainThread.InvokeOnMainThreadAsync(() =>
+            {
+                _soLines.Clear();
+                foreach (var line in allLines)
+                {
+                    _soLines.Add(line);
+                }
+                OnPropertyChanged(nameof(SoLines));
+            });
         }
         catch (Exception ex)
         {
-            await DisplayAlert("Error", $"Failed to load SO lines: {ex.Message}", "OK");
+            await MainThread.InvokeOnMainThreadAsync(async () =>
+            {
+                await DisplayAlert("Error", $"Failed to load SO lines: {ex.Message}", "OK");
+            });
         }
     }
     #endregion
@@ -257,27 +290,44 @@ public partial class PackingPage : ContentPage, INotifyPropertyChanged
     {
         try
         {
-            LoadingOverlay.IsVisible = true;
-            loadingIndicator.IsRunning = true;
-
-            foreach (var line in _soLines)
+            await MainThread.InvokeOnMainThreadAsync(() =>
             {
-                await _dbHelper.UpdateSoLineAsync(line);
-            }
+                LoadingOverlay.IsVisible = true;
+                loadingIndicator.IsRunning = true;
+            });
 
-            await _dbHelper.UpdateSoHeaderAsync(_soHeader);
+            // Run database operations on background thread
+            await Task.Run(async () =>
+            {
+                foreach (var line in _soLines)
+                {
+                    await _dbHelper.UpdateSoLineAsync(line);
+                }
+
+                await _dbHelper.UpdateSoHeaderAsync(_soHeader);
+            });
+
             PickingWorkflowSession.CurrentSoHeader = _soHeader;
 
-            await DisplayAlert("Success", "Progress saved successfully.", "OK");
+            await MainThread.InvokeOnMainThreadAsync(async () =>
+            {
+                await DisplayAlert("Success", "Progress saved successfully.", "OK");
+            });
         }
         catch (Exception ex)
         {
-            await DisplayAlert("Error", $"Failed to save progress: {ex.Message}", "OK");
+            await MainThread.InvokeOnMainThreadAsync(async () =>
+            {
+                await DisplayAlert("Error", $"Failed to save progress: {ex.Message}", "OK");
+            });
         }
         finally
         {
-            LoadingOverlay.IsVisible = false;
-            loadingIndicator.IsRunning = false;
+            await MainThread.InvokeOnMainThreadAsync(() =>
+            {
+                LoadingOverlay.IsVisible = false;
+                loadingIndicator.IsRunning = false;
+            });
         }
     }
 
@@ -307,6 +357,15 @@ public partial class PackingPage : ContentPage, INotifyPropertyChanged
             if (SelectedLine == null)
             {
                 await DisplayAlert("No Item Selected", "Please select an item to complete.", "OK");
+                return;
+            }
+
+            // Check if checking has started for this item
+            if (SelectedLine.CheckStarted)
+            {
+                await DisplayAlert("Completion Unavailable",
+                    $"{SelectedLine.ItemDesc} has already been started for checking.\n\n" +
+                    "Packing cannot be modified once checking has started. Please complete checking first.", "OK");
                 return;
             }
 
@@ -380,7 +439,8 @@ public partial class PackingPage : ContentPage, INotifyPropertyChanged
                     $"Next phase: Checking\n\n" +
                     $"Order: {_soHeader.Reference}", "OK");
 
-                await Navigation.PushAsync(new Dashboard(_userSession));
+                var dashboard = App.Services.GetRequiredService<Dashboard>();
+                await Navigation.PushAsync(dashboard);
             }
             else
             {
@@ -509,24 +569,34 @@ public partial class PackingPage : ContentPage, INotifyPropertyChanged
             lineInCollection.PackStartDateTime = DateTime.Now;
         }
 
-        await _dbHelper.UpdateSoLineAsync(lineInCollection);
-
-        if (SelectedLine?.Id == lineInCollection.Id)
+        // Run database update on background thread
+        await Task.Run(async () =>
         {
-            SelectedLine = lineInCollection;
-            SelectedItemFrame.BindingContext = lineInCollection;
-            OnPropertyChanged(nameof(SelectedLine));
-            UpdateInputState();
-        }
+            await _dbHelper.UpdateSoLineAsync(lineInCollection);
+        });
 
-        ClearInputFields();
-        BarcodeEntry.Focus();
+        await MainThread.InvokeOnMainThreadAsync(() =>
+        {
+            if (SelectedLine?.Id == lineInCollection.Id)
+            {
+                SelectedLine = lineInCollection;
+                SelectedItemFrame.BindingContext = lineInCollection;
+                OnPropertyChanged(nameof(SelectedLine));
+                UpdateInputState();
+            }
+
+            ClearInputFields();
+            BarcodeEntry.Focus();
+        });
 
         if (lineInCollection.Packed)
         {
-            await DisplayAlert("Packing Complete",
-                $"{lineInCollection.ItemDesc} has been fully packed ({lineInCollection.PackedQty}/{lineInCollection.PickedQty})\n\n" +
-                "Packing complete, needs checking", "OK");
+            await MainThread.InvokeOnMainThreadAsync(async () =>
+            {
+                await DisplayAlert("Packing Complete",
+                    $"{lineInCollection.ItemDesc} has been fully packed ({lineInCollection.PackedQty}/{lineInCollection.PickedQty})\n\n" +
+                    "Packing complete, needs checking", "OK");
+            });
         }
     }
 
@@ -579,19 +649,29 @@ public partial class PackingPage : ContentPage, INotifyPropertyChanged
             lineInCollection.Packed = false;
         }
 
-        await _dbHelper.UpdateSoLineAsync(SelectedLine);
+        // Run database update on background thread
+        await Task.Run(async () =>
+        {
+            await _dbHelper.UpdateSoLineAsync(SelectedLine);
+        });
 
-        PackingInputSection.IsVisible = false;
-        StartPackingButton.IsVisible = true;
-        SelectedItemFrame.IsVisible = true;
+        await MainThread.InvokeOnMainThreadAsync(() =>
+        {
+            PackingInputSection.IsVisible = false;
+            StartPackingButton.IsVisible = true;
+            SelectedItemFrame.IsVisible = true;
 
-        SelectedItemFrame.BindingContext = null;
-        SelectedItemFrame.BindingContext = SelectedLine;
-        OnPropertyChanged(nameof(SelectedLine));
+            SelectedItemFrame.BindingContext = null;
+            SelectedItemFrame.BindingContext = SelectedLine;
+            OnPropertyChanged(nameof(SelectedLine));
 
-        UpdateInputState();
+            UpdateInputState();
+        });
 
-        await DisplayAlert("Reset Complete", $"Successfully reset {SelectedLine.ItemDesc}", "OK");
+        await MainThread.InvokeOnMainThreadAsync(async () =>
+        {
+            await DisplayAlert("Reset Complete", $"Successfully reset {SelectedLine.ItemDesc}", "OK");
+        });
     }
 
     private async Task<bool> SendToApiForCompletionAsync(string soNumber, List<SoLine> soLines)

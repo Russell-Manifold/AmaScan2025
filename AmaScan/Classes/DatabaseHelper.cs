@@ -1,6 +1,7 @@
 ﻿using AmaScan.sqliteModels;
 using Data.Model;
 using SQLite;
+using System.Collections.Concurrent;
 
 namespace AmaScan.Classes
 {
@@ -16,6 +17,15 @@ namespace AmaScan.Classes
     public class DatabaseHelper
     {
         private readonly SQLiteAsyncConnection _dbConnection;
+        
+        // Cache for frequently accessed data
+        private static readonly ConcurrentDictionary<string, StockItem> _stockItemCache = new();
+        private static readonly ConcurrentDictionary<string, Warehouse> _warehouseCache = new();
+        private static readonly ConcurrentDictionary<string, StockCountItem> _stockCountItemCache = new();
+        private static readonly ConcurrentDictionary<string, PoHeader> _poHeaderCache = new();
+        private static readonly ConcurrentDictionary<string, SoHeader> _soHeaderCache = new();
+        private static readonly TimeSpan _cacheExpiration = TimeSpan.FromMinutes(5);
+        private static readonly ConcurrentDictionary<string, DateTime> _cacheTimestamps = new();
 
         // Constructor assumes the SQLite connection has already been initialized
         public DatabaseHelper(SQLiteAsyncConnection dbConnection)
@@ -71,38 +81,128 @@ namespace AmaScan.Classes
         public async Task UpdatePoHeaderAsync(PoHeader poHeader)
         {
             await _dbConnection.UpdateAsync(poHeader);
+            
+            // Invalidate cache for this PO
+            if (!string.IsNullOrWhiteSpace(poHeader.OrderNo))
+            {
+                _poHeaderCache.TryRemove(poHeader.OrderNo, out _);
+                _cacheTimestamps.TryRemove($"poheader_{poHeader.OrderNo}", out _);
+            }
         }
 
-        public Task<PoHeader> GetPoHeaderByOrderNoAsync(string orderNo)
+        public async Task<PoHeader?> GetPoHeaderByOrderNoAsync(string orderNo)
         {
-            return _dbConnection.Table<PoHeader>()
+            if (string.IsNullOrWhiteSpace(orderNo))
+                return null;
+
+            // Check cache first
+            if (_poHeaderCache.TryGetValue(orderNo, out var cachedHeader))
+            {
+                if (_cacheTimestamps.TryGetValue($"poheader_{orderNo}", out var timestamp) && 
+                    DateTime.Now - timestamp < _cacheExpiration)
+                {
+                    return cachedHeader;
+                }
+                else
+                {
+                    _poHeaderCache.TryRemove(orderNo, out _);
+                    _cacheTimestamps.TryRemove($"poheader_{orderNo}", out _);
+                }
+            }
+
+            var poHeader = await _dbConnection.Table<PoHeader>()
                 .FirstOrDefaultAsync(h => h.OrderNo == orderNo);
+
+            if (poHeader != null)
+            {
+                // Cache the result
+                _poHeaderCache.TryAdd(orderNo, poHeader);
+                _cacheTimestamps.TryAdd($"poheader_{orderNo}", DateTime.Now);
+            }
+
+            return poHeader;
         }
 
         public async Task SaveStockItemsAsync(List<StockItem> items)
         {
+            // Clear cache when updating stock items
+            _stockItemCache.Clear();
+            _cacheTimestamps.Clear();
+            
             await _dbConnection.DeleteAllAsync<StockItem>();
             await _dbConnection.InsertAllAsync(items);
         }
 
         public async Task<StockItem?> ResolveStockItemByBarcodeAsync(string scannedBarcode)
         {
-            var allItems = await _dbConnection.Table<StockItem>().ToListAsync();
+            if (string.IsNullOrWhiteSpace(scannedBarcode))
+                return null;
 
-            return allItems.FirstOrDefault(item =>
-                (!string.IsNullOrWhiteSpace(item.bar_code) && item.bar_code.Equals(scannedBarcode, StringComparison.OrdinalIgnoreCase)) ||
-                (!string.IsNullOrWhiteSpace(item.barcode_lmmp) && item.barcode_lmmp.Equals(scannedBarcode, StringComparison.OrdinalIgnoreCase)) ||
-                (!string.IsNullOrWhiteSpace(item.alternate_bar_codes) && item.alternate_bar_codes
-                    .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-                    .Any(b => b.Equals(scannedBarcode, StringComparison.OrdinalIgnoreCase)))
-            );
+            // Check cache first
+            if (_stockItemCache.TryGetValue(scannedBarcode, out var cachedItem))
+            {
+                if (_cacheTimestamps.TryGetValue(scannedBarcode, out var timestamp) && 
+                    DateTime.Now - timestamp < _cacheExpiration)
+                {
+                    return cachedItem;
+                }
+                else
+                {
+                    _stockItemCache.TryRemove(scannedBarcode, out _);
+                    _cacheTimestamps.TryRemove(scannedBarcode, out _);
+                }
+            }
+
+            // Optimize query by using case-insensitive comparison and combining queries
+            var normalizedBarcode = scannedBarcode.ToLower();
+            var stockItem = await _dbConnection.Table<StockItem>()
+                .Where(item => 
+                    (item.bar_code != null && item.bar_code.ToLower() == normalizedBarcode) ||
+                    (item.barcode_lmmp != null && item.barcode_lmmp.ToLower() == normalizedBarcode))
+                .FirstOrDefaultAsync();
+
+            if (stockItem != null)
+            {
+                // Cache the result
+                _stockItemCache.TryAdd(scannedBarcode, stockItem);
+                _cacheTimestamps.TryAdd(scannedBarcode, DateTime.Now);
+                return stockItem;
+            }
+
+            // If no direct match, check alternate barcodes with optimized query
+            var result = await _dbConnection.Table<StockItem>()
+                .Where(item => 
+                    item.alternate_bar_codes != null && 
+                    item.alternate_bar_codes != "" && 
+                    item.alternate_bar_codes.Contains(scannedBarcode))
+                .FirstOrDefaultAsync();
+
+            // Additional check for exact match in comma-separated list
+            if (result != null)
+            {
+                var alternateBarcodes = result.alternate_bar_codes
+                    .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                
+                if (!alternateBarcodes.Any(b => b.ToLower() == normalizedBarcode))
+                {
+                    result = null; // No exact match found
+                }
+            }
+
+            if (result != null)
+            {
+                // Cache the result
+                _stockItemCache.TryAdd(scannedBarcode, result);
+                _cacheTimestamps.TryAdd(scannedBarcode, DateTime.Now);
+            }
+
+            return result;
         }
 
         public async Task DeletePoAsync(string poNumber)
         {
-            var poLines = await _dbConnection.Table<PoLine>().Where(p => p.OrderNo == poNumber).ToListAsync();
-            foreach (var line in poLines)
-                await _dbConnection.DeleteAsync(line);
+            // Delete PO lines using a query instead of loading all into memory
+            await _dbConnection.Table<PoLine>().Where(p => p.OrderNo == poNumber).DeleteAsync();
 
             var poHeader = await _dbConnection.Table<PoHeader>().FirstOrDefaultAsync(p => p.OrderNo == poNumber);
             if (poHeader != null)
@@ -202,6 +302,13 @@ namespace AmaScan.Classes
                     "Some item quantities have been reduced. All receiving progress for these items has been reset to zero.",
                     "OK");
             }
+            
+            // Clear PO cache when data is merged
+            if (!string.IsNullOrWhiteSpace(freshData.OrderNo))
+            {
+                _poHeaderCache.TryRemove(freshData.OrderNo, out _);
+                _cacheTimestamps.TryRemove($"poheader_{freshData.OrderNo}", out _);
+            }
         }
 
         private void UpdatePoLineFromFreshData(PoLine existingLine, PurchaseOrderLine freshLine)
@@ -270,6 +377,10 @@ namespace AmaScan.Classes
         // Save (replace all) warehouses from API to local DB
         public async Task SaveWarehousesAsync(List<Warehouse> warehouses)
         {
+            // Clear cache when updating warehouses
+            _warehouseCache.Clear();
+            _cacheTimestamps.Clear();
+            
             await _dbConnection.DeleteAllAsync<Warehouse>();
             await _dbConnection.InsertAllAsync(warehouses);
         }
@@ -280,14 +391,41 @@ namespace AmaScan.Classes
             return _dbConnection.Table<Warehouse>().ToListAsync();
         }
 
-        // Get a warehouse by code
-        public Task<Warehouse?> GetWarehouseByCodeAsync(string code)
+        // Get a warehouse by code with caching
+        public async Task<Warehouse?> GetWarehouseByCodeAsync(string code)
         {
-            return _dbConnection.Table<Warehouse>()
+            if (string.IsNullOrWhiteSpace(code))
+                return null;
+
+            // Check cache first
+            if (_warehouseCache.TryGetValue(code, out var cachedWarehouse))
+            {
+                if (_cacheTimestamps.TryGetValue($"warehouse_{code}", out var timestamp) && 
+                    DateTime.Now - timestamp < _cacheExpiration)
+                {
+                    return cachedWarehouse;
+                }
+                else
+                {
+                    _warehouseCache.TryRemove(code, out _);
+                    _cacheTimestamps.TryRemove($"warehouse_{code}", out _);
+                }
+            }
+
+            var warehouse = await _dbConnection.Table<Warehouse>()
                                 .FirstOrDefaultAsync(w => w.Code == code);
+
+            if (warehouse != null)
+            {
+                // Cache the result
+                _warehouseCache.TryAdd(code, warehouse);
+                _cacheTimestamps.TryAdd($"warehouse_{code}", DateTime.Now);
+            }
+
+            return warehouse;
         }
 
-        // Get description by code (utility method)
+        // Get description by code (utility method) with caching
         public async Task<string?> GetWarehouseDescriptionAsync(string code)
         {
             var warehouse = await GetWarehouseByCodeAsync(code);
@@ -297,6 +435,9 @@ namespace AmaScan.Classes
         // Optional: Delete all warehouses
         public Task<int> ClearWarehousesAsync()
         {
+            // Clear cache
+            _warehouseCache.Clear();
+            _cacheTimestamps.Clear();
             return _dbConnection.DeleteAllAsync<Warehouse>();
         }
 
@@ -324,21 +465,56 @@ namespace AmaScan.Classes
         public async Task UpdateSoHeaderAsync(SoHeader soHeader)
         {
             await _dbConnection.UpdateAsync(soHeader);
+            
+            // Invalidate cache for this SO
+            if (!string.IsNullOrWhiteSpace(soHeader.Reference))
+            {
+                _soHeaderCache.TryRemove(soHeader.Reference, out _);
+                _cacheTimestamps.TryRemove($"soheader_{soHeader.Reference}", out _);
+            }
         }
 
         public async Task<SoHeader?> GetSoHeaderByOrderNoAsync(string orderNo)
         {
+            if (string.IsNullOrWhiteSpace(orderNo))
+                return null;
+
             orderNo = FixOrderNo(orderNo);
-            return await _dbConnection.Table<SoHeader>()
+
+            // Check cache first
+            if (_soHeaderCache.TryGetValue(orderNo, out var cachedHeader))
+            {
+                if (_cacheTimestamps.TryGetValue($"soheader_{orderNo}", out var timestamp) && 
+                    DateTime.Now - timestamp < _cacheExpiration)
+                {
+                    return cachedHeader;
+                }
+                else
+                {
+                    _soHeaderCache.TryRemove(orderNo, out _);
+                    _cacheTimestamps.TryRemove($"soheader_{orderNo}", out _);
+                }
+            }
+
+            var soHeader = await _dbConnection.Table<SoHeader>()
                 .FirstOrDefaultAsync(h => h.Reference == orderNo);
+
+            if (soHeader != null)
+            {
+                // Cache the result
+                _soHeaderCache.TryAdd(orderNo, soHeader);
+                _cacheTimestamps.TryAdd($"soheader_{orderNo}", DateTime.Now);
+            }
+
+            return soHeader;
         }
 
         public async Task DeleteSoAsync(string orderNo)
         {
             orderNo = FixOrderNo(orderNo);
-            var soLines = await _dbConnection.Table<SoLine>().Where(p => p.DocNum == orderNo).ToListAsync();
-            foreach (var line in soLines)
-                await _dbConnection.DeleteAsync(line);
+            
+            // Delete SO lines using a query instead of loading all into memory
+            await _dbConnection.Table<SoLine>().Where(p => p.DocNum == orderNo).DeleteAsync();
 
             var soHeader = await _dbConnection.Table<SoHeader>().FirstOrDefaultAsync(p => p.Reference == orderNo);
             if (soHeader != null)
@@ -459,6 +635,13 @@ namespace AmaScan.Classes
                     "Some item quantities have been reduced. All workflow progress for these items has been reset to zero.",
                     "OK");
             }
+            
+            // Clear SO cache when data is merged
+            if (!string.IsNullOrWhiteSpace(freshData.Reference))
+            {
+                _soHeaderCache.TryRemove(freshData.Reference, out _);
+                _cacheTimestamps.TryRemove($"soheader_{freshData.Reference}", out _);
+            }
         }
 
         private void UpdateSoLineFromFreshData(SoLine existingLine, SalesOrderLine freshLine)
@@ -532,9 +715,10 @@ namespace AmaScan.Classes
         private bool UpdateWorkflowStatus(List<SoLine> lines, SoHeader header)
         {
             bool headerChanged = false;
-            bool hasIncompletePicking = false;
-            bool hasIncompletePacking = false;
-            bool hasIncompleteChecking = false;
+            // Check workflow status
+            var hasIncompletePicking = lines.Any(l => !l.Picked);
+            var hasIncompletePacking = lines.Any(l => !l.Packed);
+            var hasIncompleteChecking = lines.Any(l => !l.Checked);
 
             foreach (var line in lines)
             {
@@ -772,6 +956,13 @@ namespace AmaScan.Classes
             // Replace all items (preserving progress)
             await _dbConnection.DeleteAllAsync<StockCountItem>();
             await _dbConnection.InsertAllAsync(items);
+            
+            // Clear stock count cache when data is updated
+            _stockCountItemCache.Clear();
+            foreach (var key in _cacheTimestamps.Keys.Where(k => k.StartsWith("stockcount_")))
+            {
+                _cacheTimestamps.TryRemove(key, out _);
+            }
         }
 
         public async Task<List<StockCountItem>> GetStockCountItemsAsync()
@@ -783,8 +974,35 @@ namespace AmaScan.Classes
 
         public async Task<StockCountItem?> GetStockCountItemByCodeAsync(string stockCode)
         {
-            return await _dbConnection.Table<StockCountItem>()
+            if (string.IsNullOrWhiteSpace(stockCode))
+                return null;
+
+            // Check cache first
+            if (_stockCountItemCache.TryGetValue(stockCode, out var cachedItem))
+            {
+                if (_cacheTimestamps.TryGetValue($"stockcount_{stockCode}", out var timestamp) && 
+                    DateTime.Now - timestamp < _cacheExpiration)
+                {
+                    return cachedItem;
+                }
+                else
+                {
+                    _stockCountItemCache.TryRemove(stockCode, out _);
+                    _cacheTimestamps.TryRemove($"stockcount_{stockCode}", out _);
+                }
+            }
+
+            var stockCountItem = await _dbConnection.Table<StockCountItem>()
                 .FirstOrDefaultAsync(item => item.StockCode == stockCode);
+
+            if (stockCountItem != null)
+            {
+                // Cache the result
+                _stockCountItemCache.TryAdd(stockCode, stockCountItem);
+                _cacheTimestamps.TryAdd($"stockcount_{stockCode}", DateTime.Now);
+            }
+
+            return stockCountItem;
         }
 
         public async Task<StockCountItem?> GetStockCountItemByCodeAndBatchAsync(string stockCode, string batchNo)
@@ -795,7 +1013,15 @@ namespace AmaScan.Classes
 
         public async Task UpdateStockCountItemAsync(StockCountItem item)
         {
+            // Use a more efficient update operation
             await _dbConnection.UpdateAsync(item);
+            
+            // Invalidate cache for this item to ensure data consistency
+            if (!string.IsNullOrWhiteSpace(item.StockCode))
+            {
+                _stockCountItemCache.TryRemove(item.StockCode, out _);
+                _cacheTimestamps.TryRemove($"stockcount_{item.StockCode}", out _);
+            }
         }
 
         public async Task<List<StockCountItem>> GetIncompleteStockCountsAsync()
@@ -806,45 +1032,43 @@ namespace AmaScan.Classes
         }
 
 
-
         public async Task<StockCountItem?> ResolveStockCountItemByBarcodeAsync(string scannedBarcode)
         {
-            var allItems = await _dbConnection.Table<StockCountItem>().ToListAsync();
+            if (string.IsNullOrWhiteSpace(scannedBarcode))
+                return null;
 
-            // First, try to find matches using synchronous barcode checks
-            var primaryMatch = allItems.FirstOrDefault(item =>
-                (!string.IsNullOrWhiteSpace(item.BarCode) && item.BarCode.Equals(scannedBarcode, StringComparison.OrdinalIgnoreCase)) ||
-                (!string.IsNullOrWhiteSpace(item.BarcodeLmmp) && item.BarcodeLmmp.Equals(scannedBarcode, StringComparison.OrdinalIgnoreCase))
-            );
+            // Use database queries instead of loading all items into memory
+            var stockCountItem = await _dbConnection.Table<StockCountItem>()
+                .Where(item => 
+                    (!string.IsNullOrWhiteSpace(item.BarCode) && item.BarCode.Equals(scannedBarcode, StringComparison.OrdinalIgnoreCase)) ||
+                    (!string.IsNullOrWhiteSpace(item.BarcodeLmmp) && item.BarcodeLmmp.Equals(scannedBarcode, StringComparison.OrdinalIgnoreCase)))
+                .FirstOrDefaultAsync();
 
-            if (primaryMatch != null)
-                return primaryMatch;
+            if (stockCountItem != null)
+                return stockCountItem;
 
-            // If no primary match, check additional barcodes (async)
-            var additionalBarcodeTasks = allItems.Select(item => CheckAdditionalBarcodes(item.StockCode, scannedBarcode));
-            var additionalBarcodeResults = await Task.WhenAll(additionalBarcodeTasks);
+            // If no direct match, check additional barcodes from StockItem table
+            var stockItems = await _dbConnection.Table<StockItem>()
+                .Where(item => !string.IsNullOrWhiteSpace(item.alternate_bar_codes))
+                .ToListAsync();
 
-            for (int i = 0; i < allItems.Count; i++)
+            foreach (var stockItem in stockItems)
             {
-                if (additionalBarcodeResults[i])
-                    return allItems[i];
+                if (!string.IsNullOrWhiteSpace(stockItem.alternate_bar_codes))
+                {
+                    var additionalBarcodes = stockItem.alternate_bar_codes
+                        .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                    
+                    if (additionalBarcodes.Any(b => b.Equals(scannedBarcode, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        // Find corresponding StockCountItem
+                        return await _dbConnection.Table<StockCountItem>()
+                            .FirstOrDefaultAsync(item => item.StockCode == stockItem.stock_code);
+                    }
+                }
             }
 
             return null;
-        }
-
-        private async Task<bool> CheckAdditionalBarcodes(string stockCode, string scannedBarcode)
-        {
-            var stockItem = await _dbConnection.Table<StockItem>()
-                .FirstOrDefaultAsync(item => item.stock_code == stockCode);
-            
-            if (stockItem?.alternate_bar_codes != null)
-            {
-                var additionalBarcodes = stockItem.alternate_bar_codes
-                    .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-                return additionalBarcodes.Any(b => b.Equals(scannedBarcode, StringComparison.OrdinalIgnoreCase));
-            }
-            return false;
         }
     }
 }

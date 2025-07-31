@@ -39,11 +39,11 @@ public partial class AuthorizationPage : ContentPage, INotifyPropertyChanged
     #endregion
 
     #region Constructor and Lifecycle
-    public AuthorizationPage()
+    public AuthorizationPage(DatabaseHelper databaseHelper)
     {
         InitializeComponent();
         BindingContext = this;
-        _dbHelper = new DatabaseHelper(new SQLiteAsyncConnection(Constants.DatabasePath, Constants.Flags));
+        _dbHelper = databaseHelper;
         _userSession = App.Services.GetRequiredService<UserSession>();
         _soLines = new ObservableCollection<SoLine>();
 
@@ -308,10 +308,10 @@ public partial class AuthorizationPage : ContentPage, INotifyPropertyChanged
         bool confirm = await DisplayAlert(
             "RESET ALL PHASES",
             $"This will reset ALL phases for order {_soHeader.Reference}:\n\n" +
-            "• Picking - All picked quantities will be cleared\n" +
-            "• Packing - All packed quantities will be cleared\n" +
-            "• Checking - All checked quantities will be cleared\n" +
-            "• Authorization - All authorized quantities will be cleared\n\n" +
+            "ï¿½ Picking - All picked quantities will be cleared\n" +
+            "ï¿½ Packing - All packed quantities will be cleared\n" +
+            "ï¿½ Checking - All checked quantities will be cleared\n" +
+            "ï¿½ Authorization - All authorized quantities will be cleared\n\n" +
             "This action cannot be undone!\n\n" +
             "Are you absolutely sure you want to reset everything?",
             "YES, RESET ALL", "Cancel"

@@ -5,6 +5,7 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Windows.Input;
+using Microsoft.Maui.Dispatching;
 
 namespace AmaScan
 {
@@ -68,10 +69,10 @@ namespace AmaScan
         public string DueDateFormatted => _poHeader?.DueDate.ToString("yyyy-MM-dd") ?? "";
         public string Status => _poHeader?.Status ?? "";
 
-        public ReceivingPage()
+        public ReceivingPage(DatabaseHelper databaseHelper)
         {
             InitializeComponent();
-            _databaseHelper = new DatabaseHelper(new SQLiteAsyncConnection(Constants.DatabasePath, Constants.Flags));
+            _databaseHelper = databaseHelper;
             BindingContext = this;
             _loadingCts = new CancellationTokenSource();
         }
@@ -86,32 +87,43 @@ namespace AmaScan
                 _loadingCts = new CancellationTokenSource();
                 var ct = _loadingCts.Token;
 
-                loadingIndicator.IsVisible = true;
-                loadingIndicator.IsRunning = true;
+                await MainThread.InvokeOnMainThreadAsync(() =>
+                {
+                    loadingIndicator.IsVisible = true;
+                    loadingIndicator.IsRunning = true;
+                });
 
                 _poHeader = await _databaseHelper.GetPoHeaderByOrderNoAsync(poNumber);
                 if (_poHeader == null)
+                {
+                    await MainThread.InvokeOnMainThreadAsync(async () =>
                     {
                         await DisplayAlert("Error", $"PO not found: {poNumber}", "OK");
                         await Shell.Current.GoToAsync("..");
+                    });
                     return;
                 }
 
                 ct.ThrowIfCancellationRequested();
-                
-                    OnPropertyChanged(nameof(PoNumber));
-                    OnPropertyChanged(nameof(DueDateFormatted));
-                    OnPropertyChanged(nameof(Status));
-                    AcceptSwitch_Toggled(AcceptSwitch, new ToggledEventArgs(AcceptSwitch.IsToggled));
 
                 var lines = await _databaseHelper.GetPoLinesByOrderNoAsync(_poHeader.OrderNo);
                 ct.ThrowIfCancellationRequested();
 
+                // Update UI on main thread
+                await MainThread.InvokeOnMainThreadAsync(() =>
+                {
+                    OnPropertyChanged(nameof(PoNumber));
+                    OnPropertyChanged(nameof(DueDateFormatted));
+                    OnPropertyChanged(nameof(Status));
+                    
                     _poLines.Clear();
                     foreach (var line in lines)
                     {
                         _poLines.Add(line);
                     }
+                    
+                    AcceptSwitch_Toggled(AcceptSwitch, new ToggledEventArgs(AcceptSwitch.IsToggled));
+                });
             }
             catch (OperationCanceledException)
             {
@@ -119,12 +131,18 @@ namespace AmaScan
             }
             catch (Exception ex)
             {
-                await DisplayAlert("Error", $"Failed to load PO: {ex.Message}", "OK");
+                await MainThread.InvokeOnMainThreadAsync(async () =>
+                {
+                    await DisplayAlert("Error", $"Failed to load PO: {ex.Message}", "OK");
+                });
             }
             finally
             {
-                loadingIndicator.IsVisible = false;
-                loadingIndicator.IsRunning = false;
+                await MainThread.InvokeOnMainThreadAsync(() =>
+                {
+                    loadingIndicator.IsVisible = false;
+                    loadingIndicator.IsRunning = false;
+                });
             }
         }
 
@@ -241,6 +259,7 @@ namespace AmaScan
                 {
                     line.ScanAcceptQty = 0;
                     line.ScanRejectQty = 0;
+                    line.ReceivedString = string.Empty;
                     await _databaseHelper.UpdatePoLineAsync(line);
                 }
                 OnPropertyChanged(nameof(PoLines));

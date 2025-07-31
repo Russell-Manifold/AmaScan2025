@@ -45,11 +45,11 @@ namespace AmaScan
             }
         }
 
-        public StockCountSearchPage()
+        public StockCountSearchPage(DatabaseHelper databaseHelper)
         {
             InitializeComponent();
             BindingContext = this;
-            _databaseHelper = new DatabaseHelper(new SQLiteAsyncConnection(Constants.DatabasePath, Constants.Flags));
+            _databaseHelper = databaseHelper;
         }
 
         protected override void OnAppearing()

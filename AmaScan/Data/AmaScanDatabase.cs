@@ -1,33 +1,113 @@
 ﻿using SQLite;
 using AmaScan.sqliteModels;
-
+using AmaScan.Classes;
 
 namespace AmaScan.Data;
 
 public class AmaScanDatabase
 {
-    private SQLiteAsyncConnection Database = null!;
+    private static AmaScanDatabase? _instance;
+    private static readonly object _lock = new object();
+    private static SQLiteAsyncConnection? _database;
     private static bool _initialized = false;
+    private static readonly SemaphoreSlim _initSemaphore = new SemaphoreSlim(1, 1);
 
-    public AmaScanDatabase()
+    // Private constructor to prevent direct instantiation
+    private AmaScanDatabase()
     {
-        Task.Run(async () => await Init()).Wait();
+        // Initialize asynchronously without blocking
+        _ = InitAsync();
     }
 
-    private async Task Init()
+    // Singleton instance
+    public static AmaScanDatabase Instance
+    {
+        get
+        {
+            if (_instance == null)
+            {
+                lock (_lock)
+                {
+                    if (_instance == null)
+                    {
+                        _instance = new AmaScanDatabase();
+                    }
+                }
+            }
+            return _instance;
+        }
+    }
+
+    private async Task InitAsync()
     {
         if (_initialized)
             return;
-        Database = new SQLiteAsyncConnection(Constants.DatabasePath, Constants.Flags);
-        await Database.CreateTableAsync<StockItem>();
-        await Database.CreateTableAsync<PoHeader>();
-        await Database.CreateTableAsync<PoLine>();
-        await Database.CreateTableAsync<Warehouse>();
-        await Database.CreateTableAsync<SoHeader>();
-        await Database.CreateTableAsync<SoLine>();
-        await Database.CreateTableAsync<ReturnLine>();
-        await Database.CreateTableAsync<StockCountItem>();
 
-        _initialized = true;
+        await _initSemaphore.WaitAsync();
+        try
+        {
+            if (_initialized) // Double-check pattern
+                return;
+
+            _database = new SQLiteAsyncConnection(Constants.DatabasePath, Constants.Flags);
+            
+            // Create tables in parallel for better performance
+            var tasks = new[]
+            {
+                _database.CreateTableAsync<StockItem>(),
+                _database.CreateTableAsync<PoHeader>(),
+                _database.CreateTableAsync<PoLine>(),
+                _database.CreateTableAsync<Warehouse>(),
+                _database.CreateTableAsync<SoHeader>(),
+                _database.CreateTableAsync<SoLine>(),
+                _database.CreateTableAsync<ReturnLine>(),
+                _database.CreateTableAsync<StockCountItem>()
+            };
+
+            await Task.WhenAll(tasks);
+
+            _initialized = true;
+        }
+        finally
+        {
+            _initSemaphore.Release();
+        }
+    }
+
+    public async Task<SQLiteAsyncConnection> GetDatabaseAsync()
+    {
+        if (!_initialized)
+            await InitAsync();
+        return _database!;
+    }
+
+    public static SQLiteAsyncConnection GetConnection()
+    {
+        if (_database == null)
+        {
+            lock (_lock)
+            {
+                if (_database == null)
+                {
+                    _database = new SQLiteAsyncConnection(Constants.DatabasePath, Constants.Flags);
+                }
+            }
+        }
+        return _database;
+    }
+
+    // Static method to get a DatabaseHelper instance
+    public static async Task<DatabaseHelper> GetDatabaseHelperAsync()
+    {
+        var instance = Instance;
+        var connection = await instance.GetDatabaseAsync();
+        return new DatabaseHelper(connection);
+    }
+
+    // Static method to get a DatabaseHelper instance synchronously (use with caution)
+    public static DatabaseHelper GetDatabaseHelper()
+    {
+        var connection = GetConnection();
+        return new DatabaseHelper(connection);
     }
 }

@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using System.Linq;
 using SQLite;
 using Microsoft.Maui.Controls;
+using Microsoft.Maui.Dispatching;
 
 namespace AmaScan;
 
@@ -20,6 +21,7 @@ public partial class StockCountPage : ContentPage, INotifyPropertyChanged
     private string _currentUser;
     private CountPhase _currentPhase;
     private bool _isPackMode = true; // Default to pack mode
+    private CancellationTokenSource _updateCancellationTokenSource = new();
 
     public event PropertyChangedEventHandler PropertyChanged;
 
@@ -53,11 +55,11 @@ public partial class StockCountPage : ContentPage, INotifyPropertyChanged
     #endregion
 
     #region Constructor and Lifecycle
-    public StockCountPage()
+    public StockCountPage(DatabaseHelper databaseHelper)
     {
         InitializeComponent();
         BindingContext = this;
-        _dbHelper = new DatabaseHelper(new SQLiteAsyncConnection(Constants.DatabasePath, Constants.Flags));
+        _dbHelper = databaseHelper;
         _userSession = App.Services.GetRequiredService<UserSession>();
         _currentUser = GetCurrentUserName();
     }
@@ -74,6 +76,10 @@ public partial class StockCountPage : ContentPage, INotifyPropertyChanged
         // Clear references to help garbage collection
         _currentItem = null;
         ClearInputFields();
+        
+        // Dispose cancellation token source
+        _updateCancellationTokenSource?.Cancel();
+        _updateCancellationTokenSource?.Dispose();
     }
 
     protected void OnPropertyChanged([CallerMemberName] string propertyName = "") =>
@@ -102,35 +108,93 @@ public partial class StockCountPage : ContentPage, INotifyPropertyChanged
     {
         try
         {
-            _currentItem = await _dbHelper.GetStockCountItemByCodeAsync(stockCode);
+            // Show loading indicator immediately
+            await MainThread.InvokeOnMainThreadAsync(() =>
+            {
+                // Add a loading indicator if not already present
+                if (loadingIndicator != null)
+                {
+                    loadingIndicator.IsVisible = true;
+                    loadingIndicator.IsRunning = true;
+                }
+            });
+
+            // Run database operation on background thread
+            var result = await Task.Run(async () =>
+            {
+                return await _dbHelper.GetStockCountItemByCodeAsync(stockCode);
+            });
+
+            _currentItem = result;
             if (_currentItem == null)
             {
-                await DisplayAlert("Error", $"Stock count item not found: {stockCode}", "OK");
-                await Shell.Current.GoToAsync("..");
+                await MainThread.InvokeOnMainThreadAsync(async () =>
+                {
+                    await DisplayAlert("Error", $"Stock count item not found: {stockCode}", "OK");
+                    await Shell.Current.GoToAsync("..");
+                });
                 return;
             }
 
-            DetermineCurrentPhase();
-            UpdateUI();
+            // Run phase determination on background thread
+            await Task.Run(() =>
+            {
+                DetermineCurrentPhase();
+            });
+
+            // Update UI on main thread
+            await MainThread.InvokeOnMainThreadAsync(() =>
+            {
+                UpdateUI();
+            });
         }
         catch (Exception ex)
         {
-            await DisplayAlert("Error", $"Failed to load stock count item: {ex.Message}", "OK");
+            await MainThread.InvokeOnMainThreadAsync(async () =>
+            {
+                await DisplayAlert("Error", $"Failed to load stock count item: {ex.Message}", "OK");
+            });
+        }
+        finally
+        {
+            // Hide loading indicator
+            await MainThread.InvokeOnMainThreadAsync(() =>
+            {
+                if (loadingIndicator != null)
+                {
+                    loadingIndicator.IsVisible = false;
+                    loadingIndicator.IsRunning = false;
+                }
+            });
         }
     }
 
     private void UpdateUI()
     {
-        OnPropertyChanged(nameof(StockCode));
-        OnPropertyChanged(nameof(StockDescription));
-        OnPropertyChanged(nameof(Count1Qty));
-        OnPropertyChanged(nameof(Count2Qty));
-        OnPropertyChanged(nameof(ConfirmCountQty));
-        OnPropertyChanged(nameof(CountBy));
-        OnPropertyChanged(nameof(ConfirmBy));
-        OnPropertyChanged(nameof(IsCountComplete));
-        OnPropertyChanged(nameof(StatusText));
-        OnPropertyChanged(nameof(StatusTextColor));
+        // Batch all property change notifications to reduce UI updates
+        var propertiesToUpdate = new[]
+        {
+            nameof(StockCode),
+            nameof(StockDescription),
+            nameof(Count1Qty),
+            nameof(Count2Qty),
+            nameof(ConfirmCountQty),
+            nameof(CountBy),
+            nameof(ConfirmBy),
+            nameof(IsCountComplete),
+            nameof(StatusText),
+            nameof(StatusTextColor)
+        };
+
+        // Notify all properties at once to reduce UI redraws
+        foreach (var property in propertiesToUpdate)
+        {
+            OnPropertyChanged(property);
+        }
+
+        // Show Start Counting button only when input section is hidden and item is not complete
+        bool inputSectionVisible = StockCountInputSection.IsVisible;
+        StartCountingButton.IsVisible = !inputSectionVisible;
     }
     #endregion
 
@@ -282,6 +346,10 @@ public partial class StockCountPage : ContentPage, INotifyPropertyChanged
             return;
         }
 
+        // Cancel any pending updates to prevent UI lag
+        _updateCancellationTokenSource.Cancel();
+        _updateCancellationTokenSource = new CancellationTokenSource();
+
         await ProcessBarcode(scannedBarcode);
         BarcodeEntry.Text = string.Empty;
     }
@@ -294,11 +362,31 @@ public partial class StockCountPage : ContentPage, INotifyPropertyChanged
             return;
         }
 
-        if (_currentItem.CountComplete)
+        // Check if the current phase can be reset based on its completion status and user restrictions
+        bool canReset = _currentPhase switch
         {
+            CountPhase.Phase1 => !_currentItem.Phase1Complete, // Can reset Phase 1 if not complete
+            CountPhase.Phase2 => !_currentItem.Phase2Complete, // Can reset Phase 2 if not complete
+            CountPhase.Phase3 => !_currentItem.CountComplete && _currentItem.CountBy != _currentUser, // Can reset Phase 3 if not complete AND different user
+            CountPhase.Complete => false, // Cannot reset completed counts
+            _ => false
+        };
+
+        if (!canReset)
+        {
+            string errorMessage = _currentPhase switch
+            {
+                CountPhase.Phase1 when _currentItem.Phase1Complete => "The first count has been completed and cannot be reset.",
+                CountPhase.Phase2 when _currentItem.Phase2Complete => "The second count has been completed and cannot be reset.",
+                CountPhase.Phase3 when _currentItem.CountComplete => "The confirm count has been completed and cannot be reset.",
+                CountPhase.Phase3 when _currentItem.CountBy == _currentUser => "You cannot reset the confirm count. A different user is required.",
+                CountPhase.Complete => "The count has been completed and cannot be reset.",
+                _ => "This phase cannot be reset."
+            };
+
             await DisplayAlert(
                 "Reset Not Allowed",
-                "This count has been completed and cannot be reset. Please contact your administrator if you need to modify a completed count.",
+                errorMessage,
                 "OK"
             );
             return;
@@ -358,10 +446,14 @@ public partial class StockCountPage : ContentPage, INotifyPropertyChanged
             return;
         }
 
+        // Update UI immediately for better responsiveness
         StockCountInputSection.IsVisible = true;
         StartCountingButton.IsVisible = false;
         ClearInputFields();
-        BarcodeEntry.Focus();
+        
+        // Focus on barcode entry after a brief delay to ensure UI is ready
+        await Task.Delay(100);
+        BarcodeEntry?.Focus();
     }
 
     private void UpdateScanModeButtons(bool isPackMode)
@@ -446,54 +538,71 @@ public partial class StockCountPage : ContentPage, INotifyPropertyChanged
 
         try
         {
-            var stockItem = await _dbHelper.ResolveStockItemByBarcodeAsync(scannedBarcode);
-            
-            if (stockItem != null && stockItem.stock_code == _currentItem.StockCode)
+            // Run database operations on background thread
+            var result = await Task.Run(async () =>
             {
-                // Check if it's a pack barcode
-                // If barcode_lmmp exists and matches the scanned barcode, it's a pack barcode
-                // If barcode_lmmp is the same as bar_code, then scanning bar_code should be treated as pack barcode
-                bool isPackBarcode = !string.IsNullOrWhiteSpace(stockItem.barcode_lmmp) && 
-                    (stockItem.barcode_lmmp.Equals(scannedBarcode, StringComparison.OrdinalIgnoreCase) ||
-                     (stockItem.bar_code?.Equals(scannedBarcode, StringComparison.OrdinalIgnoreCase) == true && 
-                      stockItem.barcode_lmmp.Equals(stockItem.bar_code, StringComparison.OrdinalIgnoreCase)));
+                var stockItem = await _dbHelper.ResolveStockItemByBarcodeAsync(scannedBarcode);
                 
-                // If barcodes are the same (ambiguous), use the scan mode setting
-                if (stockItem.bar_code?.Equals(stockItem.barcode_lmmp, StringComparison.OrdinalIgnoreCase) == true)
+                if (stockItem != null && stockItem.stock_code == _currentItem.StockCode)
                 {
-                    isPackBarcode = _isPackMode;
+                    // Check if it's a pack barcode
+                    // If barcode_lmmp exists and matches the scanned barcode, it's a pack barcode
+                    // If barcode_lmmp is the same as bar_code, then scanning bar_code should be treated as pack barcode
+                    bool isPackBarcode = !string.IsNullOrWhiteSpace(stockItem.barcode_lmmp) && 
+                        (stockItem.barcode_lmmp.Equals(scannedBarcode, StringComparison.OrdinalIgnoreCase) ||
+                         (stockItem.bar_code?.Equals(scannedBarcode, StringComparison.OrdinalIgnoreCase) == true && 
+                          stockItem.barcode_lmmp.Equals(stockItem.bar_code, StringComparison.OrdinalIgnoreCase)));
+                    
+                    // If barcodes are the same (ambiguous), use the scan mode setting
+                    if (stockItem.bar_code?.Equals(stockItem.barcode_lmmp, StringComparison.OrdinalIgnoreCase) == true)
+                    {
+                        isPackBarcode = _isPackMode;
+                    }
+                    
+                    // Get quantity from entry field
+                    decimal quantity = decimal.TryParse(QuantityEntry.Text, out decimal qty) ? qty : 1;
+                    
+                    // Calculate total to add - multiply by pack size for pack barcodes
+                    decimal quantityToAdd = isPackBarcode ? 
+                        quantity * stockItem.pack.GetValueOrDefault(1) : 
+                        quantity;
+                    
+                    // Add to the current phase count
+                    switch (_currentPhase)
+                    {
+                        case CountPhase.Phase1:
+                            _currentItem.Count1Qty += quantityToAdd;
+                            if (string.IsNullOrEmpty(_currentItem.CountBy))
+                                _currentItem.CountBy = _currentUser;
+                            break;
+                        case CountPhase.Phase2:
+                            _currentItem.Count2Qty += quantityToAdd;
+                            break;
+                        case CountPhase.Phase3:
+                            _currentItem.ConfirmCountQty += quantityToAdd;
+                            if (string.IsNullOrEmpty(_currentItem.ConfirmBy))
+                                _currentItem.ConfirmBy = _currentUser;
+                            break;
+                    }
+                    
+                    // Batch the database update to reduce I/O
+                    await _dbHelper.UpdateStockCountItemAsync(_currentItem);
+                    return new { success = true, quantityToAdd };
                 }
-                
-                // Get quantity from entry field
-                decimal quantity = decimal.TryParse(QuantityEntry.Text, out decimal qty) ? qty : 1;
-                
-                // Calculate total to add - multiply by pack size for pack barcodes
-                decimal quantityToAdd = isPackBarcode ? 
-                    quantity * stockItem.pack.GetValueOrDefault(1) : 
-                    quantity;
-                
-                // Add to the current phase count
-                switch (_currentPhase)
+                else
                 {
-                    case CountPhase.Phase1:
-                        _currentItem.Count1Qty += quantityToAdd;
-                        if (string.IsNullOrEmpty(_currentItem.CountBy))
-                            _currentItem.CountBy = _currentUser;
-                        break;
-                    case CountPhase.Phase2:
-                        _currentItem.Count2Qty += quantityToAdd;
-                        break;
-                    case CountPhase.Phase3:
-                        _currentItem.ConfirmCountQty += quantityToAdd;
-                        if (string.IsNullOrEmpty(_currentItem.ConfirmBy))
-                            _currentItem.ConfirmBy = _currentUser;
-                        break;
+                    return new { success = false, quantityToAdd = 0m };
                 }
-                
-                await _dbHelper.UpdateStockCountItemAsync(_currentItem);
-                UpdateUI();
-                
-                ClearInputFields();
+            });
+
+            if (result.success)
+            {
+                // Update UI on main thread without blocking
+                await MainThread.InvokeOnMainThreadAsync(() =>
+                {
+                    UpdateUI();
+                    ClearInputFields();
+                });
                 return true;
             }
             else
@@ -533,42 +642,66 @@ public partial class StockCountPage : ContentPage, INotifyPropertyChanged
         // Check if first count matches expected level
         if (_currentItem.Count1Qty == _currentItem.Level)
         {
-            await DisplayAlert(
-                "First Count Correct",
-                $"First count: {_currentItem.Count1Qty}\n\n" +
-                "First count matches expected level. Setting confirm count to first count and completing item.",
-                "OK"
-            );
+            await MainThread.InvokeOnMainThreadAsync(async () =>
+            {
+                await DisplayAlert(
+                    "First Count Correct",
+                    $"First count: {_currentItem.Count1Qty}\n\n" +
+                    "First count matches expected level. Setting confirm count to first count and completing item.",
+                    "OK"
+                );
+            });
 
-            // Set confirm count to first count and complete the item
-            _currentItem.ConfirmCountQty = _currentItem.Count1Qty;
-            _currentItem.ConfirmBy = _currentUser;
-            _currentItem.CountComplete = true;
-            _currentItem.CountString = false; // No discrepancy
-            await _dbHelper.UpdateStockCountItemAsync(_currentItem);
+            // Run database operations on background thread
+            await Task.Run(async () =>
+            {
+                // Set confirm count to first count and complete the item
+                _currentItem.ConfirmCountQty = _currentItem.Count1Qty;
+                _currentItem.ConfirmBy = _currentUser;
+                _currentItem.CountComplete = true;
+                _currentItem.CountString = false; // No discrepancy
+                await _dbHelper.UpdateStockCountItemAsync(_currentItem);
+            });
+
             _currentPhase = CountPhase.Complete;
-            UpdateUI();
+            await MainThread.InvokeOnMainThreadAsync(() =>
+            {
+                UpdateUI();
+            });
 
             // Navigate back to stock count list
-            await Shell.Current.GoToAsync("..");
+            await MainThread.InvokeOnMainThreadAsync(async () =>
+            {
+                await Shell.Current.GoToAsync("..");
+            });
         }
         else
         {
-            await DisplayAlert(
-                "First Count Incorrect",
-                $"First count: {_currentItem.Count1Qty}\n\n" +
-                "First count differs from expected level. You must count again for verification.",
-                "OK"
-            );
+            await MainThread.InvokeOnMainThreadAsync(async () =>
+            {
+                await DisplayAlert(
+                    "First Count Incorrect",
+                    $"First count: {_currentItem.Count1Qty}\n\n" +
+                    "First count differs from expected level. You must count again for verification.",
+                    "OK"
+                );
+            });
 
-            // Mark Phase 1 as complete and save to database
-            _currentItem.Phase1Complete = true;
-            await _dbHelper.UpdateStockCountItemAsync(_currentItem);
+            // Run database operations on background thread
+            await Task.Run(async () =>
+            {
+                // Mark Phase 1 as complete and save to database
+                _currentItem.Phase1Complete = true;
+                await _dbHelper.UpdateStockCountItemAsync(_currentItem);
+            });
 
             // Move to Phase 2 for second count
             _currentPhase = CountPhase.Phase2;
-            StockCountInputSection.IsVisible = false;
-            UpdateUI();
+            await MainThread.InvokeOnMainThreadAsync(() =>
+            {
+                StockCountInputSection.IsVisible = false;
+                UpdateUI();
+            });
         }
     }
 
@@ -683,7 +816,7 @@ public partial class StockCountPage : ContentPage, INotifyPropertyChanged
             _ => "Current Phase"
         };
 
-        // Reset only the current phase
+        // Reset the current phase data
         switch (_currentPhase)
         {
             case CountPhase.Phase1:

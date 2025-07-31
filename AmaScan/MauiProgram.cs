@@ -21,8 +21,14 @@ namespace AmaScan
             EntryHandlerMapper.Configure();
 
             // ✅ Register your services
-            builder.Services.AddSingleton<AmaScanDatabase>();
+            builder.Services.AddSingleton<AmaScanDatabase>(provider => AmaScanDatabase.Instance);
             builder.Services.AddSingleton<UserSession>();
+            
+            // Register DatabaseHelper factory
+            builder.Services.AddTransient<DatabaseHelper>(provider =>
+            {
+                return AmaScanDatabase.GetDatabaseHelper();
+            });
             builder.Services.AddTransient<Dashboard>();
             builder.Services.AddTransient<DashboardPicking>();
             builder.Services.AddSingleton<MainPage>();

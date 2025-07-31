@@ -1,8 +1,10 @@
 using AmaScan.Classes;
+using AmaScan.Data;
 using AmaScan.sqliteModels;
 using Newtonsoft.Json.Linq;
 using SQLite;
 using System.Net.Http.Json;
+using Microsoft.Maui.Dispatching;
 
 namespace AmaScan;
 
@@ -36,54 +38,72 @@ public partial class SettingsPage : ContentPage
 
     private async void LoadWarehouses()
     {
-        var _databaseHelper = new DatabaseHelper(new SQLiteAsyncConnection(Constants.DatabasePath, Constants.Flags));
+        var _databaseHelper = AmaScanDatabase.GetDatabaseHelper();
         try
         {
-            var hasLocalWarehouses = await _databaseHelper.HasWarehousesAsync();
-
-            if (!hasLocalWarehouses)
+            // Run heavy operations on background thread
+            var result = await Task.Run(async () =>
             {
-                // First-time load from API
-                string url = $"{AppConfig.ApiBaseUrl}warehouses/get-warehouses";
-                var response = await new HttpClient().GetFromJsonAsync<WarehouseResponse>(url);
+                var hasLocalWarehouses = await _databaseHelper.HasWarehousesAsync();
 
-                if (response?.data != null && response.data.Any())
+                if (!hasLocalWarehouses)
                 {
-                    await _databaseHelper.SaveWarehousesAsync(response.data);
-                    Preferences.Set("HasPopulatedWarehouses", true); // Optional: track explicitly
+                    // First-time load from API
+                    string url = $"{AppConfig.ApiBaseUrl}warehouses/get-warehouses";
+                    var response = await new HttpClient().GetFromJsonAsync<WarehouseResponse>(url);
+
+                    if (response?.data != null && response.data.Any())
+                    {
+                        await _databaseHelper.SaveWarehousesAsync(response.data);
+                        Preferences.Set("HasPopulatedWarehouses", true); // Optional: track explicitly
+                    }
+                    else
+                    {
+                        return new { warehouses = new List<Warehouse>(), showAlert = true, alertMessage = "No warehouses found in API response." };
+                    }
                 }
-                else
+
+                // Load from local DB
+                var warehouses = await _databaseHelper.GetWarehousesAsync();
+                var warehouseList = new List<Warehouse>
                 {
-                    await DisplayAlert("Info", "No warehouses found in API response.", "OK");
+                    new Warehouse { Code = "", Description = "Select Warehouse" }
+                };
+
+                if (warehouses != null && warehouses.Any())
+                {
+                    warehouseList.AddRange(warehouses);
                 }
-            }
 
-            // Load from local DB
-            var warehouses = await _databaseHelper.GetWarehousesAsync();
-            _warehouseList = new List<Warehouse>
-            {
-                new Warehouse { Code = "", Description = "Select Warehouse" }
-            };
+                return new { warehouses = warehouseList, showAlert = false, alertMessage = "" };
+            });
 
-            if (warehouses != null && warehouses.Any())
-            {
-                _warehouseList.AddRange(warehouses);
-            }
+            _warehouseList = result.warehouses;
            
-            SetupWarehousePicker(DefaultPickingWarehousePicker, "DefaultPickingWarehouseCode");
-            SetupWarehousePicker(DefaultReceivingWarehousePicker, "DefaultReceivingWarehouseCode");
-            SetupWarehousePicker(WarehousePickerR1, "RejectWarehouse1Code");
-            SetupWarehousePicker(WarehousePickerR2, "RejectWarehouse2Code");
-            SetupWarehousePicker(ReturnsWarehousePicker, "ReturnsWarehouseCode");
-
-            foreach (var w in warehouses)
+            // Update UI on main thread
+            await MainThread.InvokeOnMainThreadAsync(() =>
             {
-                Console.WriteLine($"Warehouse: {w.Code} - {w.Description}");
+                SetupWarehousePicker(DefaultPickingWarehousePicker, "DefaultPickingWarehouseCode");
+                SetupWarehousePicker(DefaultReceivingWarehousePicker, "DefaultReceivingWarehouseCode");
+                SetupWarehousePicker(WarehousePickerR1, "RejectWarehouse1Code");
+                SetupWarehousePicker(WarehousePickerR2, "RejectWarehouse2Code");
+                SetupWarehousePicker(ReturnsWarehousePicker, "ReturnsWarehouseCode");
+            });
+
+            if (result.showAlert)
+            {
+                await MainThread.InvokeOnMainThreadAsync(async () =>
+                {
+                    await DisplayAlert("Info", result.alertMessage, "OK");
+                });
             }
         }
         catch (Exception ex)
         {
-            await DisplayAlert("Error", $"Failed to load warehouses: {ex.Message}", "OK");
+            await MainThread.InvokeOnMainThreadAsync(async () =>
+            {
+                await DisplayAlert("Error", $"Failed to load warehouses: {ex.Message}", "OK");
+            });
         }
     }
 
@@ -143,7 +163,7 @@ public partial class SettingsPage : ContentPage
                 return;
             }
             var allItems = valueArray.ToObject<List<StockItem>>();
-            var databaseHelper = new DatabaseHelper(new SQLiteAsyncConnection(Constants.DatabasePath, Constants.Flags));
+            var databaseHelper = AmaScanDatabase.GetDatabaseHelper();
             await databaseHelper.SaveStockItemsAsync(allItems);
 
             ConfirmationLabel.Text = $"Stock updated. {allItems.Count} items saved.";

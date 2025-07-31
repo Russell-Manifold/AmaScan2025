@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using AmaScan.Classes;
+using AmaScan.Data;
 using AmaScan.sqliteModels;
 using SQLite;
 
@@ -44,12 +45,12 @@ public partial class CheckingDocumentsPage : ContentPage, INotifyPropertyChanged
     public string CustomerName => _soHeader?.CustomerName ?? "";
     public DateTime DueDate => _soHeader?.DueDate ?? DateTime.Now;
 
-    public CheckingDocumentsPage()
+    public CheckingDocumentsPage(DatabaseHelper databaseHelper)
     {
         InitializeComponent();
         BindingContext = this;
         _soLines = new ObservableCollection<SoLine>();
-        _dbHelper = new DatabaseHelper(new SQLiteAsyncConnection(Constants.DatabasePath, Constants.Flags));
+        _dbHelper = databaseHelper;
     }
 
     protected override void OnAppearing()
@@ -81,7 +82,7 @@ public partial class CheckingDocumentsPage : ContentPage, INotifyPropertyChanged
             OnPropertyChanged(nameof(CustomerName));
             OnPropertyChanged(nameof(DueDate));
 
-            var databaseHelper = new DatabaseHelper(new SQLiteAsyncConnection(Constants.DatabasePath, Constants.Flags));
+            var databaseHelper = AmaScanDatabase.GetDatabaseHelper();
 
             // Load all SO lines for the current SO
             var allLines = await databaseHelper.GetSoLinesByOrderNoAsync(_soHeader.Reference);

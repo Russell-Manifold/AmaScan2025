@@ -24,10 +24,11 @@ namespace AmaScan
         {
             loadingIndicator.IsVisible = true;
             loadingIndicator.IsRunning = true;
+            
             try
             {
                 var username = usernameEntry.Text?.Trim();
-                var password = passwordEntry.Text.Trim();
+                var password = passwordEntry.Text?.Trim();
 
                 if (string.IsNullOrWhiteSpace(username) || string.IsNullOrWhiteSpace(password))
                 {
@@ -35,15 +36,15 @@ namespace AmaScan
                     return;
                 }
 
-                var user = await LoginAsync(username, password);
-                loadingIndicator.IsVisible = false;
-                loadingIndicator.IsRunning = false;
-
+                // Run login on background thread to avoid blocking UI
+                var user = await Task.Run(async () => await LoginAsync(username, password));
+                
                 if (user != null)
                 {
                     _userSession.CurrentUser = user;
                     await DisplayAlert("", $"Welcome {user.UserName} ({user.RoleName})", "OK");
-                    await Navigation.PushAsync(new Dashboard(_userSession));
+                    var dashboard = App.Services.GetRequiredService<Dashboard>();
+                    await Navigation.PushAsync(dashboard);
                 }
                 else
                 {
@@ -53,6 +54,11 @@ namespace AmaScan
             catch (Exception ex)
             {
                 await DisplayAlert("Error", $"Exception: {ex.Message}", "OK");
+            }
+            finally
+            {
+                loadingIndicator.IsVisible = false;
+                loadingIndicator.IsRunning = false;
             }
         }
 
@@ -94,32 +100,38 @@ namespace AmaScan
 
         private async void OnSettingsClicked(object sender, EventArgs e)
         {
-            await Navigation.PushAsync(new SettingsPage());
+            var settingsPage = App.Services.GetRequiredService<SettingsPage>();
+            await Navigation.PushAsync(settingsPage);
         }
 
         private async void OnTestConnectionClicked(object sender, EventArgs e)
         {
             loadingIndicator.IsVisible = true;
             loadingIndicator.IsRunning = true;
-            var client = new HttpClient();
+            
             try
             {
-                var response = await client.GetAsync($"{AppConfig.ApiBaseUrl}connection/check-connection");
-                if (response.IsSuccessStatusCode)
+                // Run connection test on background thread
+                var result = await Task.Run(async () =>
                 {
-                    string responseContent = await response.Content.ReadAsStringAsync();
-                    var user = JsonConvert.DeserializeObject<User>(responseContent);
+                    var client = new HttpClient();
+                    var response = await client.GetAsync($"{AppConfig.ApiBaseUrl}connection/check-connection");
+                    return new { response, content = await response.Content.ReadAsStringAsync() };
+                });
+
+                if (result.response.IsSuccessStatusCode)
+                {
+                    var user = JsonConvert.DeserializeObject<User>(result.content);
                     await DisplayAlert("Connection Test", "Connection Successful.", "OK");
                 }
                 else
                 {
-                    string error = await response.Content.ReadAsStringAsync();
-                    await DisplayAlert("Connection Test", $"Connection failed: {response.StatusCode} - {error}", "OK");
+                    await DisplayAlert("Connection Test", $"Connection failed: {result.response.StatusCode} - {result.content}", "OK");
                 }
             }
             catch (Exception ex)
             {
-                await DisplayAlert("Connection Test", $"Connection failed 2: {ex.Message}", "OK");
+                await DisplayAlert("Connection Test", $"Connection failed: {ex.Message}", "OK");
             }
             finally
             {

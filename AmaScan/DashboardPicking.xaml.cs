@@ -16,30 +16,34 @@ public partial class DashboardPicking : ContentPage
     public string RoleName => _userSession.CurrentUser?.RoleName ?? "No Role Assigned";
     public string UseNRole => $"User: {UserName} ({RoleName})";
     public UserSession UserSession => _userSession;
-    public DashboardPicking(UserSession userSession)
+    public DashboardPicking()
     {
         InitializeComponent();
-        _userSession = userSession;
+        _userSession = App.Services.GetRequiredService<UserSession>();
         BindingContext = this;
     }
 
     private async void OnPage3Clicked(object sender, EventArgs e)
     {
-        await Navigation.PushAsync(new PickingMain());
+        var pickingMain = App.Services.GetRequiredService<PickingMain>();
+        await Navigation.PushAsync(pickingMain);
     }
 
     private async void OnPage4Clicked(object sender, EventArgs e)
     {
-        await Navigation.PushAsync(new PackingMain());
+        var packingMain = App.Services.GetRequiredService<PackingMain>();
+        await Navigation.PushAsync(packingMain);
     }
 
     private async void OnPage5Clicked(object sender, EventArgs e)
     {
-        await Navigation.PushAsync(new CheckingMain());
+        var checkingMain = App.Services.GetRequiredService<CheckingMain>();
+        await Navigation.PushAsync(checkingMain);
     }
 
     private async void OnPage6Clicked(object sender, EventArgs e)
     {
-        await Navigation.PushAsync(new AuthorizationMain());
+        var authorizationMain = App.Services.GetRequiredService<AuthorizationMain>();
+        await Navigation.PushAsync(authorizationMain);
     }
 }

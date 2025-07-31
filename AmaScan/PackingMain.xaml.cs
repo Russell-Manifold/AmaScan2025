@@ -1,7 +1,8 @@
 using AmaScan.Classes;
+using AmaScan.Data;
 using AmaScan.sqliteModels;
 using Data.Model;
-using SQLite;
+using Microsoft.Maui.Dispatching;
 using System.Net.Http.Json;
 
 namespace AmaScan;
@@ -57,36 +58,55 @@ public partial class PackingMain : ContentPage
             return;
         }
 
-        loadingIndicator.IsVisible = true;
-        loadingIndicator.IsRunning = true;
+        await MainThread.InvokeOnMainThreadAsync(() =>
+        {
+            loadingIndicator.IsVisible = true;
+            loadingIndicator.IsRunning = true;
+        });
 
         // Clear session values related to header
         PickingWorkflowSession.Clear();
 
         try
         {
-            // Fetch from API
-            string url = $"{AppConfig.ApiBaseUrl}GetSalesOrder/{Uri.EscapeDataString($"IO{soNumber}")}";
-            _currentSoResponse = await _httpClient.GetFromJsonAsync<SalesOrderResponse>(url);
+            // Run heavy operations on background thread
+            var result = await Task.Run(async () =>
+            {
+                // Fetch from API
+                string url = $"{AppConfig.ApiBaseUrl}GetSalesOrder/{Uri.EscapeDataString($"IO{soNumber}")}";
+                var response = await _httpClient.GetFromJsonAsync<SalesOrderResponse>(url);
+                return response;
+            });
+
+            _currentSoResponse = result;
 
             if (_currentSoResponse == null || _currentSoResponse.Lines == null || !_currentSoResponse.Lines.Any())
             {
-                await DisplayAlert("Not Found", $"SO {soNumber} not found on server.", "OK");
+                await MainThread.InvokeOnMainThreadAsync(async () =>
+                {
+                    await DisplayAlert("Not Found", $"SO {soNumber} not found on server.", "OK");
+                });
                 return;
             }
 
-            // Use merge helper for normal operation
+            // Use merge helper for normal operation with proper threading
             await SoMergeHelper.HandleSoFetchAndMergeAsync(soNumber, _currentSoResponse,
                 customerLabel, dueDateLabel, soHeaderFrame, soLinesView, LoadSOButton, "Packing");
         }
         catch (Exception ex)
         {
-            await DisplayAlert("Error", $"Could not load SO: {soNumber} : Message:- {ex.Message}", "OK");
+            await MainThread.InvokeOnMainThreadAsync(async () =>
+            {
+                await DisplayAlert("Error", $"Could not load SO: {soNumber} : Message:- {ex.Message}", "OK");
+            });
         }
         finally
         {
-            loadingIndicator.IsVisible = false;
-            loadingIndicator.IsRunning = false;
+            await MainThread.InvokeOnMainThreadAsync(() =>
+            {
+                loadingIndicator.IsVisible = false;
+                loadingIndicator.IsRunning = false;
+            });
         }
     }
 
@@ -107,46 +127,94 @@ public partial class PackingMain : ContentPage
                 return;
             }
 
-            var databaseHelper = new DatabaseHelper(new SQLiteAsyncConnection(Constants.DatabasePath, Constants.Flags));
-
-            var existingSo = await databaseHelper.GetSoHeaderByOrderNoAsync(soNumber);
-            if (existingSo != null)
+            // Show loading indicator
+            await MainThread.InvokeOnMainThreadAsync(() =>
             {
-                bool goToPacking = await DisplayAlert("Resume Packing?",
-                    "This SO is already loaded. Would you like to resume packing?", "Yes", "No");
+                loadingIndicator.IsVisible = true;
+                loadingIndicator.IsRunning = true;
+            });
+
+            // Run database operations on background thread
+            var result = await Task.Run(async () =>
+            {
+                var databaseHelper = AmaScanDatabase.GetDatabaseHelper();
+                var existingSo = await databaseHelper.GetSoHeaderByOrderNoAsync(soNumber);
+                
+                if (existingSo != null)
+                {
+                    return new { hasExistingSo = true, existingSo, savedSo = (SoHeader)null };
+                }
+
+                await SaveToLocalDatabaseAsync(_currentSoResponse);
+                var savedSo = await databaseHelper.GetSoHeaderByOrderNoAsync(soNumber);
+                
+                return new { hasExistingSo = false, existingSo = (SoHeader)null, savedSo };
+            });
+
+            // Handle existing SO case
+            if (result.hasExistingSo)
+            {
+                bool goToPacking = await MainThread.InvokeOnMainThreadAsync(async () =>
+                {
+                    return await DisplayAlert("Resume Packing?",
+                        "This SO is already loaded. Would you like to resume packing?", "Yes", "No");
+                });
 
                 if (goToPacking)
                 {
-                    PickingWorkflowSession.CurrentSoHeader = existingSo;
-                    await Shell.Current.GoToAsync(nameof(PackingDocumentsPage));
+                    PickingWorkflowSession.CurrentSoHeader = result.existingSo;
+                    await MainThread.InvokeOnMainThreadAsync(async () =>
+                    {
+                        await Shell.Current.GoToAsync(nameof(PackingDocumentsPage));
+                    });
                     return;
                 }
                 else
                 {
-                    await DisplayAlert("Cancelled", "You chose not to resume packing.", "OK");
+                    await MainThread.InvokeOnMainThreadAsync(async () =>
+                    {
+                        await DisplayAlert("Cancelled", "You chose not to resume packing.", "OK");
+                    });
                     return;
                 }
             }
 
-            await SaveToLocalDatabaseAsync(_currentSoResponse);
+            // Handle new SO case
+            PickingWorkflowSession.CurrentSoHeader = result.savedSo;
 
-            // Set the session header for navigation
-            var savedSo = await databaseHelper.GetSoHeaderByOrderNoAsync(soNumber);
-            PickingWorkflowSession.CurrentSoHeader = savedSo;
+            await MainThread.InvokeOnMainThreadAsync(async () =>
+            {
+                await DisplayAlert("Success", "SO has been loaded for offline packing.", "OK");
+            });
 
-            await DisplayAlert("Success", "SO has been loaded for offline packing.", "OK");
-
-            bool startPacking = await DisplayAlert("Start Packing?",
-                "Would you like to start packing this SO now?", "Yes", "No");
+            bool startPacking = await MainThread.InvokeOnMainThreadAsync(async () =>
+            {
+                return await DisplayAlert("Start Packing?",
+                    "Would you like to start packing this SO now?", "Yes", "No");
+            });
 
             if (startPacking)
             {
-                await Shell.Current.GoToAsync(nameof(PackingDocumentsPage));
+                await MainThread.InvokeOnMainThreadAsync(async () =>
+                {
+                    await Shell.Current.GoToAsync(nameof(PackingDocumentsPage));
+                });
             }
         }
         catch (Exception ex)
         {
-            await DisplayAlert("Error", $"Failed to load SO: {ex.Message}", "OK");
+            await MainThread.InvokeOnMainThreadAsync(async () =>
+            {
+                await DisplayAlert("Error", $"Failed to load SO: {ex.Message}", "OK");
+            });
+        }
+        finally
+        {
+            await MainThread.InvokeOnMainThreadAsync(() =>
+            {
+                loadingIndicator.IsVisible = false;
+                loadingIndicator.IsRunning = false;
+            });
         }
     }
 
@@ -155,7 +223,7 @@ public partial class PackingMain : ContentPage
         if (response == null || response.Lines == null || !response.Lines.Any())
             throw new ArgumentException("Invalid sales order data.");
 
-        var databaseHelper = new DatabaseHelper(new SQLiteAsyncConnection(Constants.DatabasePath, Constants.Flags));
+        var databaseHelper = AmaScanDatabase.GetDatabaseHelper();
 
         string soNumber = response.Reference; // Use Reference as the SO number
         if (string.IsNullOrEmpty(soNumber))
@@ -176,7 +244,7 @@ public partial class PackingMain : ContentPage
         // Insert or update the SoHeader
         await databaseHelper.InsertAsync(soHeader);
 
-        // Batch insert lines
+        // Batch create lines for better performance
         var soLines = response.Lines.Select(line => new SoLine
         {
             DocNum = soNumber,
@@ -200,11 +268,14 @@ public partial class PackingMain : ContentPage
             Authorized = false
         }).ToList();
 
-        // Insert each line individually
-        foreach (var line in soLines)
+        // Batch insert lines for better performance
+        await Task.Run(async () =>
         {
-            await databaseHelper.InsertAsync(line);
-        }
+            foreach (var line in soLines)
+            {
+                await databaseHelper.InsertAsync(line);
+            }
+        });
     }
 
     private async void OnResetClicked(object sender, EventArgs e)

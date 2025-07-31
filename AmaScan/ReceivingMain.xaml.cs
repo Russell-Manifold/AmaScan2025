@@ -1,10 +1,12 @@
 using AmaScan.Classes;
+using AmaScan.Data;
 using AmaScan.sqliteModels;
 using Data.Model;
 using SQLite;
 using System.Diagnostics;
 using System.Net.Http.Json;
 using System.Text.Json;
+using Microsoft.Maui.Dispatching;
 
 namespace AmaScan;
 
@@ -62,7 +64,7 @@ public partial class ReceivingMain : ContentPage
 
         try
         {
-            var databaseHelper = new DatabaseHelper(new SQLiteAsyncConnection(Constants.DatabasePath, Constants.Flags));
+            var databaseHelper = AmaScanDatabase.GetDatabaseHelper();
 
             // Step 1: Check local database first
             var existingPo = await databaseHelper.GetPoHeaderByOrderNoAsync(poNumber);
@@ -132,17 +134,21 @@ public partial class ReceivingMain : ContentPage
                 Lines = displayLines
             };
 
-            // Show header
-            supplierLabel.Text = $"Supplier: {existingPo.SupplierName}";
-            dueDateLabel.Text = $"Due: {_currentPoResponse.DueDate:yyyy-MM-dd}";
-            poHeaderFrame.IsVisible = true;
+            // Update UI on main thread
+            await MainThread.InvokeOnMainThreadAsync(() =>
+            {
+                // Show header
+                supplierLabel.Text = $"Supplier: {existingPo.SupplierName}";
+                dueDateLabel.Text = $"Due: {_currentPoResponse.DueDate:yyyy-MM-dd}";
+                poHeaderFrame.IsVisible = true;
 
-            // Show lines
-            poLinesView.ItemsSource = _currentPoResponse.Lines;
-            poLinesView.IsVisible = true;
+                // Show lines
+                poLinesView.ItemsSource = _currentPoResponse.Lines;
+                poLinesView.IsVisible = true;
 
-            // Make the "Load PO" button visible
-            LoadPOButton.IsVisible = true;
+                // Make the "Load PO" button visible
+                LoadPOButton.IsVisible = true;
+            });
         }
         catch (Exception ex)
         {
@@ -162,17 +168,21 @@ public partial class ReceivingMain : ContentPage
 
         _currentPoResponse.OrderNo = poNumber;
 
-        // Show header
-        supplierLabel.Text = $"Supplier: {_currentPoResponse.SupplierName}";
-        dueDateLabel.Text = $"Due Date: {_currentPoResponse.DueDate:yyyy-MM-dd}";
-        poHeaderFrame.IsVisible = true;
+        // Update UI on main thread
+        await MainThread.InvokeOnMainThreadAsync(() =>
+        {
+            // Show header
+            supplierLabel.Text = $"Supplier: {_currentPoResponse.SupplierName}";
+            dueDateLabel.Text = $"Due Date: {_currentPoResponse.DueDate:yyyy-MM-dd}";
+            poHeaderFrame.IsVisible = true;
 
-        // Show lines
-        poLinesView.ItemsSource = _currentPoResponse.Lines;
-        poLinesView.IsVisible = true;
+            // Show lines
+            poLinesView.ItemsSource = _currentPoResponse.Lines;
+            poLinesView.IsVisible = true;
 
-        // Make the "Load PO" button visible
-        LoadPOButton.IsVisible = true;
+            // Make the "Load PO" button visible
+            LoadPOButton.IsVisible = true;
+        });
 
         return true;
     }
@@ -236,7 +246,7 @@ public partial class ReceivingMain : ContentPage
             }
 
             string poNumber = _currentPoResponse.OrderNo;
-            var databaseHelper = new DatabaseHelper(new SQLiteAsyncConnection(Constants.DatabasePath, Constants.Flags));
+            var databaseHelper = AmaScanDatabase.GetDatabaseHelper();
 
             var existingPo = await databaseHelper.GetPoHeaderByOrderNoAsync(poNumber);
             if (existingPo != null)
@@ -267,7 +277,7 @@ public partial class ReceivingMain : ContentPage
         if (response == null || response.Lines == null || !response.Lines.Any())
             throw new ArgumentException("Invalid purchase order data.");
 
-        var databaseHelper = new DatabaseHelper(new SQLiteAsyncConnection(Constants.DatabasePath, Constants.Flags));
+        var databaseHelper = AmaScanDatabase.GetDatabaseHelper();
 
         //var existing = await databaseHelper.GetPoHeaderByOrderNoAsync(response.OrderNo);
 
@@ -330,7 +340,7 @@ public partial class ReceivingMain : ContentPage
             try
             {
                 // Delete from database
-                var databaseHelper = new DatabaseHelper(new SQLiteAsyncConnection(Constants.DatabasePath, Constants.Flags));
+                var databaseHelper = AmaScanDatabase.GetDatabaseHelper();
                 await databaseHelper.DeletePoAsync(_currentPoResponse.OrderNo);
 
                 _currentPoResponse = null;

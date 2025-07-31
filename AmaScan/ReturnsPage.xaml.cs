@@ -4,6 +4,7 @@ using SQLite;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
+using Microsoft.Maui.Dispatching;
 using System.Windows.Input;
 using Microsoft.Maui.Storage;
 using System.Net.Http.Json;
@@ -133,38 +134,50 @@ namespace AmaScan
 
             try
             {
-                LoadingOverlay.IsVisible = true;
-                loadingIndicator.IsRunning = true;
+                await MainThread.InvokeOnMainThreadAsync(() =>
+                {
+                    LoadingOverlay.IsVisible = true;
+                    loadingIndicator.IsRunning = true;
+                });
 
                 string itemCode = "";
                 string itemDesc = "";
 
-                // If SO number is provided, try to get item details from SO
-                if (!string.IsNullOrWhiteSpace(soNumber))
+                // Run heavy operations on background thread
+                var result = await Task.Run(async () =>
                 {
-                    await LoadSoDataAsync(soNumber);
-
-                    if (_soHeader != null)
+                    // If SO number is provided, try to get item details from SO
+                    if (!string.IsNullOrWhiteSpace(soNumber))
                     {
-                        var soLine = await GetItemByBarcode(barcode);
-                        if (soLine != null)
+                        await LoadSoDataAsync(soNumber);
+
+                        if (_soHeader != null)
                         {
-                            itemCode = soLine.ItemCode;
-                            itemDesc = soLine.ItemDesc;
+                            var soLine = await GetItemByBarcode(barcode);
+                            if (soLine != null)
+                            {
+                                itemCode = soLine.ItemCode;
+                                itemDesc = soLine.ItemDesc;
+                            }
                         }
                     }
-                }
 
-                // If we don't have item details from SO, try to get from stock items
-                if (string.IsNullOrEmpty(itemCode))
-                {
-                    var stockItem = await _databaseHelper.ResolveStockItemByBarcodeAsync(barcode);
-                    if (stockItem != null)
+                    // If we don't have item details from SO, try to get from stock items
+                    if (string.IsNullOrEmpty(itemCode))
                     {
-                        itemCode = stockItem.stock_code;
-                        itemDesc = stockItem.stock_description;
+                        var stockItem = await _databaseHelper.ResolveStockItemByBarcodeAsync(barcode);
+                        if (stockItem != null)
+                        {
+                            itemCode = stockItem.stock_code;
+                            itemDesc = stockItem.stock_description;
+                        }
                     }
-                }
+
+                    return new { itemCode, itemDesc };
+                });
+
+                itemCode = result.itemCode;
+                itemDesc = result.itemDesc;
 
                 // If still no item details, use barcode as item code and empty description
                 if (string.IsNullOrEmpty(itemCode))
