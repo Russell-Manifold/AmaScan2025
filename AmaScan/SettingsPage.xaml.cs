@@ -13,7 +13,6 @@ public partial class SettingsPage : ContentPage
     private readonly HttpClient _httpClient = new();
     private readonly UserSession _userSession;
     private List<Warehouse> _warehouseList = new();
-
     protected override void OnAppearing()
     {
         base.OnAppearing();
@@ -38,13 +37,12 @@ public partial class SettingsPage : ContentPage
 
     private async void LoadWarehouses()
     {
-        var _databaseHelper = AmaScanDatabase.GetDatabaseHelper();
         try
         {
             // Run heavy operations on background thread
             var result = await Task.Run(async () =>
             {
-                var hasLocalWarehouses = await _databaseHelper.HasWarehousesAsync();
+                var hasLocalWarehouses = await App.Db.HasWarehousesAsync();
 
                 if (!hasLocalWarehouses)
                 {
@@ -54,7 +52,7 @@ public partial class SettingsPage : ContentPage
 
                     if (response?.data != null && response.data.Any())
                     {
-                        await _databaseHelper.SaveWarehousesAsync(response.data);
+                        await App.Db.SaveWarehousesAsync(response.data);
                         Preferences.Set("HasPopulatedWarehouses", true); // Optional: track explicitly
                     }
                     else
@@ -64,7 +62,7 @@ public partial class SettingsPage : ContentPage
                 }
 
                 // Load from local DB
-                var warehouses = await _databaseHelper.GetWarehousesAsync();
+                var warehouses = await App.Db.GetWarehousesAsync();
                 var warehouseList = new List<Warehouse>
                 {
                     new Warehouse { Code = "", Description = "Select Warehouse" }
@@ -163,8 +161,7 @@ public partial class SettingsPage : ContentPage
                 return;
             }
             var allItems = valueArray.ToObject<List<StockItem>>();
-            var databaseHelper = AmaScanDatabase.GetDatabaseHelper();
-            await databaseHelper.SaveStockItemsAsync(allItems);
+            await App.Db.SaveStockItemsAsync(allItems);
 
             ConfirmationLabel.Text = $"Stock updated. {allItems.Count} items saved.";
         }

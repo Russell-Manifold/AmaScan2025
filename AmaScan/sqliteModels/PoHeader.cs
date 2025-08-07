@@ -7,6 +7,7 @@ namespace AmaScan.sqliteModels
         [PrimaryKey, AutoIncrement]
         public int Id { get; set; }
 
+        [Indexed]
         public string? OrderNo { get; set; }
         public string? SupplierName { get; set; }
         public DateTime DueDate { get; set; }

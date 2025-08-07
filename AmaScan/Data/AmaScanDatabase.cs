@@ -1,6 +1,8 @@
-﻿using SQLite;
+﻿using AmaScan.Classes;
 using AmaScan.sqliteModels;
-using AmaScan.Classes;
+using SQLite;
+using System;
+using System.Diagnostics;
 
 namespace AmaScan.Data;
 
@@ -46,26 +48,10 @@ public class AmaScanDatabase
         await _initSemaphore.WaitAsync();
         try
         {
-            if (_initialized) // Double-check pattern
+            if (_initialized)
                 return;
 
             _database = new SQLiteAsyncConnection(Constants.DatabasePath, Constants.Flags);
-            
-            // Create tables in parallel for better performance
-            var tasks = new[]
-            {
-                _database.CreateTableAsync<StockItem>(),
-                _database.CreateTableAsync<PoHeader>(),
-                _database.CreateTableAsync<PoLine>(),
-                _database.CreateTableAsync<Warehouse>(),
-                _database.CreateTableAsync<SoHeader>(),
-                _database.CreateTableAsync<SoLine>(),
-                _database.CreateTableAsync<ReturnLine>(),
-                _database.CreateTableAsync<StockCountItem>()
-            };
-
-            await Task.WhenAll(tasks);
-
             _initialized = true;
         }
         finally
@@ -73,6 +59,10 @@ public class AmaScanDatabase
             _initSemaphore.Release();
         }
     }
+
+    // POCOs to map the results
+    public class IndexRow { public string name { get; set; } }
+    public class PlanRow { public string detail { get; set; } }
 
     public async Task<SQLiteAsyncConnection> GetDatabaseAsync()
     {

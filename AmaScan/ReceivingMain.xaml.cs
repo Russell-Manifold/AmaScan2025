@@ -2,12 +2,9 @@ using AmaScan.Classes;
 using AmaScan.Data;
 using AmaScan.sqliteModels;
 using Data.Model;
-using SQLite;
 using System.Diagnostics;
 using System.Net.Http.Json;
 using System.Text.Json;
-using Microsoft.Maui.Dispatching;
-
 namespace AmaScan;
 
 public partial class ReceivingMain : ContentPage
@@ -15,8 +12,6 @@ public partial class ReceivingMain : ContentPage
     private readonly HttpClient _httpClient = new();
     private PurchaseOrderResponse _currentPoResponse;
     private PoHeader _poHeader;
-
-
 
     public ReceivingMain()
 	{
@@ -64,10 +59,8 @@ public partial class ReceivingMain : ContentPage
 
         try
         {
-            var databaseHelper = AmaScanDatabase.GetDatabaseHelper();
-
             // Step 1: Check local database first
-            var existingPo = await databaseHelper.GetPoHeaderByOrderNoAsync(poNumber);
+            var existingPo = await App.Db.GetPoHeaderByOrderNoAsync(poNumber);
 
             // Step 2: Fetch from API (either PO not found locally or user wants fresh data)
             bool success = await FetchPoFromApiAsync(poNumber);
@@ -80,7 +73,7 @@ public partial class ReceivingMain : ContentPage
             // Step 3: If PO exists locally, merge fresh data with existing workflow data
             if (existingPo != null)
             {
-                await MergeFreshDataWithExistingAsync(poNumber, databaseHelper);
+                await MergeFreshDataWithExistingAsync(poNumber);
             }
         }
         catch (Exception ex)
@@ -94,16 +87,16 @@ public partial class ReceivingMain : ContentPage
         }
     }
 
-    private async Task LoadExistingPoForDisplayAsync(string poNumber, DatabaseHelper databaseHelper)
+    private async Task LoadExistingPoForDisplayAsync(string poNumber)
     {
         try
         {
             // Load existing PO header
-            var existingPo = await databaseHelper.GetPoHeaderByOrderNoAsync(poNumber);
+            var existingPo = await App.Db.GetPoHeaderByOrderNoAsync(poNumber);
             if (existingPo == null) return;
 
             // Load existing PO lines
-            var existingLines = await databaseHelper.GetPoLinesByOrderNoAsync(poNumber);
+            var existingLines = await App.Db.GetPoLinesByOrderNoAsync(poNumber);
             if (!existingLines.Any()) return;
 
             // Convert PoLine to display format (similar to PurchaseOrderLine)
@@ -187,11 +180,11 @@ public partial class ReceivingMain : ContentPage
         return true;
     }
 
-    private async Task MergeFreshDataWithExistingAsync(string poNumber, DatabaseHelper databaseHelper)
+    private async Task MergeFreshDataWithExistingAsync(string poNumber)
     {
         try
         {
-            var existingLinesBefore = await databaseHelper.GetPoLinesByOrderNoAsync(poNumber);
+            var existingLinesBefore = await App.Db.GetPoLinesByOrderNoAsync(poNumber);
             var existingLineKeys = existingLinesBefore
                 .Select(l => $"{l.ItemCode}_{l.ItemBarcode}")
                 .ToHashSet();
@@ -200,10 +193,10 @@ public partial class ReceivingMain : ContentPage
                 .ToHashSet();
 
             // Merge fresh data with existing workflow data
-            await databaseHelper.MergePoDataAsync(_currentPoResponse);
+            await App.Db.MergePoDataAsync(_currentPoResponse);
 
             // Get lines after merge for comparison
-            var existingLinesAfter = await databaseHelper.GetPoLinesByOrderNoAsync(poNumber);
+            var existingLinesAfter = await App.Db.GetPoLinesByOrderNoAsync(poNumber);
 
             // Calculate merge summary
             var newLines = freshLineKeys.Except(existingLineKeys).Count();
@@ -211,7 +204,7 @@ public partial class ReceivingMain : ContentPage
             var updatedLines = existingLinesBefore.Count - removedLines;
 
             // Reload the merged data for display
-            await LoadExistingPoForDisplayAsync(poNumber, databaseHelper);
+            await LoadExistingPoForDisplayAsync(poNumber);
 
             // Show merge summary
             var summary = $"Merge Complete!\n\n" +
@@ -231,7 +224,7 @@ public partial class ReceivingMain : ContentPage
         }
         catch (Exception ex)
         {
-            await DisplayAlert("Merge Error", $"Failed to merge fresh data: {ex.Message}", "OK");
+            if (!ex.Message.ToLower().ToString().Contains("same key")) await DisplayAlert("Merge Error", $"Failed to merge fresh data: {ex.Message}", "OK");
         }
     }
 
@@ -246,9 +239,7 @@ public partial class ReceivingMain : ContentPage
             }
 
             string poNumber = _currentPoResponse.OrderNo;
-            var databaseHelper = AmaScanDatabase.GetDatabaseHelper();
-
-            var existingPo = await databaseHelper.GetPoHeaderByOrderNoAsync(poNumber);
+             var existingPo = await App.Db.GetPoHeaderByOrderNoAsync(poNumber);
             if (existingPo != null)
             {
                 // PO is already loaded and merged, just navigate
@@ -277,10 +268,7 @@ public partial class ReceivingMain : ContentPage
         if (response == null || response.Lines == null || !response.Lines.Any())
             throw new ArgumentException("Invalid purchase order data.");
 
-        var databaseHelper = AmaScanDatabase.GetDatabaseHelper();
-
         //var existing = await databaseHelper.GetPoHeaderByOrderNoAsync(response.OrderNo);
-
         //if (existing != null)
         //{
         //    throw new InvalidOperationException($"PO {response.OrderNo} is already loaded on this device.");
@@ -298,7 +286,7 @@ public partial class ReceivingMain : ContentPage
         };
 
         // Insert or update the PoHeader
-        await databaseHelper.InsertAsync(poHeader);
+        await App.Db.InsertAsync(poHeader);
 
         // Save each line as PoLine
         foreach (var line in response.Lines)
@@ -321,7 +309,7 @@ public partial class ReceivingMain : ContentPage
             };
 
             // Insert each PoLine
-            await databaseHelper.InsertAsync(poLine);
+            await App.Db.InsertAsync(poLine);
         }
     }
 
@@ -340,8 +328,7 @@ public partial class ReceivingMain : ContentPage
             try
             {
                 // Delete from database
-                var databaseHelper = AmaScanDatabase.GetDatabaseHelper();
-                await databaseHelper.DeletePoAsync(_currentPoResponse.OrderNo);
+                await App.Db.DeletePoAsync(_currentPoResponse.OrderNo);
 
                 _currentPoResponse = null;
 

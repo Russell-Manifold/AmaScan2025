@@ -130,16 +130,11 @@ public partial class CheckingMain : ContentPage
             // Run database operations on background thread
             var result = await Task.Run(async () =>
             {
-                var databaseHelper = AmaScanDatabase.GetDatabaseHelper();
-                var existingSo = await databaseHelper.GetSoHeaderByOrderNoAsync(soNumber);
-                
-                if (existingSo != null)
-                {
-                    return new { hasExistingSo = true, existingSo, savedSo = (SoHeader)null };
-                }
+                var existingSo = await App.Db.GetSoHeaderByOrderNoAsync(soNumber);
+                 if (existingSo != null) return new { hasExistingSo = true, existingSo, savedSo = (SoHeader)null };
 
                 await SaveToLocalDatabaseAsync(_currentSoResponse);
-                var savedSo = await databaseHelper.GetSoHeaderByOrderNoAsync(soNumber);
+                var savedSo = await App.Db.GetSoHeaderByOrderNoAsync(soNumber);
                 
                 return new { hasExistingSo = false, existingSo = (SoHeader)null, savedSo };
             });
@@ -208,8 +203,6 @@ public partial class CheckingMain : ContentPage
         if (response == null || response.Lines == null || !response.Lines.Any())
             throw new ArgumentException("Invalid sales order data.");
 
-        var databaseHelper = AmaScanDatabase.GetDatabaseHelper();
-
         string soNumber = response.Reference; // Use Reference as the SO number
         if (string.IsNullOrEmpty(soNumber))
             throw new ArgumentException("Invalid SO number.");
@@ -227,7 +220,7 @@ public partial class CheckingMain : ContentPage
         };
 
         // Insert or update the SoHeader
-        await databaseHelper.InsertAsync(soHeader);
+        await App.Db.InsertAsync(soHeader);
 
         // Batch insert lines
         var soLines = response.Lines.Select(line => new SoLine
@@ -254,10 +247,7 @@ public partial class CheckingMain : ContentPage
         }).ToList();
 
         // Insert each line individually
-        foreach (var line in soLines)
-        {
-            await databaseHelper.InsertAsync(line);
-        }
+        foreach (var line in soLines) await App.Db.InsertAsync(line);
     }
 
     private async void OnResetClicked(object sender, EventArgs e)

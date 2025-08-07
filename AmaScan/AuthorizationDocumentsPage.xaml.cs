@@ -12,8 +12,6 @@ public partial class AuthorizationDocumentsPage : ContentPage, INotifyPropertyCh
     private ObservableCollection<SoLine> _soLines;
     private bool _isLoading;
     private SoHeader _soHeader;
-    private DatabaseHelper _dbHelper;
-
     public bool IsLoading
     {
         get => _isLoading;
@@ -45,12 +43,11 @@ public partial class AuthorizationDocumentsPage : ContentPage, INotifyPropertyCh
     public string CustomerName => _soHeader?.CustomerName ?? "";
     public DateTime DueDate => _soHeader?.DueDate ?? DateTime.Now;
 
-    public AuthorizationDocumentsPage(DatabaseHelper databaseHelper)
+    public AuthorizationDocumentsPage()
     {
         InitializeComponent();
         BindingContext = this;
         _soLines = new ObservableCollection<SoLine>();
-        _dbHelper = databaseHelper;
     }
 
     protected override void OnAppearing()
@@ -81,11 +78,8 @@ public partial class AuthorizationDocumentsPage : ContentPage, INotifyPropertyCh
             OnPropertyChanged(nameof(SoNumber));
             OnPropertyChanged(nameof(CustomerName));
             OnPropertyChanged(nameof(DueDate));
-
-            var databaseHelper = AmaScanDatabase.GetDatabaseHelper();
-
             // Load all SO lines for the current SO
-            var allLines = await databaseHelper.GetSoLinesByOrderNoAsync(_soHeader.Reference);
+            var allLines = await App.Db.GetSoLinesByOrderNoAsync(_soHeader.Reference);
 
             // Clear and reload the collection with all items
             _soLines.Clear();
@@ -132,10 +126,10 @@ public partial class AuthorizationDocumentsPage : ContentPage, INotifyPropertyCh
             string currentUserName = userSession.CurrentUser?.UserName ?? "Unknown User";
 
             // Check if any user has started authorization for this SO
-            if (await _dbHelper.HasAnyUserStartedPhaseAsync(_soHeader.Reference, "authorization"))
+            if (await App.Db.HasAnyUserStartedPhaseAsync(_soHeader.Reference, "authorization"))
             {
                 // Check if the current user is the one who started authorization
-                if (!await _dbHelper.HasUserStartedPhaseAsync(_soHeader.Reference, currentUserName, "authorization"))
+                if (!await App.Db.HasUserStartedPhaseAsync(_soHeader.Reference, currentUserName, "authorization"))
                 {
                     await DisplayAlert("Access Denied",
                         $"Authorization for {_soHeader.Reference} was started by another user.\n\n" +
@@ -145,7 +139,7 @@ public partial class AuthorizationDocumentsPage : ContentPage, INotifyPropertyCh
             }
 
             // Check if authorization prerequisites are met (all previous phases must be complete)
-            if (!await _dbHelper.CanAuthorizeOrderAsync(_soHeader.Reference))
+            if (!await App.Db.CanAuthorizeOrderAsync(_soHeader.Reference))
             {
                 await DisplayAlert("Authorization Unavailable",
                     "Authorization is unavailable until all previous phases (picking, packing, checking) are completed for all lines.\n\n" +

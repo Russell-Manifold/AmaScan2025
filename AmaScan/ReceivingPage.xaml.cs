@@ -1,18 +1,15 @@
 using AmaScan.Classes;
 using AmaScan.sqliteModels;
-using SQLite;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Windows.Input;
-using Microsoft.Maui.Dispatching;
 
 namespace AmaScan
 {
     [QueryProperty(nameof(PoQuery), "po")]
     public partial class ReceivingPage : ContentPage, INotifyPropertyChanged, IDisposable
     {
-        private readonly DatabaseHelper _databaseHelper;
         private PoHeader _poHeader;
         private string _poQuery;
         private bool _isDisposed;
@@ -72,7 +69,6 @@ namespace AmaScan
         public ReceivingPage(DatabaseHelper databaseHelper)
         {
             InitializeComponent();
-            _databaseHelper = databaseHelper;
             BindingContext = this;
             _loadingCts = new CancellationTokenSource();
         }
@@ -93,7 +89,7 @@ namespace AmaScan
                     loadingIndicator.IsRunning = true;
                 });
 
-                _poHeader = await _databaseHelper.GetPoHeaderByOrderNoAsync(poNumber);
+                _poHeader = await App.Db.GetPoHeaderByOrderNoAsync(poNumber);
                 if (_poHeader == null)
                 {
                     await MainThread.InvokeOnMainThreadAsync(async () =>
@@ -106,7 +102,7 @@ namespace AmaScan
 
                 ct.ThrowIfCancellationRequested();
 
-                var lines = await _databaseHelper.GetPoLinesByOrderNoAsync(_poHeader.OrderNo);
+                var lines = await App.Db.GetPoLinesByOrderNoAsync(_poHeader.OrderNo);
                 ct.ThrowIfCancellationRequested();
 
                 // Update UI on main thread
@@ -184,7 +180,7 @@ namespace AmaScan
 
             try
             {
-                var stockItem = await _databaseHelper.ResolveStockItemByBarcodeAsync(scannedBarcode);
+                var stockItem = await App.Db.ResolveStockItemByBarcodeAsync(scannedBarcode);
                 if (stockItem == null || string.IsNullOrEmpty(stockItem.bar_code))
                 {
                     ClearInputs();
@@ -220,7 +216,7 @@ namespace AmaScan
                     ? thisTotQty.ToString()
                     : $"{matchingLine.ReceivedString} + {thisTotQty}";
 
-                await _databaseHelper.UpdatePoLineAsync(matchingLine);
+                await App.Db.UpdatePoLineAsync(matchingLine);
 
                 // Move the scanned line to the top of the list (in-memory only)
                 var idx = PoLines.IndexOf(matchingLine);
@@ -260,7 +256,7 @@ namespace AmaScan
                     line.ScanAcceptQty = 0;
                     line.ScanRejectQty = 0;
                     line.ReceivedString = string.Empty;
-                    await _databaseHelper.UpdatePoLineAsync(line);
+                    await App.Db.UpdatePoLineAsync(line);
                 }
                 OnPropertyChanged(nameof(PoLines));
             }
@@ -276,7 +272,7 @@ namespace AmaScan
                     await Shell.Current.GoToAsync("..");
                     return;
                 }
-                var poLines = await _databaseHelper.GetPoLinesByOrderNoAsync(PoNumber);
+                var poLines = await App.Db.GetPoLinesByOrderNoAsync(PoNumber);
 
                 bool hasDiscrepancies = poLines.Any(line =>
                     line.OrderedQty != (line.ScanAcceptQty + line.ScanRejectQty));
@@ -349,7 +345,7 @@ namespace AmaScan
             line.ScanAcceptQty = 0;
             line.ScanRejectQty = 0;
             line.ReceivedString = string.Empty;
-            await _databaseHelper.UpdatePoLineAsync(line);
+            await App.Db.UpdatePoLineAsync(line);
 
             await LoadPoAsync(PoNumber);
         });
@@ -465,7 +461,7 @@ namespace AmaScan
         {
             try
             {
-                var warehouses = await _databaseHelper.GetWarehousesAsync();
+                var warehouses = await App.Db.GetWarehousesAsync();
                 WarehouseList = new ObservableCollection<Warehouse>(warehouses ?? new List<Warehouse>());
 
                 // Set default warehouse based on current mode

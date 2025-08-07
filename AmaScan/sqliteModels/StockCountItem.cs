@@ -8,13 +8,22 @@ namespace AmaScan.sqliteModels
     {
         [PrimaryKey, AutoIncrement]
         public int Id { get; set; }
+        
+        
+        [Indexed(Name = "idx_sc_item", Order = 1)]
         public string BatchNo { get; set; }
         public string StockItemIsActive { get; set; }
         public string ProductGroup { get; set; }
         public string StockCategory { get; set; }
+
+        [Indexed(Name = "idx_sc_item", Order = 2)]
         public string StockCode { get; set; }
         public string StockDescription { get; set; }
+
+        [Indexed(Name = "idx_sc_item", Order = 3)]
         public string BarCode { get; set; }
+
+        [Indexed(Name = "idx_sc_item", Order = 4)]
         public string BarcodeLmmp { get; set; }
         public string WarehouseCode { get; set; }
         public int Pack { get; set; }

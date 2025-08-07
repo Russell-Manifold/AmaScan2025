@@ -14,7 +14,6 @@ namespace AmaScan;
 [QueryProperty(nameof(StockCodeQuery), "stockCode")]
 public partial class StockCountPage : ContentPage, INotifyPropertyChanged
 {
-    private readonly DatabaseHelper _dbHelper;
     private readonly UserSession _userSession;
     private StockCountItem _currentItem;
     private string _stockCodeQuery;
@@ -59,7 +58,6 @@ public partial class StockCountPage : ContentPage, INotifyPropertyChanged
     {
         InitializeComponent();
         BindingContext = this;
-        _dbHelper = databaseHelper;
         _userSession = App.Services.GetRequiredService<UserSession>();
         _currentUser = GetCurrentUserName();
     }
@@ -122,7 +120,7 @@ public partial class StockCountPage : ContentPage, INotifyPropertyChanged
             // Run database operation on background thread
             var result = await Task.Run(async () =>
             {
-                return await _dbHelper.GetStockCountItemByCodeAsync(stockCode);
+                return await App.Db.GetStockCountItemByCodeAsync(stockCode);
             });
 
             _currentItem = result;
@@ -541,7 +539,7 @@ public partial class StockCountPage : ContentPage, INotifyPropertyChanged
             // Run database operations on background thread
             var result = await Task.Run(async () =>
             {
-                var stockItem = await _dbHelper.ResolveStockItemByBarcodeAsync(scannedBarcode);
+                var stockItem = await App.Db.ResolveStockItemByBarcodeAsync(scannedBarcode);
                 
                 if (stockItem != null && stockItem.stock_code == _currentItem.StockCode)
                 {
@@ -586,7 +584,7 @@ public partial class StockCountPage : ContentPage, INotifyPropertyChanged
                     }
                     
                     // Batch the database update to reduce I/O
-                    await _dbHelper.UpdateStockCountItemAsync(_currentItem);
+                    await App.Db.UpdateStockCountItemAsync(_currentItem);
                     return new { success = true, quantityToAdd };
                 }
                 else
@@ -660,7 +658,7 @@ public partial class StockCountPage : ContentPage, INotifyPropertyChanged
                 _currentItem.ConfirmBy = _currentUser;
                 _currentItem.CountComplete = true;
                 _currentItem.CountString = false; // No discrepancy
-                await _dbHelper.UpdateStockCountItemAsync(_currentItem);
+                await App.Db.UpdateStockCountItemAsync(_currentItem);
             });
 
             _currentPhase = CountPhase.Complete;
@@ -692,7 +690,7 @@ public partial class StockCountPage : ContentPage, INotifyPropertyChanged
             {
                 // Mark Phase 1 as complete and save to database
                 _currentItem.Phase1Complete = true;
-                await _dbHelper.UpdateStockCountItemAsync(_currentItem);
+                await App.Db.UpdateStockCountItemAsync(_currentItem);
             });
 
             // Move to Phase 2 for second count
@@ -722,7 +720,7 @@ public partial class StockCountPage : ContentPage, INotifyPropertyChanged
             _currentItem.ConfirmBy = _currentUser;
             _currentItem.CountComplete = true;
             _currentItem.CountString = false; // No discrepancy
-            await _dbHelper.UpdateStockCountItemAsync(_currentItem);
+            await App.Db.UpdateStockCountItemAsync(_currentItem);
             _currentPhase = CountPhase.Complete;
             UpdateUI();
 
@@ -740,7 +738,7 @@ public partial class StockCountPage : ContentPage, INotifyPropertyChanged
 
             // Mark Phase 2 as complete and save to database
             _currentItem.Phase2Complete = true;
-            await _dbHelper.UpdateStockCountItemAsync(_currentItem);
+            await App.Db.UpdateStockCountItemAsync(_currentItem);
 
             // Move to Phase 3 (confirm count by different user)
             _currentPhase = CountPhase.Phase3;
@@ -785,7 +783,7 @@ public partial class StockCountPage : ContentPage, INotifyPropertyChanged
 
         // Set item as complete regardless of accuracy
         _currentItem.CountComplete = true;
-        await _dbHelper.UpdateStockCountItemAsync(_currentItem);
+        await App.Db.UpdateStockCountItemAsync(_currentItem);
         _currentPhase = CountPhase.Complete;
         UpdateUI();
 
@@ -832,7 +830,7 @@ public partial class StockCountPage : ContentPage, INotifyPropertyChanged
                 break;
         }
 
-        await _dbHelper.UpdateStockCountItemAsync(_currentItem);
+        await App.Db.UpdateStockCountItemAsync(_currentItem);
         DetermineCurrentPhase(); // Recalculate phase
         UpdateUI();
 

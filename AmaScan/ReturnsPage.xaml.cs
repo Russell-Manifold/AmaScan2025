@@ -14,7 +14,6 @@ namespace AmaScan
 {
     public partial class ReturnsPage : ContentPage, INotifyPropertyChanged
     {
-        private readonly DatabaseHelper _databaseHelper = new(new SQLiteAsyncConnection(Constants.DatabasePath, Constants.Flags));
         private readonly HttpClient _httpClient = new();
         private SoHeader _soHeader;
         private ObservableCollection<SoLine> _soLines = new();
@@ -165,7 +164,7 @@ namespace AmaScan
                     // If we don't have item details from SO, try to get from stock items
                     if (string.IsNullOrEmpty(itemCode))
                     {
-                        var stockItem = await _databaseHelper.ResolveStockItemByBarcodeAsync(barcode);
+                        var stockItem = await App.Db.ResolveStockItemByBarcodeAsync(barcode);
                         if (stockItem != null)
                         {
                             itemCode = stockItem.stock_code;
@@ -205,7 +204,7 @@ namespace AmaScan
                 };
 
                 var userSession = App.Services.GetRequiredService<UserSession>();
-                await _databaseHelper.SaveReturnLineAsync(returnLine, userSession.CurrentUser?.UserName);
+                await App.Db.SaveReturnLineAsync(returnLine, userSession.CurrentUser?.UserName);
 
                 await DisplayAlert("Success", $"Return processed for {itemDesc}", "OK");
 
@@ -250,7 +249,7 @@ namespace AmaScan
             }
 
             // Get the warehouse description directly from the database
-            var description = await _databaseHelper.GetWarehouseDescriptionAsync(warehouseCode);
+            var description = await App.Db.GetWarehouseDescriptionAsync(warehouseCode);
             ReturnsWarehouse = description ?? $"Warehouse: {warehouseCode}";
         }
 
@@ -259,7 +258,7 @@ namespace AmaScan
             try
             {
                 // First, try to load SO header from local database
-                _soHeader = await _databaseHelper.GetSoHeaderByOrderNoAsync(soNumber);
+                _soHeader = await App.Db.GetSoHeaderByOrderNoAsync(soNumber);
 
                 if (_soHeader == null)
                 {
@@ -276,10 +275,10 @@ namespace AmaScan
                         }
 
                         // Save the SO data to local database
-                        await _databaseHelper.MergeSoDataAsync(salesOrderResponse);
+                        await App.Db.MergeSoDataAsync(salesOrderResponse);
 
                         // Now load from local database
-                        _soHeader = await _databaseHelper.GetSoHeaderByOrderNoAsync(soNumber);
+                        _soHeader = await App.Db.GetSoHeaderByOrderNoAsync(soNumber);
 
                         if (_soHeader == null)
                         {
@@ -295,7 +294,7 @@ namespace AmaScan
                 }
 
                 // Load SO lines from database
-                var lines = await _databaseHelper.GetSoLinesByOrderNoAsync(soNumber);
+                var lines = await App.Db.GetSoLinesByOrderNoAsync(soNumber);
                 _soLines.Clear();
 
                 foreach (var line in lines)

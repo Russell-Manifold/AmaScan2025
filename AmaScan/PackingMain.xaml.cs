@@ -13,10 +13,6 @@ public partial class PackingMain : ContentPage
     private SalesOrderResponse _currentSoResponse;
     private SoHeader _soHeader;
 
-
-
-
-
     public PackingMain()
     {
         InitializeComponent();
@@ -90,8 +86,7 @@ public partial class PackingMain : ContentPage
             }
 
             // Use merge helper for normal operation with proper threading
-            await SoMergeHelper.HandleSoFetchAndMergeAsync(soNumber, _currentSoResponse,
-                customerLabel, dueDateLabel, soHeaderFrame, soLinesView, LoadSOButton, "Packing");
+            await SoMergeHelper.HandleSoFetchAndMergeAsync(soNumber, _currentSoResponse, customerLabel, dueDateLabel, soHeaderFrame, soLinesView, LoadSOButton, "Packing");
         }
         catch (Exception ex)
         {
@@ -137,8 +132,7 @@ public partial class PackingMain : ContentPage
             // Run database operations on background thread
             var result = await Task.Run(async () =>
             {
-                var databaseHelper = AmaScanDatabase.GetDatabaseHelper();
-                var existingSo = await databaseHelper.GetSoHeaderByOrderNoAsync(soNumber);
+                var existingSo = await App.Db.GetSoHeaderByOrderNoAsync(soNumber);
                 
                 if (existingSo != null)
                 {
@@ -146,7 +140,7 @@ public partial class PackingMain : ContentPage
                 }
 
                 await SaveToLocalDatabaseAsync(_currentSoResponse);
-                var savedSo = await databaseHelper.GetSoHeaderByOrderNoAsync(soNumber);
+                var savedSo = await App.Db.GetSoHeaderByOrderNoAsync(soNumber);
                 
                 return new { hasExistingSo = false, existingSo = (SoHeader)null, savedSo };
             });
@@ -223,11 +217,8 @@ public partial class PackingMain : ContentPage
         if (response == null || response.Lines == null || !response.Lines.Any())
             throw new ArgumentException("Invalid sales order data.");
 
-        var databaseHelper = AmaScanDatabase.GetDatabaseHelper();
-
-        string soNumber = response.Reference; // Use Reference as the SO number
-        if (string.IsNullOrEmpty(soNumber))
-            throw new ArgumentException("Invalid SO number.");
+            string soNumber = response.Reference; // Use Reference as the SO number
+            if (string.IsNullOrEmpty(soNumber)) throw new ArgumentException("Invalid SO number.");
 
         // Save the SoHeader with the relevant fields
         var soHeader = new SoHeader
@@ -242,7 +233,7 @@ public partial class PackingMain : ContentPage
         };
 
         // Insert or update the SoHeader
-        await databaseHelper.InsertAsync(soHeader);
+        await App.Db.InsertAsync(soHeader);
 
         // Batch create lines for better performance
         var soLines = response.Lines.Select(line => new SoLine
@@ -273,7 +264,7 @@ public partial class PackingMain : ContentPage
         {
             foreach (var line in soLines)
             {
-                await databaseHelper.InsertAsync(line);
+                await App.Db.InsertAsync(line);
             }
         });
     }

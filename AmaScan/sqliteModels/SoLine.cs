@@ -8,14 +8,25 @@ namespace AmaScan.sqliteModels
     {
         [PrimaryKey, AutoIncrement]
         public int Id { get; set; }
+
         public int SalesOrderHeaderId { get; set; }
+
+        [Indexed(Name = "idx_so_line", Order = 1)]
         public string? DocNum { get; set; }
+
+        [Indexed(Name = "idx_so_line", Order = 2)]
         public string? CustomerAccount { get; set; }
         public string? CustomerName { get; set; }
+
+        [Indexed(Name = "idx_so_line", Order = 3)]
         public string? ItemCode { get; set; }
         public string? ItemDesc { get; set; }
+
+        [Indexed(Name = "idx_so_line", Order = 4)]
         public string? ItemBarcode { get; set; }
         public int PackSize { get; set; }
+
+        [Indexed(Name = "idx_so_line", Order = 5)]
         public string? PackBarcode { get; set; }
         public int NoOfPacks { get; set; }
         public decimal OrderedQty { get; set; }
@@ -60,6 +71,8 @@ namespace AmaScan.sqliteModels
         public string? PickedBy { get; set; }
         public DateTime? PickStartDateTime { get; set; }
         public DateTime? PickCompleteDateTime { get; set; }
+
+        [Indexed(Name = "idx_so_line", Order = 6)]
         public bool PickStarted { get; set; }
 
         // Packing Phase

@@ -12,7 +12,6 @@ public partial class CheckingDocumentsPage : ContentPage, INotifyPropertyChanged
     private ObservableCollection<SoLine> _soLines;
     private bool _isLoading;
     private SoHeader _soHeader;
-    private DatabaseHelper _dbHelper;
 
     public bool IsLoading
     {
@@ -50,7 +49,6 @@ public partial class CheckingDocumentsPage : ContentPage, INotifyPropertyChanged
         InitializeComponent();
         BindingContext = this;
         _soLines = new ObservableCollection<SoLine>();
-        _dbHelper = databaseHelper;
     }
 
     protected override void OnAppearing()
@@ -132,10 +130,10 @@ public partial class CheckingDocumentsPage : ContentPage, INotifyPropertyChanged
             string currentUserName = userSession.CurrentUser?.UserName ?? "Unknown User";
 
             // Check if any user has started checking for this SO
-            if (await _dbHelper.HasAnyUserStartedPhaseAsync(_soHeader.Reference, "checking"))
+            if (await App.Db.HasAnyUserStartedPhaseAsync(_soHeader.Reference, "checking"))
             {
                 // Check if the current user is the one who started checking
-                if (!await _dbHelper.HasUserStartedPhaseAsync(_soHeader.Reference, currentUserName, "checking"))
+                if (!await App.Db.HasUserStartedPhaseAsync(_soHeader.Reference, currentUserName, "checking"))
                 {
                     await DisplayAlert("Access Denied",
                         $"Checking for {_soHeader.Reference} was started by another user.\n\n" +

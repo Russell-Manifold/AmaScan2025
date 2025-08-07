@@ -8,14 +8,12 @@ namespace AmaScan
 {
     public partial class MainPage : ContentPage
     {
-        AmaScanDatabase database;
         private readonly HttpClient _httpClient;
         private readonly UserSession _userSession;
 
         public MainPage(AmaScanDatabase amaScanDatabase)
         {
             InitializeComponent();
-            database = amaScanDatabase;
             _userSession = App.Services.GetRequiredService<UserSession>();
             BindingContext = this;
         }

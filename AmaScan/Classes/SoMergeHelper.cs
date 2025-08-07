@@ -23,13 +23,11 @@ public static class SoMergeHelper
     {
         try
         {
-            var databaseHelper = AmaScanDatabase.GetDatabaseHelper();
-
             // Run database operations on background thread
             var result = await Task.Run(async () =>
             {
                 // Step 1: Check local database first
-                var existingSo = await databaseHelper.GetSoHeaderByOrderNoAsync(soNumber);
+                var existingSo = await App.Db.GetSoHeaderByOrderNoAsync(soNumber);
                 return existingSo;
             });
 
@@ -38,8 +36,7 @@ public static class SoMergeHelper
             // Step 2: If SO exists locally, merge fresh data with existing workflow data
             if (existingSo != null)
             {
-                await MergeFreshDataWithExistingAsync(soNumber, freshData, databaseHelper,
-                    customerLabel, dueDateLabel, soHeaderFrame, soLinesView, loadSOButton, workflowName);
+                await MergeFreshDataWithExistingAsync(soNumber, freshData, customerLabel, dueDateLabel, soHeaderFrame, soLinesView, loadSOButton, workflowName);
             }
             else
             {
@@ -70,7 +67,6 @@ public static class SoMergeHelper
     /// </summary>
     public static async Task LoadExistingSoForDisplayAsync(
         string soNumber,
-        DatabaseHelper databaseHelper,
         Label customerLabel,
         Label dueDateLabel,
         Frame soHeaderFrame,
@@ -83,8 +79,8 @@ public static class SoMergeHelper
             var result = await Task.Run(async () =>
             {
                 // Load header and lines in parallel for better performance
-                var headerTask = databaseHelper.GetSoHeaderByOrderNoAsync(soNumber);
-                var linesTask = databaseHelper.GetSoLinesByOrderNoAsync(soNumber);
+                var headerTask = App.Db.GetSoHeaderByOrderNoAsync(soNumber);
+                var linesTask = App.Db.GetSoLinesByOrderNoAsync(soNumber);
 
                 await Task.WhenAll(headerTask, linesTask);
 
@@ -124,7 +120,6 @@ public static class SoMergeHelper
     public static async Task MergeFreshDataWithExistingAsync(
         string soNumber,
         SalesOrderResponse freshData,
-        DatabaseHelper databaseHelper,
         Label customerLabel,
         Label dueDateLabel,
         Frame soHeaderFrame,
@@ -138,7 +133,7 @@ public static class SoMergeHelper
             var mergeResult = await Task.Run(async () =>
             {
                 // Get existing lines before merge for comparison
-                var existingLinesBefore = await databaseHelper.GetSoLinesByOrderNoAsync(soNumber);
+                var existingLinesBefore = await App.Db.GetSoLinesByOrderNoAsync(soNumber);
                 var existingLineKeys = existingLinesBefore
                     .Select(l => $"{l.ItemCode}_{l.ItemBarcode}")
                     .ToHashSet();
@@ -147,10 +142,10 @@ public static class SoMergeHelper
                     .ToHashSet();
 
                 // Merge fresh data with existing workflow data
-                await databaseHelper.MergeSoDataAsync(freshData);
+                await App.Db.MergeSoDataAsync(freshData);
 
                 // Get lines after merge for comparison
-                var existingLinesAfter = await databaseHelper.GetSoLinesByOrderNoAsync(soNumber);
+                var existingLinesAfter = await App.Db.GetSoLinesByOrderNoAsync(soNumber);
 
                 // Calculate merge summary using composite keys
                 var newLines = freshLineKeys.Except(existingLineKeys).Count();
@@ -177,11 +172,11 @@ public static class SoMergeHelper
             }
 
             // *** Refresh the UI after the alert ***
-            await LoadExistingSoForDisplayAsync(soNumber, databaseHelper, customerLabel, dueDateLabel, soHeaderFrame, soLinesView, loadSOButton);
+            await LoadExistingSoForDisplayAsync(soNumber, customerLabel, dueDateLabel, soHeaderFrame, soLinesView, loadSOButton);
         }
         catch (Exception ex)
         {
-            await Application.Current.MainPage.DisplayAlert("Merge Error", $"Failed to merge fresh data: {ex.Message}", "OK");
+            if (!ex.Message.ToLower().ToString().Contains("same key")) await Application.Current.MainPage.DisplayAlert("Merge Error", $"Failed to merge fresh data: {ex.Message}", "OK");
         }
     }
 }

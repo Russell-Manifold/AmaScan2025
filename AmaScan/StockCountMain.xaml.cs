@@ -13,7 +13,6 @@ namespace AmaScan;
 
 public partial class StockCountMain : ContentPage, INotifyPropertyChanged
 {
-    private readonly DatabaseHelper _databaseHelper;
     private readonly HttpClient _httpClient;
     private ObservableCollection<StockCountSession> _stockCountSessions;
     private bool _isLoading;
@@ -48,7 +47,6 @@ public partial class StockCountMain : ContentPage, INotifyPropertyChanged
     {
         InitializeComponent();
         BindingContext = this;
-        _databaseHelper = databaseHelper;
         _httpClient = AppConfig.GetHttpClient();
         _stockCountSessions = new ObservableCollection<StockCountSession>();
     }
@@ -89,7 +87,7 @@ public partial class StockCountMain : ContentPage, INotifyPropertyChanged
                         if (stockCountItems != null && stockCountItems.Any())
                         {
                             // Save the API data to local database
-                            await _databaseHelper.SaveStockCountItemsAsync(stockCountItems);
+                            await App.Db.SaveStockCountItemsAsync(stockCountItems);
                             
                             // Update the session with real counts
                             qwertySession.TotalItems = stockCountItems.Count;

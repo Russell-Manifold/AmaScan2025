@@ -2,9 +2,7 @@ using AmaScan.Classes;
 using AmaScan.Data;
 using AmaScan.sqliteModels;
 using Data.Model;
-using SQLite;
 using System.Net.Http.Json;
-using Microsoft.Maui.Dispatching;
 
 namespace AmaScan;
 
@@ -13,9 +11,6 @@ public partial class PickingMain : ContentPage
     private readonly HttpClient _httpClient = new();
     private SalesOrderResponse _currentSoResponse;
     private SoHeader _soHeader;
-
-
-
     public PickingMain()
     {
         InitializeComponent();
@@ -109,8 +104,6 @@ public partial class PickingMain : ContentPage
         }
     }
 
-
-
     private async void OnLoadSOClicked(object sender, EventArgs e)
     {
         try
@@ -131,8 +124,7 @@ public partial class PickingMain : ContentPage
             // Run database operations on background thread
             var result = await Task.Run(async () =>
             {
-                var databaseHelper = AmaScanDatabase.GetDatabaseHelper();
-                var existingSo = await databaseHelper.GetSoHeaderByOrderNoAsync(soNumber);
+                var existingSo = await App.Db.GetSoHeaderByOrderNoAsync(soNumber);
                 
                 if (existingSo != null)
                 {
@@ -140,7 +132,7 @@ public partial class PickingMain : ContentPage
                 }
 
                 await SaveToLocalDatabaseAsync(_currentSoResponse);
-                var savedSo = await databaseHelper.GetSoHeaderByOrderNoAsync(soNumber);
+                var savedSo = await App.Db.GetSoHeaderByOrderNoAsync(soNumber);
                 
                 return new { hasExistingSo = false, existingSo = (SoHeader)null, savedSo };
             });
@@ -209,8 +201,6 @@ public partial class PickingMain : ContentPage
         if (response == null || response.Lines == null || !response.Lines.Any())
             throw new ArgumentException("Invalid sales order data.");
 
-                    var databaseHelper = AmaScanDatabase.GetDatabaseHelper();
-
         string soNumber = response.Reference; // Use Reference as the SO number
         if (string.IsNullOrEmpty(soNumber))
             throw new ArgumentException("Invalid SO number.");
@@ -228,7 +218,7 @@ public partial class PickingMain : ContentPage
         };
 
         // Insert or update the SoHeader
-        await databaseHelper.InsertAsync(soHeader);
+        await App.Db.InsertAsync(soHeader);
 
         // Batch insert lines
         var soLines = response.Lines.Select(line => new SoLine
@@ -255,7 +245,7 @@ public partial class PickingMain : ContentPage
         // Insert each line individually
         foreach (var line in soLines)
         {
-            await databaseHelper.InsertAsync(line);
+            await App.Db.InsertAsync(line);
         }
     }
 

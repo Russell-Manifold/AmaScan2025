@@ -2,9 +2,7 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using AmaScan.Classes;
-using AmaScan.Data;
 using AmaScan.sqliteModels;
-using SQLite;
 
 namespace AmaScan;
 public partial class PickingDocumentsPage : ContentPage, INotifyPropertyChanged
@@ -12,8 +10,6 @@ public partial class PickingDocumentsPage : ContentPage, INotifyPropertyChanged
     private ObservableCollection<SoLine> _soLines;
     private bool _isLoading;
     private SoHeader _soHeader;
-    private DatabaseHelper _dbHelper;
-
     public bool IsLoading
     {
         get => _isLoading;
@@ -45,12 +41,11 @@ public partial class PickingDocumentsPage : ContentPage, INotifyPropertyChanged
     public string CustomerName => _soHeader?.CustomerName ?? "";
     public DateTime DueDate => _soHeader?.DueDate ?? DateTime.Now;
 
-    public PickingDocumentsPage(DatabaseHelper databaseHelper)
+    public PickingDocumentsPage()
     {
         InitializeComponent();
         BindingContext = this;
         _soLines = new ObservableCollection<SoLine>();
-        _dbHelper = databaseHelper;
     }
 
     protected override void OnAppearing()
@@ -82,10 +77,8 @@ public partial class PickingDocumentsPage : ContentPage, INotifyPropertyChanged
             OnPropertyChanged(nameof(CustomerName));
             OnPropertyChanged(nameof(DueDate));
 
-            var databaseHelper = AmaScanDatabase.GetDatabaseHelper();
-
             // Load SO lines for the current SO using Reference (which contains the SO number)
-            var lines = await databaseHelper.GetSoLinesByOrderNoAsync(_soHeader.Reference);
+            var lines = await App.Db.GetSoLinesByOrderNoAsync(_soHeader.Reference);
 
             // Clear and reload the collection
             _soLines.Clear();
@@ -132,10 +125,10 @@ public partial class PickingDocumentsPage : ContentPage, INotifyPropertyChanged
             string currentUserName = userSession.CurrentUser?.UserName ?? "Unknown User";
 
             // Check if any user has started picking for this SO
-            if (await _dbHelper.HasAnyUserStartedPhaseAsync(_soHeader.Reference, "picking"))
+            if (await App.Db.HasAnyUserStartedPhaseAsync(_soHeader.Reference, "picking"))
             {
                 // Check if the current user is the one who started picking
-                if (!await _dbHelper.HasUserStartedPhaseAsync(_soHeader.Reference, currentUserName, "picking"))
+                if (!await App.Db.HasUserStartedPhaseAsync(_soHeader.Reference, currentUserName, "picking"))
                 {
                     await DisplayAlert("Access Denied",
                         $"Picking for {_soHeader.Reference} was started by another user.\n\n" +

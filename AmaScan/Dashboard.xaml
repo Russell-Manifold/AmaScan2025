@@ -17,61 +17,93 @@
 
         <StackLayout Grid.Row="0" Padding="10">
             <Label x:Name="UserNameLabel" 
-               Text="{Binding UseNRole}" 
-               FontSize="12" 
-               HorizontalOptions="Start" 
-               VerticalOptions="Center" />
-         </StackLayout>
+                   Text="{Binding UseNRole}" 
+                   FontSize="12" 
+                   HorizontalOptions="Start" 
+                   VerticalOptions="Center" />
+        </StackLayout>
+
         <ScrollView Grid.Row="1" Padding="10">
-            <VerticalStackLayout Padding="10" Spacing="10" HorizontalOptions="Fill"  VerticalOptions="Start">
+            <Grid Padding="10" ColumnSpacing="20" RowSpacing="20">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
 
-                <!-- 🔘 Image Button 1 -->
-                <ImageButton x:Name="BtnReceiving" Source="receivestck.png" IsVisible="{Binding CanReceive}" 
-                         WidthRequest="50"
-                         HeightRequest="50"
-                         Clicked="OnPage1Clicked"/>
-                <Label Text="Receiving"
-                       HorizontalOptions="Center"
-                       VerticalOptions="Center"/>
+                <!-- Row 1 -->
+                <!-- Column 1 -->
+                <VerticalStackLayout Grid.Row="0" Grid.Column="0" HorizontalOptions="Center">
+                    <ImageButton x:Name="BtnReceiving" 
+                                 Source="receivestck.png" 
+                                 IsVisible="{Binding CanReceive}"
+                                 WidthRequest="50"
+                                 HeightRequest="50"
+                                 Clicked="OnPage1Clicked"/>
+                    <Label Text="Receiving"
+                           HorizontalOptions="Center"
+                           VerticalOptions="Center" FontSize="Small"/>
+                </VerticalStackLayout>
 
-                <!-- 🔘 Image Button 2 -->
-                <ImageButton x:Name="btnWhTrf" Source="whtrf.png" IsVisible="{Binding CanTransfer}"
-                         WidthRequest="50"
-                         HeightRequest="50"
-                         Clicked="OnPage2Clicked"/>
-                <Label Text="Warehouse Transfer"
-           HorizontalOptions="Center"
-           VerticalOptions="Center"/>
+                <!-- Column 2 -->
+                <VerticalStackLayout Grid.Row="0" Grid.Column="1" HorizontalOptions="Center">
+                    <ImageButton x:Name="btnWhTrf" 
+                                 Source="whtrf.png" 
+                                 IsVisible="{Binding CanTransfer}"
+                                 WidthRequest="50"
+                                 HeightRequest="50"
+                                 Clicked="OnPage2Clicked"/>
+                    <Label Text="W/hse Transfer"
+                           HorizontalOptions="Center"
+                           VerticalOptions="Center" FontSize="Small"/>
+                </VerticalStackLayout>
 
-                <!-- 🔘 Image Button 3 - Picking -->
-                <ImageButton x:Name="BtnPicking" Source="receivestck.png" IsVisible="{Binding CanAccessPickingWorkflow}"
-                         WidthRequest="50"
-                         HeightRequest="50"
-                         Clicked="OnPage3Clicked"/>
-                <Label Text="Picking Packing"
-                       HorizontalOptions="Center"
-                       VerticalOptions="Center" IsVisible="{Binding CanAccessPickingWorkflow}" />
+                <!-- Row 2 -->
+                <!-- Column 1 -->
+                <VerticalStackLayout Grid.Row="1" Grid.Column="0" HorizontalOptions="Center">
+                    <ImageButton x:Name="BtnPicking" 
+                                 Source="receivestck.png" 
+                                 IsVisible="{Binding CanAccessPickingWorkflow}"
+                                 WidthRequest="50"
+                                 HeightRequest="50"
+                                 Clicked="OnPage3Clicked"/>
+                    <Label Text="Picking Packing"
+                           HorizontalOptions="Center"
+                           VerticalOptions="Center" 
+                           IsVisible="{Binding CanAccessPickingWorkflow}" FontSize="Small"/>
+                </VerticalStackLayout>
 
-                <!-- 🔘 Image Button 4 - Returns -->
-                <ImageButton x:Name="BtnReturns" Source="returns.png"
-                         WidthRequest="50"
-                         HeightRequest="50"
-                         Clicked="OnPage4Clicked"/>
-                <Label Text="Returns"
-                       HorizontalOptions="Center"
-                       VerticalOptions="Center" />
+                <!-- Column 2 -->
+                <VerticalStackLayout Grid.Row="1" Grid.Column="1" HorizontalOptions="Center">
+                    <ImageButton x:Name="BtnReturns" 
+                                 Source="returns.png"
+                                 WidthRequest="50"
+                                 HeightRequest="50"
+                                 Clicked="OnPage4Clicked"/>
+                    <Label Text="Returns"
+                           HorizontalOptions="Center"
+                           VerticalOptions="Center" FontSize="Small"/>
+                </VerticalStackLayout>
 
-                <!-- 🔘 Image Button 5 - Stock Count -->
-                <ImageButton x:Name="BtnStockCount" Source="stockcount.png"
-                         WidthRequest="50"
-                         HeightRequest="50"
-                         Clicked="OnStockCountClicked"/>
-                <Label Text="Stock Count"
-                       HorizontalOptions="Center"
-                       VerticalOptions="Center" />
+                <!-- Row 3 -->
+                <!-- Column 1 -->
+                <VerticalStackLayout Grid.Row="2" Grid.Column="0" HorizontalOptions="Center">
+                    <ImageButton x:Name="BtnStockCount" 
+                                 Source="stockcount.png"
+                                 WidthRequest="50"
+                                 HeightRequest="50"
+                                 Clicked="OnStockCountClicked"/>
+                    <Label Text="Stock Count"
+                           HorizontalOptions="Center"
+                           VerticalOptions="Center" FontSize="Small"/>
+                </VerticalStackLayout>
 
-
-            </VerticalStackLayout>
+                <!-- Column 2 (empty, can add more items here if needed) -->
+            </Grid>
         </ScrollView>
     </Grid>
 </ContentPage>

@@ -209,6 +209,15 @@ namespace AmaScan.Classes
                 await _dbConnection.DeleteAsync(poHeader);
         }
 
+        public async Task DeleteAllExceptPoAsync(string poNumber)
+        {
+            // Delete PO lines using a query instead of loading all into memoryI j
+            await _dbConnection.Table<PoLine>().Where(p => p.OrderNo != poNumber).DeleteAsync();
+
+            var poHeader = await _dbConnection.Table<PoHeader>().FirstOrDefaultAsync(p => p.OrderNo != poNumber);
+            if (poHeader != null) await _dbConnection.DeleteAsync(poHeader);
+        }
+
         /// <summary>
         /// Merges fresh PO data from API with existing local workflow data
         /// Preserves workflow-specific fields while updating source data
@@ -521,6 +530,16 @@ namespace AmaScan.Classes
                 await _dbConnection.DeleteAsync(soHeader);
         }
 
+        public async Task DeleteAllExceptSoAsync(string orderNo)
+        {
+            orderNo = FixOrderNo(orderNo);
+
+            // Delete SO lines using a query instead of loading all into memory
+            await _dbConnection.Table<SoLine>().Where(p => p.DocNum != orderNo).DeleteAsync();
+
+            var soHeader = await _dbConnection.Table<SoHeader>().FirstOrDefaultAsync(p => p.Reference != orderNo);
+            if (soHeader != null) await _dbConnection.DeleteAsync(soHeader);
+        }
         /// <summary>
         /// Merges fresh SO data from API with existing local workflow data
         /// Preserves workflow-specific fields while updating source data

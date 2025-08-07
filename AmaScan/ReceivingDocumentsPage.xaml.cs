@@ -3,11 +3,8 @@ using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using AmaScan.Classes;
 using AmaScan.sqliteModels;
-using AmaScan.Data;
-using SQLite;
 using System.Net.Http.Json;
 using static AmaScan.SettingsPage;
-using Microsoft.Maui.Dispatching;
 
 namespace AmaScan;
 
@@ -31,7 +28,6 @@ public partial class ReceivingDocumentsPage : ContentPage, INotifyPropertyChange
 
     private PoHeader _poHeader;
     private string _dnNumber;
-    private readonly DatabaseHelper _databaseHelper = new(AmaScanDatabase.GetConnection());
 
     public string DNnumber
     {
@@ -120,7 +116,7 @@ public partial class ReceivingDocumentsPage : ContentPage, INotifyPropertyChange
 
         try
         {
-            _poHeader = await _databaseHelper.GetPoHeaderByOrderNoAsync(poNumber).ConfigureAwait(false);
+            _poHeader = await App.Db.GetPoHeaderByOrderNoAsync(poNumber).ConfigureAwait(false);
             if (_poHeader == null)
             {
                 await MainThread.InvokeOnMainThreadAsync(async () =>
@@ -157,14 +153,14 @@ public partial class ReceivingDocumentsPage : ContentPage, INotifyPropertyChange
             // Run heavy operations on background thread
             var result = await Task.Run(async () =>
             {
-                bool hasWarehouses = await _databaseHelper.HasWarehousesAsync();
+                bool hasWarehouses = await App.Db.HasWarehousesAsync();
                 if (!hasWarehouses)
                 {
                     string url = $"{AppConfig.ApiBaseUrl}warehouses/get-warehouses";
                     var response = await _httpClient.GetFromJsonAsync<WarehouseResponse>(url);
                     if (response?.data != null && response.data.Any())
                     {
-                        await _databaseHelper.SaveWarehousesAsync(response.data);
+                        await App.Db.SaveWarehousesAsync(response.data);
                         Preferences.Set("HasPopulatedWarehouses", true);
                     }
                     else
@@ -173,7 +169,7 @@ public partial class ReceivingDocumentsPage : ContentPage, INotifyPropertyChange
                     }
                 }
                 
-                var warehouseData = await _databaseHelper.GetWarehousesAsync();
+                var warehouseData = await App.Db.GetWarehousesAsync();
                 return new { warehouseData, showAlert = false, alertMessage = "" };
             });
 
@@ -253,11 +249,13 @@ public partial class ReceivingDocumentsPage : ContentPage, INotifyPropertyChange
             if (!string.IsNullOrWhiteSpace(DNnumber))
                 _poHeader.DNnumber = DNnumber;
             _poHeader.Status = "Loaded";
-            
-            await _databaseHelper.UpdatePoHeaderAsync(_poHeader);
+
+            await App.Db.UpdatePoHeaderAsync(_poHeader);
+
             
             // Navigate with proper encoding
             string poNumber = Uri.EscapeDataString(_poHeader.OrderNo);
+            await App.Db.DeleteAllExceptPoAsync(poNumber);
             await Shell.Current.GoToAsync($"{nameof(ReceivingPage)}?po={poNumber}");
         }
         catch (Exception ex)

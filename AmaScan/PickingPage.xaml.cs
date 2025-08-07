@@ -11,7 +11,6 @@ namespace AmaScan;
 
 public partial class PickingPage : ContentPage, INotifyPropertyChanged
 {
-    private readonly DatabaseHelper _dbHelper;
     private readonly UserSession _userSession;
     private SoHeader _soHeader;
     private ObservableCollection<SoLine> _soLines;
@@ -43,7 +42,6 @@ public partial class PickingPage : ContentPage, INotifyPropertyChanged
     {
         InitializeComponent();
         BindingContext = this;
-        _dbHelper = databaseHelper;
         _userSession = App.Services.GetRequiredService<UserSession>();
         _soLines = new ObservableCollection<SoLine>();
 
@@ -88,7 +86,7 @@ public partial class PickingPage : ContentPage, INotifyPropertyChanged
         if (PickingWorkflowSession.CurrentSoLine != null)
         {
             // Get the fresh line from database to ensure we have the latest data
-            var freshLine = await _dbHelper.GetSoLineByBarcodeAsync(_soHeader.Reference, PickingWorkflowSession.CurrentSoLine.ItemBarcode);
+            var freshLine = await App.Db.GetSoLineByBarcodeAsync(_soHeader.Reference, PickingWorkflowSession.CurrentSoLine.ItemBarcode);
 
             if (freshLine != null)
             {
@@ -178,7 +176,8 @@ public partial class PickingPage : ContentPage, INotifyPropertyChanged
     {
         try
         {
-            var lines = await _dbHelper.GetSoLinesByOrderNoAsync(_soHeader.Reference);
+            await App.Db.DeleteAllExceptSoAsync(_soHeader.Reference);
+            var lines = await App.Db.GetSoLinesByOrderNoAsync(_soHeader.Reference);
             _soLines.Clear();
             foreach (var line in lines)
             {
@@ -199,13 +198,13 @@ public partial class PickingPage : ContentPage, INotifyPropertyChanged
         string currentUserName = GetCurrentUserName();
 
         // Set the header-level user for picking
-        await _dbHelper.SetPhaseUserAsync(_soHeader.Reference, currentUserName, "picking");;
+        await App.Db.SetPhaseUserAsync(_soHeader.Reference, currentUserName, "picking");;
 
         // Set the line-level flag
         if (SelectedLine != null)
         {
             SelectedLine.PickStarted = true;
-            await _dbHelper.UpdateSoLineAsync(SelectedLine);
+            await App.Db.UpdateSoLineAsync(SelectedLine);
         }
 
         PickingInputSection.IsVisible = true;
@@ -225,7 +224,7 @@ public partial class PickingPage : ContentPage, INotifyPropertyChanged
                 return;
             }
 
-            var matchingLine = await _dbHelper.GetSoLineByBarcodeAsync(_soHeader.Reference, scannedBarcode);
+            var matchingLine = await App.Db.GetSoLineByBarcodeAsync(_soHeader.Reference, scannedBarcode);
 
             if (matchingLine == null)
             {
@@ -259,10 +258,10 @@ public partial class PickingPage : ContentPage, INotifyPropertyChanged
 
             foreach (var line in _soLines)
             {
-                await _dbHelper.UpdateSoLineAsync(line);
+                await App.Db.UpdateSoLineAsync(line);
             }
 
-            await _dbHelper.UpdateSoHeaderAsync(_soHeader);
+            await App.Db.UpdateSoHeaderAsync(_soHeader);
             PickingWorkflowSession.CurrentSoHeader = _soHeader;
 
             await DisplayAlert("Success", "Progress saved successfully.", "OK");
@@ -320,7 +319,7 @@ public partial class PickingPage : ContentPage, INotifyPropertyChanged
             if (!confirmed) return;
 
             // Check if all lines are picked
-            if (await _dbHelper.AreAllLinesPickedAsync(_soHeader.Reference))
+            if (await App.Db.AreAllLinesPickedAsync(_soHeader.Reference))
             {
                 // All items are picked, prompt to complete the entire order
                 bool completeOrder = await DisplayAlert("All Items Picked",
@@ -362,14 +361,14 @@ public partial class PickingPage : ContentPage, INotifyPropertyChanged
     {
         try
         {
-            var soLines = await _dbHelper.GetSoLinesByOrderNoAsync(_soHeader.Reference);
+            var soLines = await App.Db.GetSoLinesByOrderNoAsync(_soHeader.Reference);
             bool success = await SendToApiForCompletionAsync(_soHeader.Reference, soLines);
 
             if (success)
             {
                 // Set header flags to indicate picking is complete
                 _soHeader.Picked = true;
-                await _dbHelper.UpdateSoHeaderAsync(_soHeader);
+                await App.Db.UpdateSoHeaderAsync(_soHeader);
 
                 PickingWorkflowSession.Clear();
                 await DisplayAlert("Picking Phase Complete",
@@ -396,7 +395,7 @@ public partial class PickingPage : ContentPage, INotifyPropertyChanged
         try
         {
             // Check if all lines are picked
-            if (!await _dbHelper.AreAllLinesPickedAsync(_soHeader.Reference))
+            if (!await App.Db.AreAllLinesPickedAsync(_soHeader.Reference))
             {
                 await DisplayAlert("Incomplete",
                     "Not all items have been picked yet.\n\n" +
@@ -505,7 +504,7 @@ public partial class PickingPage : ContentPage, INotifyPropertyChanged
             lineInCollection.PickStartDateTime = DateTime.Now;
         }
 
-        await _dbHelper.UpdateSoLineAsync(lineInCollection);
+        await App.Db.UpdateSoLineAsync(lineInCollection);
 
         if (SelectedLine?.Id == lineInCollection.Id)
         {
@@ -537,7 +536,7 @@ public partial class PickingPage : ContentPage, INotifyPropertyChanged
                 return;
             }
 
-            var matchingLine = await _dbHelper.GetSoLineByBarcodeAsync(_soHeader.Reference, scannedBarcode);
+            var matchingLine = await App.Db.GetSoLineByBarcodeAsync(_soHeader.Reference, scannedBarcode);
 
             if (matchingLine == null)
             {
@@ -575,12 +574,12 @@ public partial class PickingPage : ContentPage, INotifyPropertyChanged
             lineInCollection.PickedBy = null;
         }
 
-        await _dbHelper.UpdateSoLineAsync(SelectedLine);
+        await App.Db.UpdateSoLineAsync(SelectedLine);
 
         // Reset the Picker field in the header (this field exists in the database)
         _soHeader.Picker = null;
         _soHeader.PickStarted = false;
-        await _dbHelper.UpdateSoHeaderAsync(_soHeader);
+        await App.Db.UpdateSoHeaderAsync(_soHeader);
 
         PickingInputSection.IsVisible = false;
         StartPickingButton.IsVisible = true;

@@ -7,12 +7,20 @@ namespace AmaScan.sqliteModels
     {
         [PrimaryKey, AutoIncrement]
         public int Id { get; set; }
+        
+        [Indexed(Name = "idx_po_line", Order = 1)]
         public string? OrderNo { get; set; }
+
+        [Indexed(Name = "idx_po_lineNum", Order = 1)]
         public long LineNo { get; set; }
         public string? ItemCode { get; set; }
         public string? ItemDesc { get; set; }
+        
+        [Indexed(Name = "idx_po_line", Order = 2)]
         public string? ItemBarcode { get; set; }
         public int PackSize { get; set; }
+
+        [Indexed(Name = "idx_po_line", Order = 3)]
         public string? PackBarcode { get; set; }
         public int NoOfPacks { get; set; }
         public decimal OrderedQty { get; set; }
@@ -50,6 +58,8 @@ namespace AmaScan.sqliteModels
             }
         }
         public string? BinLocation { get; set; }
+        
+        [Indexed(Name = "idx_po_line", Order = 4)]
         public string? WhID { get; set; }
         public string? GRNum { get; set; }
         //public string? ReceivedString { get; set; }

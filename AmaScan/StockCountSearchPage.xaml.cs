@@ -10,7 +10,6 @@ namespace AmaScan
     [QueryProperty(nameof(BatchNoQuery), "batchNo")]
     public partial class StockCountSearchPage : ContentPage, INotifyPropertyChanged
     {
-        private readonly DatabaseHelper _databaseHelper;
         private string _batchNoQuery;
         private StockCountItem _foundItem;
         private StockItem _stockItem;
@@ -49,7 +48,6 @@ namespace AmaScan
         {
             InitializeComponent();
             BindingContext = this;
-            _databaseHelper = databaseHelper;
         }
 
         protected override void OnAppearing()
@@ -129,7 +127,7 @@ namespace AmaScan
                 StartCountingButton.IsVisible = false;
 
                 // Check StockItem table for barcodes (main, pack, and alternate)
-                _stockItem = await _databaseHelper.ResolveStockItemByBarcodeAsync(barcode);
+                _stockItem = await App.Db.ResolveStockItemByBarcodeAsync(barcode);
                 
                 if (_stockItem == null)
                 {
@@ -140,7 +138,7 @@ namespace AmaScan
                 }
 
                 // Check if this item is in the current stock count batch
-                _foundItem = await _databaseHelper.GetStockCountItemByCodeAndBatchAsync(_stockItem.stock_code, _batchNoQuery);
+                _foundItem = await App.Db.GetStockCountItemByCodeAndBatchAsync(_stockItem.stock_code, _batchNoQuery);
                 
                 if (_foundItem == null)
                 {
