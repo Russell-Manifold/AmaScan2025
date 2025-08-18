@@ -109,12 +109,17 @@ namespace AmaScan.Classes
             }).ConfigureAwait(false);
         }
 
-        public async Task UpdatePoHeaderAsync(PoHeader poHeader)
+        public async Task UpdatePoHeaderAsync(PoHeader poHeader, CancellationToken cancellationToken = default)
         {
+            cancellationToken.ThrowIfCancellationRequested();
+
             await _dbConnection.RunInTransactionAsync(conn =>
             {
-                conn.Update(poHeader); // synchronous inside transaction
+                // SQLite doesn't support async inside transaction, so keep it sync
+                conn.Update(poHeader);
             }).ConfigureAwait(false);
+
+            cancellationToken.ThrowIfCancellationRequested();
 
             // Invalidate cache for this PO
             if (!string.IsNullOrWhiteSpace(poHeader.OrderNo))
@@ -224,13 +229,17 @@ namespace AmaScan.Classes
             }).ConfigureAwait(false);
         }
 
-        public async Task DeleteAllExceptPoAsync(string poNumber)
+        public async Task DeleteAllExceptPoAsync(string poNumber, CancellationToken cancellationToken = default)
         {
+            cancellationToken.ThrowIfCancellationRequested();
+
             await _dbConnection.RunInTransactionAsync(conn =>
             {
                 conn.Execute("DELETE FROM PoLine WHERE OrderNo != ?", poNumber);
                 conn.Execute("DELETE FROM PoHeader WHERE OrderNo != ?", poNumber);
             }).ConfigureAwait(false);
+
+            cancellationToken.ThrowIfCancellationRequested();
         }
 
         public async Task MergePoDataAsync(PurchaseOrderResponse freshData)

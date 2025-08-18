@@ -242,112 +242,70 @@ public partial class ReceivingDocumentsPage : ContentPage, INotifyPropertyChange
     //    }
     //}
 
+    private CancellationTokenSource _acceptCts;
     private async void OnAcceptClicked(object sender, EventArgs e)
-    {
-        try
         {
-            if (_poHeader == null)
+            // Cancel any previous operation
+            _acceptCts?.Cancel();
+            _acceptCts = new CancellationTokenSource();
+
+            try
             {
-                await DisplayAlert("Error", "No PO loaded. Please restart the process.", "OK");
-                await Shell.Current.GoToAsync("..");
-                return;
-            }
+                var token = _acceptCts.Token;
 
-            if (string.IsNullOrWhiteSpace(DNnumber) && string.IsNullOrWhiteSpace(SuppInvNumber))
+                if (_poHeader == null)
+                {
+                    await DisplayAlert("Error", "No PO loaded. Please restart the process.", "OK");
+                    await Shell.Current.GoToAsync("..");
+                    return;
+                }
+
+                if (string.IsNullOrWhiteSpace(DNnumber) && string.IsNullOrWhiteSpace(SuppInvNumber))
+                {
+                    await DisplayAlert("Required", "Please enter at least one document number.", "OK");
+                    return;
+                }
+
+                if (SelectedWarehouse?.Code is null || string.IsNullOrWhiteSpace(SelectedWarehouse.Code))
+                {
+                    await DisplayAlert("Warehouse Required", "Please select a warehouse above.", "OK");
+                    return;
+                }
+
+                SetLoading(true);
+
+                // Update header
+                _poHeader.SuppInvNumber = string.IsNullOrWhiteSpace(SuppInvNumber) ? _poHeader.SuppInvNumber : SuppInvNumber;
+                _poHeader.DNnumber      = string.IsNullOrWhiteSpace(DNnumber) ? _poHeader.DNnumber : DNnumber;
+                _poHeader.Status        = "Loaded";
+
+                await App.Db.UpdatePoHeaderAsync(_poHeader, token);
+                string poNumber = Uri.EscapeDataString(_poHeader.OrderNo);
+                await App.Db.DeleteAllExceptPoAsync(poNumber, token);
+
+                token.ThrowIfCancellationRequested();
+
+                await Shell.Current.GoToAsync($"{nameof(ReceivingPage)}?po={poNumber}");
+            }
+            catch (OperationCanceledException)
             {
-                await DisplayAlert("Required", "Please enter at least one document number.", "OK");
-                return;
+                await DisplayAlert("Cancelled", "Operation was cancelled.", "OK");
             }
-
-            if (SelectedWarehouse?.Code is null || string.IsNullOrWhiteSpace(SelectedWarehouse.Code))
+            catch (Exception ex)
             {
-                await DisplayAlert("Warehouse Required", "Please select a warehouse above.", "OK");
-                return;
+                await DisplayAlert("Error", $"Unexpected error: {ex.Message}", "OK");
             }
-
-            SetLoading(true);
-
-            // Update header
-            _poHeader.SuppInvNumber = string.IsNullOrWhiteSpace(SuppInvNumber) ? _poHeader.SuppInvNumber : SuppInvNumber;
-            _poHeader.DNnumber = string.IsNullOrWhiteSpace(DNnumber) ? _poHeader.DNnumber : DNnumber;
-            _poHeader.Status = "Loaded";
-
-            await App.Db.UpdatePoHeaderAsync(_poHeader);
-
-            // Navigate with proper encoding
-            string poNumber = Uri.EscapeDataString(_poHeader.OrderNo);
-            await App.Db.DeleteAllExceptPoAsync(poNumber);
-            await Shell.Current.GoToAsync($"{nameof(ReceivingPage)}?po={poNumber}");
+            finally
+            {
+                SetLoading(false);
+            }
         }
-        catch (Exception ex)
-        {
-            // Log ex.StackTrace somewhere for debugging
-            await DisplayAlert("Error", $"Unexpected error: {ex.Message}", "OK");
-        }
-        finally
-        {
-            SetLoading(false);
-        }
-    }
 
     private void SetLoading(bool isLoading)
     {
         loadingIndicator.IsVisible = isLoading;
         loadingIndicator.IsRunning = isLoading;
     }
-
-        //private async void OnAcceptClicked(object sender, EventArgs e)
-    //{
-    //    try
-    //    {
-    //        if (_poHeader == null)
-    //        {
-    //            await DisplayAlert("Error", "No PO loaded. Please restart the process.", "OK");
-    //            await Shell.Current.GoToAsync("..");
-    //            return;
-    //        }
-    //        if (string.IsNullOrWhiteSpace(DNnumber) && string.IsNullOrWhiteSpace(SuppInvNumber))
-    //        {
-    //            await DisplayAlert("Required", "Please enter at least one document number.", "OK");
-    //            return;
-    //        }
-
-    //        // Validate warehouse selection
-    //        if (SelectedWarehouse == null || string.IsNullOrWhiteSpace(SelectedWarehouse.Code))
-    //        {
-    //            await DisplayAlert("Warehouse Required", 
-    //                "Please select a warehouse above.", "OK");
-    //            return;
-    //        }
-
-    //        loadingIndicator.IsVisible = true;
-    //        loadingIndicator.IsRunning = true;
-
-    //        // Update header
-    //        if (!string.IsNullOrWhiteSpace(SuppInvNumber))
-    //            _poHeader.SuppInvNumber = SuppInvNumber;
-    //        if (!string.IsNullOrWhiteSpace(DNnumber))
-    //            _poHeader.DNnumber = DNnumber;
-    //        _poHeader.Status = "Loaded";
-
-    //        await App.Db.UpdatePoHeaderAsync(_poHeader);
-
-
-    //        // Navigate with proper encoding
-    //        string poNumber = Uri.EscapeDataString(_poHeader.OrderNo);
-    //        await App.Db.DeleteAllExceptPoAsync(poNumber);
-    //        await Shell.Current.GoToAsync($"{nameof(ReceivingPage)}?po={poNumber}");
-    //    }
-    //    catch (Exception ex)
-    //    {
-    //        await DisplayAlert("Error", $"Unexpected error: {ex.Message}", "OK");
-    //    }
-    //    finally
-    //    {
-    //        loadingIndicator.IsVisible = false;
-    //        loadingIndicator.IsRunning = false;
-    //    }
-    //}
 
     private void OnChangeWarehouseClicked(object sender, EventArgs e)
     {

@@ -134,7 +134,6 @@ namespace AmaScan
                 _loadingCts?.Cancel();
                 _loadingCts = new CancellationTokenSource();
                 var ct = _loadingCts.Token;
-                66
                 await MainThread.InvokeOnMainThreadAsync(() =>
                 {
                     loadingIndicator.IsVisible = true;
