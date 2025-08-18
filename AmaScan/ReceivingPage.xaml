@@ -12,6 +12,10 @@
     </ContentPage.ToolbarItems>
 
     <Grid>
+        <Entry x:Name="WedgeCatcher"
+           IsVisible="False"
+           Completed="OnWedgeCompleted" />
+        
         <!-- Overlay ActivityIndicator -->
         <ActivityIndicator x:Name="loadingIndicator"
                            IsRunning="False"
@@ -26,7 +30,6 @@
         <!-- Scrollable content -->
         <ScrollView>
             <StackLayout Padding="10" Spacing="5">
-
                 <!-- Receiving input section -->
                 <StackLayout x:Name="ReceivingInputSection" IsVisible="False" Spacing="2">
                     <Label Text="{Binding PoNumber, StringFormat='PO:{0}'}"
@@ -36,14 +39,16 @@
 
                     <Grid ColumnDefinitions="*,80" Padding="4,4,4,0" RowDefinitions="Auto,Auto">
                         <Label Grid.Column="0" Text="Scan/Enter Barcode:" />
-                        <controls:NoKeyboardEntry x:Name="BarcodeEntry"
-                                                  Placeholder="Enter barcode"
-                                                  Completed="OnBarcodeEntered"
-                                                  MaxLength="15"
-                                                  Keyboard="Numeric"
-                                                  Grid.Row="1"
-                                                  Grid.Column="0"
-                                                  FontSize="18" />
+                        <Entry x:Name="BarcodeEntry"
+                               Placeholder="Scan barcode"
+                               MaxLength="15"
+                               Keyboard="Plain"
+                               Grid.Row="1"
+                               Grid.Column="0"
+                               FontSize="18"
+                               Completed="OnBarcodeEntered"
+                               Focused="OnBarcodeFocused" />   
+                        
                         <Label Grid.Column="1" Text="Qty:" HorizontalOptions="Center" />
                         <Entry x:Name="QuantityEntry"
                                Placeholder="Qty"

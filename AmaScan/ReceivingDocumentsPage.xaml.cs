@@ -1,9 +1,10 @@
-using System.Collections.ObjectModel;
-using System.ComponentModel;
-using System.Runtime.CompilerServices;
 using AmaScan.Classes;
 using AmaScan.sqliteModels;
+using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Net.Http.Json;
+using System.Runtime.CompilerServices;
+using static AmaScan.Classes.DatabaseHelper;
 using static AmaScan.SettingsPage;
 
 namespace AmaScan;
@@ -144,77 +145,102 @@ public partial class ReceivingDocumentsPage : ContentPage, INotifyPropertyChange
             loadingIndicator.IsVisible = false;
             loadingIndicator.IsRunning = false;
         }
-    }     
+    }
 
     private async Task LoadWarehousesAsync()
     {
         try
         {
-            // Run heavy operations on background thread
-            var result = await Task.Run(async () =>
-            {
-                bool hasWarehouses = await App.Db.HasWarehousesAsync();
-                if (!hasWarehouses)
-                {
-                    string url = $"{AppConfig.ApiBaseUrl}warehouses/get-warehouses";
-                    var response = await _httpClient.GetFromJsonAsync<WarehouseResponse>(url);
-                    if (response?.data != null && response.data.Any())
-                    {
-                        await App.Db.SaveWarehousesAsync(response.data);
-                        Preferences.Set("HasPopulatedWarehouses", true);
-                    }
-                    else
-                    {
-                        return new { warehouseData = new List<Warehouse>(), showAlert = true, alertMessage = "No warehouses found in API response." };
-                    }
-                }
-                
-                var warehouseData = await App.Db.GetWarehousesAsync();
-                return new { warehouseData, showAlert = false, alertMessage = "" };
-            });
+            // single background fetch (uses cache if already loaded)
+            var warehouses = await WarehouseCache.GetAsync();
 
-            // Update UI on main thread
+            // single marshal to the UI thread
             await MainThread.InvokeOnMainThreadAsync(() =>
             {
-                var fullList = new ObservableCollection<Warehouse>(
-                    new[] { new Warehouse { Code = "", Description = "Select Warehouse" } }.Concat(result.warehouseData)
-                );
+                // prepend the “Select Warehouse” item
+                WarehouseList = new ObservableCollection<Warehouse>(
+                    new[] { new Warehouse { Code = "", Description = "Select Warehouse" } }
+                    .Concat(warehouses));
 
-                WarehouseList = fullList;
-                
-                // Set default receiving warehouse from settings
-                string defaultReceivingCode = Preferences.Get("DefaultReceivingWarehouseCode", "");
-                if (!string.IsNullOrEmpty(defaultReceivingCode))
-                {
-                    var defaultWarehouse = WarehouseList.FirstOrDefault(w => w.Code == defaultReceivingCode);
-                    if (defaultWarehouse != null)
-                    {
-                        SelectedWarehouse = defaultWarehouse;
-                    }
-                    else
-                    {
-                        SelectedWarehouse = WarehouseList.FirstOrDefault();
-                    }
-                }
-                else
-                {
-                    SelectedWarehouse = WarehouseList.FirstOrDefault();
-                }
+                // set default
+                var defaultCode = Preferences.Get("DefaultReceivingWarehouseCode", "");
+                SelectedWarehouse = WarehouseList.FirstOrDefault(w => w.Code == defaultCode)?? WarehouseList.FirstOrDefault();
             });
-
-            if (result.showAlert)
-            {
-                await MainThread.InvokeOnMainThreadAsync(async () =>
-                {
-                    await DisplayAlert("Info", result.alertMessage, "OK");
-                });
-            }
         }
         catch (Exception ex)
         {
             await DisplayAlert("Error", $"Failed to load warehouses: {ex.Message}", "OK");
         }
     }
+    //private async Task LoadWarehousesAsync()
+    //{
+    //    try
+    //    {
+    //        // Run heavy operations on background thread
+    //        var result = await Task.Run(async () =>
+    //        {
+    //            bool hasWarehouses = await App.Db.HasWarehousesAsync();
+    //            if (!hasWarehouses)
+    //            {
+    //                string url = $"{AppConfig.ApiBaseUrl}warehouses/get-warehouses";
+    //                var response = await _httpClient.GetFromJsonAsync<WarehouseResponse>(url);
+    //                if (response?.data != null && response.data.Any())
+    //                {
+    //                    await App.Db.SaveWarehousesAsync(response.data);
+    //                    Preferences.Set("HasPopulatedWarehouses", true);
+    //                }
+    //                else
+    //                {
+    //                    return new { warehouseData = new List<Warehouse>(), showAlert = true, alertMessage = "No warehouses found in API response." };
+    //                }
+    //            }
+
+    //            var warehouseData = await App.Db.GetWarehousesAsync();
+    //            return new { warehouseData, showAlert = false, alertMessage = "" };
+    //        });
+
+    //        // Update UI on main thread
+    //        await MainThread.InvokeOnMainThreadAsync(() =>
+    //        {
+    //            var fullList = new ObservableCollection<Warehouse>(
+    //                new[] { new Warehouse { Code = "", Description = "Select Warehouse" } }.Concat(result.warehouseData)
+    //            );
+
+    //            WarehouseList = fullList;
+
+    //            // Set default receiving warehouse from settings
+    //            string defaultReceivingCode = Preferences.Get("DefaultReceivingWarehouseCode", "");
+    //            if (!string.IsNullOrEmpty(defaultReceivingCode))
+    //            {
+    //                var defaultWarehouse = WarehouseList.FirstOrDefault(w => w.Code == defaultReceivingCode);
+    //                if (defaultWarehouse != null)
+    //                {
+    //                    SelectedWarehouse = defaultWarehouse;
+    //                }
+    //                else
+    //                {
+    //                    SelectedWarehouse = WarehouseList.FirstOrDefault();
+    //                }
+    //            }
+    //            else
+    //            {
+    //                SelectedWarehouse = WarehouseList.FirstOrDefault();
+    //            }
+    //        });
+
+    //        if (result.showAlert)
+    //        {
+    //            await MainThread.InvokeOnMainThreadAsync(async () =>
+    //            {
+    //                await DisplayAlert("Info", result.alertMessage, "OK");
+    //            });
+    //        }
+    //    }
+    //    catch (Exception ex)
+    //    {
+    //        await DisplayAlert("Error", $"Failed to load warehouses: {ex.Message}", "OK");
+    //    }
+    //}
 
     private async void OnAcceptClicked(object sender, EventArgs e)
     {
@@ -226,33 +252,28 @@ public partial class ReceivingDocumentsPage : ContentPage, INotifyPropertyChange
                 await Shell.Current.GoToAsync("..");
                 return;
             }
+
             if (string.IsNullOrWhiteSpace(DNnumber) && string.IsNullOrWhiteSpace(SuppInvNumber))
             {
                 await DisplayAlert("Required", "Please enter at least one document number.", "OK");
                 return;
             }
-            
-            // Validate warehouse selection
-            if (SelectedWarehouse == null || string.IsNullOrWhiteSpace(SelectedWarehouse.Code))
+
+            if (SelectedWarehouse?.Code is null || string.IsNullOrWhiteSpace(SelectedWarehouse.Code))
             {
-                await DisplayAlert("Warehouse Required", 
-                    "Please select a warehouse above.", "OK");
+                await DisplayAlert("Warehouse Required", "Please select a warehouse above.", "OK");
                 return;
             }
-            
-            loadingIndicator.IsVisible = true;
-            loadingIndicator.IsRunning = true;
-            
+
+            SetLoading(true);
+
             // Update header
-            if (!string.IsNullOrWhiteSpace(SuppInvNumber))
-                _poHeader.SuppInvNumber = SuppInvNumber;
-            if (!string.IsNullOrWhiteSpace(DNnumber))
-                _poHeader.DNnumber = DNnumber;
+            _poHeader.SuppInvNumber = string.IsNullOrWhiteSpace(SuppInvNumber) ? _poHeader.SuppInvNumber : SuppInvNumber;
+            _poHeader.DNnumber = string.IsNullOrWhiteSpace(DNnumber) ? _poHeader.DNnumber : DNnumber;
             _poHeader.Status = "Loaded";
 
             await App.Db.UpdatePoHeaderAsync(_poHeader);
 
-            
             // Navigate with proper encoding
             string poNumber = Uri.EscapeDataString(_poHeader.OrderNo);
             await App.Db.DeleteAllExceptPoAsync(poNumber);
@@ -260,14 +281,73 @@ public partial class ReceivingDocumentsPage : ContentPage, INotifyPropertyChange
         }
         catch (Exception ex)
         {
+            // Log ex.StackTrace somewhere for debugging
             await DisplayAlert("Error", $"Unexpected error: {ex.Message}", "OK");
         }
         finally
         {
-            loadingIndicator.IsVisible = false;
-            loadingIndicator.IsRunning = false;
+            SetLoading(false);
         }
     }
+
+    private void SetLoading(bool isLoading)
+    {
+        loadingIndicator.IsVisible = isLoading;
+        loadingIndicator.IsRunning = isLoading;
+    }
+
+        //private async void OnAcceptClicked(object sender, EventArgs e)
+    //{
+    //    try
+    //    {
+    //        if (_poHeader == null)
+    //        {
+    //            await DisplayAlert("Error", "No PO loaded. Please restart the process.", "OK");
+    //            await Shell.Current.GoToAsync("..");
+    //            return;
+    //        }
+    //        if (string.IsNullOrWhiteSpace(DNnumber) && string.IsNullOrWhiteSpace(SuppInvNumber))
+    //        {
+    //            await DisplayAlert("Required", "Please enter at least one document number.", "OK");
+    //            return;
+    //        }
+
+    //        // Validate warehouse selection
+    //        if (SelectedWarehouse == null || string.IsNullOrWhiteSpace(SelectedWarehouse.Code))
+    //        {
+    //            await DisplayAlert("Warehouse Required", 
+    //                "Please select a warehouse above.", "OK");
+    //            return;
+    //        }
+
+    //        loadingIndicator.IsVisible = true;
+    //        loadingIndicator.IsRunning = true;
+
+    //        // Update header
+    //        if (!string.IsNullOrWhiteSpace(SuppInvNumber))
+    //            _poHeader.SuppInvNumber = SuppInvNumber;
+    //        if (!string.IsNullOrWhiteSpace(DNnumber))
+    //            _poHeader.DNnumber = DNnumber;
+    //        _poHeader.Status = "Loaded";
+
+    //        await App.Db.UpdatePoHeaderAsync(_poHeader);
+
+
+    //        // Navigate with proper encoding
+    //        string poNumber = Uri.EscapeDataString(_poHeader.OrderNo);
+    //        await App.Db.DeleteAllExceptPoAsync(poNumber);
+    //        await Shell.Current.GoToAsync($"{nameof(ReceivingPage)}?po={poNumber}");
+    //    }
+    //    catch (Exception ex)
+    //    {
+    //        await DisplayAlert("Error", $"Unexpected error: {ex.Message}", "OK");
+    //    }
+    //    finally
+    //    {
+    //        loadingIndicator.IsVisible = false;
+    //        loadingIndicator.IsRunning = false;
+    //    }
+    //}
 
     private void OnChangeWarehouseClicked(object sender, EventArgs e)
     {

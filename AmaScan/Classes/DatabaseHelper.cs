@@ -5,6 +5,7 @@ using System.Collections.Concurrent;
 
 namespace AmaScan.Classes
 {
+
     public class PhaseStatus
     {
         public bool HasLines { get; set; }
@@ -17,52 +18,78 @@ namespace AmaScan.Classes
     public class DatabaseHelper
     {
         private readonly SQLiteAsyncConnection _dbConnection;
-        
+
         // Cache for frequently accessed data
         private static readonly ConcurrentDictionary<string, StockItem> _stockItemCache = new();
         private static readonly ConcurrentDictionary<string, Warehouse> _warehouseCache = new();
         private static readonly ConcurrentDictionary<string, StockCountItem> _stockCountItemCache = new();
         private static readonly ConcurrentDictionary<string, PoHeader> _poHeaderCache = new();
         private static readonly ConcurrentDictionary<string, SoHeader> _soHeaderCache = new();
-        private static readonly TimeSpan _cacheExpiration = TimeSpan.FromMinutes(5);
+        private static readonly TimeSpan _cacheExpiration = TimeSpan.FromMinutes(10);
         private static readonly ConcurrentDictionary<string, DateTime> _cacheTimestamps = new();
+        private static readonly object _dbLock = new object();
 
-        // Constructor assumes the SQLite connection has already been initialized
         public DatabaseHelper(SQLiteAsyncConnection dbConnection)
         {
             _dbConnection = dbConnection ?? throw new ArgumentNullException(nameof(dbConnection));
         }
 
-        // Insert a new item
         public Task<int> InsertAsync<T>(T item)
         {
-            return _dbConnection.InsertAsync(item);
+            return _dbConnection.RunInTransactionAsync(conn =>
+            {
+                conn.Insert(item);
+            }).ContinueWith(_ => 1);
         }
 
-        // Update an existing item
         public Task<int> UpdateAsync<T>(T item)
         {
-            return _dbConnection.UpdateAsync(item);
+            return _dbConnection.RunInTransactionAsync(conn =>
+            {
+                conn.Update(item);
+            }).ContinueWith(_ => 1);
         }
 
-        // Get a specific item by ID
+        public async Task InsertAllAsync<T>(IEnumerable<T> items) where T : new()
+        {
+            if (items == null || !items.Any())
+                return;
+
+            await _dbConnection.RunInTransactionAsync(conn =>
+            {
+                conn.InsertAll(items);
+            }).ConfigureAwait(false);
+        }
+        public Task<int> DeleteAsync<T>(T item)
+        {
+            return _dbConnection.RunInTransactionAsync(conn =>
+            {
+                conn.Delete(item);
+            }).ContinueWith(_ => 1);
+        }
+        public async Task UpdateAllAsync<T>(IEnumerable<T> items) where T : new()
+        {
+            if (items == null || !items.Any())
+                return;
+
+            await _dbConnection.RunInTransactionAsync(conn =>
+            {
+                conn.UpdateAll(items);
+            }).ConfigureAwait(false);
+        }
+
+
         public async Task<T> GetItemAsync<T>(int id) where T : IIdentifiable, new()
         {
             return await _dbConnection.Table<T>()
-                                      .Where(i => i.Id == id) // Directly access Id since T implements IIdentifiable
-                                      .FirstOrDefaultAsync();
+                                  .Where(i => i.Id == id)
+                                  .FirstOrDefaultAsync()
+                                  .ConfigureAwait(false);
         }
 
-        // Get all items from a table
         public Task<List<T>> GetItemsAsync<T>() where T : new()
         {
             return _dbConnection.Table<T>().ToListAsync();
-        }
-
-        // Delete an item
-        public Task<int> DeleteAsync<T>(T item)
-        {
-            return _dbConnection.DeleteAsync(item);
         }
 
         public async Task<List<PoLine>> GetPoLinesByOrderNoAsync(string orderNo)
@@ -70,18 +97,25 @@ namespace AmaScan.Classes
             return await _dbConnection.Table<PoLine>()
                 .Where(line => line.OrderNo == orderNo)
                 .OrderBy(line => line.LineNo)
-                .ToListAsync();
+                .ToListAsync()
+                .ConfigureAwait(false);
         }
 
         public async Task UpdatePoLineAsync(PoLine poLine)
         {
-            await _dbConnection.UpdateAsync(poLine);
+            await _dbConnection.RunInTransactionAsync(conn =>
+            {
+                conn.Update(poLine);
+            }).ConfigureAwait(false);
         }
 
         public async Task UpdatePoHeaderAsync(PoHeader poHeader)
         {
-            await _dbConnection.UpdateAsync(poHeader);
-            
+            await _dbConnection.RunInTransactionAsync(conn =>
+            {
+                conn.Update(poHeader); // synchronous inside transaction
+            }).ConfigureAwait(false);
+
             // Invalidate cache for this PO
             if (!string.IsNullOrWhiteSpace(poHeader.OrderNo))
             {
@@ -95,27 +129,24 @@ namespace AmaScan.Classes
             if (string.IsNullOrWhiteSpace(orderNo))
                 return null;
 
-            // Check cache first
             if (_poHeaderCache.TryGetValue(orderNo, out var cachedHeader))
             {
-                if (_cacheTimestamps.TryGetValue($"poheader_{orderNo}", out var timestamp) && 
+                if (_cacheTimestamps.TryGetValue($"poheader_{orderNo}", out var timestamp) &&
                     DateTime.Now - timestamp < _cacheExpiration)
                 {
                     return cachedHeader;
                 }
-                else
-                {
-                    _poHeaderCache.TryRemove(orderNo, out _);
-                    _cacheTimestamps.TryRemove($"poheader_{orderNo}", out _);
-                }
+
+                _poHeaderCache.TryRemove(orderNo, out _);
+                _cacheTimestamps.TryRemove($"poheader_{orderNo}", out _);
             }
 
             var poHeader = await _dbConnection.Table<PoHeader>()
-                .FirstOrDefaultAsync(h => h.OrderNo == orderNo);
+                .FirstOrDefaultAsync(h => h.OrderNo == orderNo)
+                .ConfigureAwait(false);
 
             if (poHeader != null)
             {
-                // Cache the result
                 _poHeaderCache.TryAdd(orderNo, poHeader);
                 _cacheTimestamps.TryAdd($"poheader_{orderNo}", DateTime.Now);
             }
@@ -125,12 +156,14 @@ namespace AmaScan.Classes
 
         public async Task SaveStockItemsAsync(List<StockItem> items)
         {
-            // Clear cache when updating stock items
             _stockItemCache.Clear();
             _cacheTimestamps.Clear();
-            
-            await _dbConnection.DeleteAllAsync<StockItem>();
-            await _dbConnection.InsertAllAsync(items);
+
+            await _dbConnection.RunInTransactionAsync(conn =>
+            {
+                conn.DeleteAll<StockItem>();
+                conn.InsertAll(items);
+            }).ConfigureAwait(false);
         }
 
         public async Task<StockItem?> ResolveStockItemByBarcodeAsync(string scannedBarcode)
@@ -138,181 +171,139 @@ namespace AmaScan.Classes
             if (string.IsNullOrWhiteSpace(scannedBarcode))
                 return null;
 
-            // Check cache first
-            if (_stockItemCache.TryGetValue(scannedBarcode, out var cachedItem))
+            // 1. Memory cache (ConcurrentDictionary is already thread-safe)
+            if (_stockItemCache.TryGetValue(scannedBarcode, out var cachedItem) &&
+                _cacheTimestamps.TryGetValue(scannedBarcode, out var ts) &&
+                DateTime.UtcNow - ts < _cacheExpiration)
             {
-                if (_cacheTimestamps.TryGetValue(scannedBarcode, out var timestamp) && 
-                    DateTime.Now - timestamp < _cacheExpiration)
-                {
-                    return cachedItem;
-                }
-                else
-                {
-                    _stockItemCache.TryRemove(scannedBarcode, out _);
-                    _cacheTimestamps.TryRemove(scannedBarcode, out _);
-                }
+                return cachedItem;
             }
 
-            // Optimize query by using case-insensitive comparison and combining queries
-            var normalizedBarcode = scannedBarcode.ToLower();
-            var stockItem = await _dbConnection.Table<StockItem>()
-                .Where(item => 
-                    (item.bar_code != null && item.bar_code.ToLower() == normalizedBarcode) ||
-                    (item.barcode_lmmp != null && item.barcode_lmmp.ToLower() == normalizedBarcode))
-                .FirstOrDefaultAsync();
+            _stockItemCache.TryRemove(scannedBarcode, out _);
+            _cacheTimestamps.TryRemove(scannedBarcode, out _);
 
+            // 2. Single query: exact barcode OR in alternate list (case-insensitive)
+            var param = scannedBarcode.ToLowerInvariant();   // allocate once
+            var stockItem = await _dbConnection.Table<StockItem>()
+                .Where(si =>
+                    (si.bar_code != null && si.bar_code.ToLower() == param) ||
+                    (si.barcode_lmmp != null && si.barcode_lmmp.ToLower() == param) ||
+                    (si.alternate_bar_codes != null &&
+                     si.alternate_bar_codes.ToLower().Contains(param)))   // LIKE '%code%'
+                .FirstOrDefaultAsync()
+                .ConfigureAwait(false);
+
+            // 3. If we got a hit based on alternate list, double-check it is a *whole* token
+            if (stockItem != null &&
+                stockItem.bar_code?.ToLower() != param &&
+                stockItem.barcode_lmmp?.ToLower() != param)
+            {
+                var tokens = stockItem.alternate_bar_codes?
+                                       .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                                       .Select(t => t.ToLowerInvariant());
+                if (tokens == null || !tokens.Contains(param))
+                    stockItem = null;
+            }
+
+            // 4. Cache the final result (even null to avoid re-querying)
             if (stockItem != null)
             {
-                // Cache the result
                 _stockItemCache.TryAdd(scannedBarcode, stockItem);
-                _cacheTimestamps.TryAdd(scannedBarcode, DateTime.Now);
-                return stockItem;
+                _cacheTimestamps.TryAdd(scannedBarcode, DateTime.UtcNow);
             }
 
-            // If no direct match, check alternate barcodes with optimized query
-            var result = await _dbConnection.Table<StockItem>()
-                .Where(item => 
-                    item.alternate_bar_codes != null && 
-                    item.alternate_bar_codes != "" && 
-                    item.alternate_bar_codes.Contains(scannedBarcode))
-                .FirstOrDefaultAsync();
-
-            // Additional check for exact match in comma-separated list
-            if (result != null)
-            {
-                var alternateBarcodes = result.alternate_bar_codes
-                    .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-                
-                if (!alternateBarcodes.Any(b => b.ToLower() == normalizedBarcode))
-                {
-                    result = null; // No exact match found
-                }
-            }
-
-            if (result != null)
-            {
-                // Cache the result
-                _stockItemCache.TryAdd(scannedBarcode, result);
-                _cacheTimestamps.TryAdd(scannedBarcode, DateTime.Now);
-            }
-
-            return result;
+            return stockItem;
         }
 
         public async Task DeletePoAsync(string poNumber)
         {
-            // Delete PO lines using a query instead of loading all into memory
-            await _dbConnection.Table<PoLine>().Where(p => p.OrderNo == poNumber).DeleteAsync();
-
-            var poHeader = await _dbConnection.Table<PoHeader>().FirstOrDefaultAsync(p => p.OrderNo == poNumber);
-            if (poHeader != null)
-                await _dbConnection.DeleteAsync(poHeader);
+            await _dbConnection.RunInTransactionAsync(conn =>
+            {
+                conn.Execute("DELETE FROM PoLine WHERE OrderNo = ?", poNumber);
+                conn.Execute("DELETE FROM PoHeader WHERE OrderNo = ?", poNumber);
+            }).ConfigureAwait(false);
         }
 
         public async Task DeleteAllExceptPoAsync(string poNumber)
         {
-            // Delete PO lines using a query instead of loading all into memoryI j
-            await _dbConnection.Table<PoLine>().Where(p => p.OrderNo != poNumber).DeleteAsync();
-
-            var poHeader = await _dbConnection.Table<PoHeader>().FirstOrDefaultAsync(p => p.OrderNo != poNumber);
-            if (poHeader != null) await _dbConnection.DeleteAsync(poHeader);
+            await _dbConnection.RunInTransactionAsync(conn =>
+            {
+                conn.Execute("DELETE FROM PoLine WHERE OrderNo != ?", poNumber);
+                conn.Execute("DELETE FROM PoHeader WHERE OrderNo != ?", poNumber);
+            }).ConfigureAwait(false);
         }
 
-        /// <summary>
-        /// Merges fresh PO data from API with existing local workflow data
-        /// Preserves workflow-specific fields while updating source data
-        /// </summary>
         public async Task MergePoDataAsync(PurchaseOrderResponse freshData)
         {
             if (freshData?.Lines == null || !freshData.Lines.Any())
                 throw new ArgumentException("Invalid purchase order data for merge.");
 
-            var existingHeader = await GetPoHeaderByOrderNoAsync(freshData.OrderNo);
-            var existingLines = await GetPoLinesByOrderNoAsync(freshData.OrderNo);
+            await _dbConnection.RunInTransactionAsync(conn =>
+            {
+                var existingHeader = conn.Table<PoHeader>()
+                    .FirstOrDefault(h => h.OrderNo == freshData.OrderNo);
 
-            // Update header with fresh data
-            if (existingHeader != null)
-            {
-                existingHeader.DueDate = freshData.DueDate;
-                existingHeader.Status = freshData.Status;
-                existingHeader.SupplierName = freshData.SupplierName;
-                existingHeader.JsonData = System.Text.Json.JsonSerializer.Serialize(freshData);
-                // Preserve workflow fields: DNnumber, SuppInvNumber, iscompleted
-                await UpdatePoHeaderAsync(existingHeader);
-            }
-            else
-            {
-                // Create new header if doesn't exist
-                var newHeader = new PoHeader
+                var existingLines = conn.Table<PoLine>()
+                    .Where(l => l.OrderNo == freshData.OrderNo)
+                    .ToList();
+
+                var existingLinesDict = existingLines.ToDictionary(l => $"{l.ItemCode}_{l.ItemBarcode}", l => l);
+                var freshLinesDict = freshData.Lines.ToDictionary(l => $"{l.ItemCode}_{l.ItemBarcode}", l => l);
+
+                var linesToUpdate = new List<PoLine>();
+                var linesToInsert = new List<PoLine>();
+                bool hasQuantityDecreases = false;
+
+                foreach (var freshLine in freshData.Lines)
                 {
-                    OrderNo = freshData.OrderNo,
-                    DueDate = freshData.DueDate,
-                    Status = freshData.Status,
-                    JsonData = System.Text.Json.JsonSerializer.Serialize(freshData),
-                    iscompleted = false
-                };
-                await InsertAsync(newHeader);
-            }
-
-            // Create lookup dictionaries for efficient matching using composite key
-            var existingLinesDict = existingLines.ToDictionary(l => $"{l.ItemCode}_{l.ItemBarcode}", l => l);
-            var freshLinesDict = freshData.Lines.ToDictionary(l => $"{l.ItemCode}_{l.ItemBarcode}", l => l);
-
-            var linesToUpdate = new List<PoLine>();
-            var linesToInsert = new List<PoLine>();
-            var linesToDelete = new List<PoLine>();
-            bool hasQuantityDecreases = false;
-
-            // Process fresh lines
-            foreach (var freshLine in freshData.Lines)
-            {
-                var key = $"{freshLine.ItemCode}_{freshLine.ItemBarcode}";
-                if (existingLinesDict.TryGetValue(key, out var existingLine))
-                {
-                    // Check if quantity decreased
-                    if (freshLine.OrderedQty < existingLine.OrderedQty)
+                    var key = $"{freshLine.ItemCode}_{freshLine.ItemBarcode}";
+                    if (existingLinesDict.TryGetValue(key, out var existingLine))
                     {
-                        hasQuantityDecreases = true;
-                    }
+                        if (freshLine.OrderedQty < existingLine.OrderedQty)
+                            hasQuantityDecreases = true;
 
-                    // Update existing line with fresh data while preserving workflow data
-                    UpdatePoLineFromFreshData(existingLine, freshLine);
-                    linesToUpdate.Add(existingLine);
+                        UpdatePoLineFromFreshData(existingLine, freshLine);
+                        linesToUpdate.Add(existingLine);
+                    }
+                    else
+                    {
+                        linesToInsert.Add(CreateNewPoLine(freshData.OrderNo, freshLine));
+                    }
+                }
+
+                var linesToDelete = existingLines.Where(l => !freshLinesDict.ContainsKey($"{l.ItemCode}_{l.ItemBarcode}")).ToList();
+
+                foreach (var line in linesToDelete)
+                    conn.Delete(line);
+
+                foreach (var line in linesToInsert)
+                    conn.Insert(line);
+
+                foreach (var line in linesToUpdate)
+                    conn.Update(line);
+
+                if (existingHeader != null)
+                {
+                    existingHeader.DueDate = freshData.DueDate;
+                    existingHeader.Status = freshData.Status;
+                    existingHeader.SupplierName = freshData.SupplierName;
+                    existingHeader.JsonData = System.Text.Json.JsonSerializer.Serialize(freshData);
+                    conn.Update(existingHeader);
                 }
                 else
                 {
-                    // Create new line
-                    var newPoLine = CreateNewPoLine(freshData.OrderNo, freshLine);
-                    linesToInsert.Add(newPoLine);
+                    conn.Insert(new PoHeader
+                    {
+                        OrderNo = freshData.OrderNo,
+                        DueDate = freshData.DueDate,
+                        Status = freshData.Status,
+                        SupplierName = freshData.SupplierName,
+                        JsonData = System.Text.Json.JsonSerializer.Serialize(freshData),
+                        iscompleted = false
+                    });
                 }
-            }
+            }).ConfigureAwait(false);
 
-            // Find lines to delete
-            linesToDelete = existingLines.Where(l => !freshLinesDict.ContainsKey($"{l.ItemCode}_{l.ItemBarcode}")).ToList();
-
-            // Batch database operations
-            if (linesToDelete.Any())
-            {
-                foreach (var line in linesToDelete)
-                    await _dbConnection.DeleteAsync(line);
-            }
-
-            if (linesToInsert.Any())
-                await _dbConnection.InsertAllAsync(linesToInsert);
-
-            // Batch update all modified lines
-            if (linesToUpdate.Any())
-                await _dbConnection.UpdateAllAsync(linesToUpdate);
-
-            // Show alert for quantity decreases
-            if (hasQuantityDecreases)
-            {
-                await Application.Current.MainPage.DisplayAlert("Quantities Reduced",
-                    "Some item quantities have been reduced. All receiving progress for these items has been reset to zero.",
-                    "OK");
-            }
-            
-            // Clear PO cache when data is merged
             if (!string.IsNullOrWhiteSpace(freshData.OrderNo))
             {
                 _poHeaderCache.TryRemove(freshData.OrderNo, out _);
@@ -320,36 +311,22 @@ namespace AmaScan.Classes
             }
         }
 
-        private void UpdatePoLineFromFreshData(PoLine existingLine, PurchaseOrderLine freshLine)
+       private void UpdatePoLineFromFreshData(PoLine existingLine, PurchaseOrderLine freshLine)
         {
+            if (existingLine == null || freshLine == null)
+                throw new ArgumentNullException("PoLine or PurchaseOrderLine is null.");
+
             // Check if quantity decreased - if so, zero out workflow progress
             if (freshLine.OrderedQty < existingLine.OrderedQty)
             {
-                // Zero out all workflow quantities and reset flags
                 existingLine.ScanAcceptQty = 0;
                 existingLine.ScanRejectQty = 0;
                 existingLine.ReceivedQty = 0;
                 existingLine.ReceivedString = null;
                 existingLine.GRNum = null;
             }
-            else
-            {
-                // Preserve workflow-specific data only if quantity didn't decrease
-                var preservedScanAcceptQty = existingLine.ScanAcceptQty;
-                var preservedScanRejectQty = existingLine.ScanRejectQty;
-                var preservedReceivedQty = existingLine.ReceivedQty;
-                var preservedGRNum = existingLine.GRNum;
-                var preservedReceivedString = existingLine.ReceivedString;
 
-                // Restore preserved workflow data
-                existingLine.ScanAcceptQty = preservedScanAcceptQty;
-                existingLine.ScanRejectQty = preservedScanRejectQty;
-                existingLine.ReceivedQty = preservedReceivedQty;
-                existingLine.GRNum = preservedGRNum;
-                existingLine.ReceivedString = preservedReceivedString;
-            }
-
-            // Update with fresh data
+            // Update with fresh data (preserves workflow if quantity did not decrease)
             existingLine.ItemCode = freshLine.ItemCode;
             existingLine.ItemDesc = freshLine.ItemDesc;
             existingLine.ItemBarcode = freshLine.ItemBarcode;
@@ -363,9 +340,12 @@ namespace AmaScan.Classes
 
         private PoLine CreateNewPoLine(string orderNo, PurchaseOrderLine freshLine)
         {
+            if (freshLine == null)
+                throw new ArgumentNullException(nameof(freshLine));
+
             return new PoLine
             {
-                OrderNo = freshLine.DocNum,
+                OrderNo = orderNo,  // Use the passed-in orderNo instead of freshLine.DocNum
                 LineNo = freshLine.LineNo,
                 ItemCode = freshLine.ItemCode,
                 ItemDesc = freshLine.ItemDesc,
@@ -374,24 +354,31 @@ namespace AmaScan.Classes
                 PackSize = freshLine.PackSize,
                 NoOfPacks = freshLine.no_of_packs,
                 OrderedQty = freshLine.OrderedQty,
-                ReceivedQty = 0, // New line starts with 0
-                ScanAcceptQty = 0, // New line starts with 0
-                ScanRejectQty = 0, // New line starts with 0
+                ReceivedQty = 0,
+                ScanAcceptQty = 0,
+                ScanRejectQty = 0,
                 BinLocation = freshLine.BinLocation,
                 WhID = freshLine.WhID,
-                GRNum = null
+                GRNum = null,
+                ReceivedString = null
             };
         }
 
-        // Save (replace all) warehouses from API to local DB
+
+        // Sales Order Operations
         public async Task SaveWarehousesAsync(List<Warehouse> warehouses)
         {
-            // Clear cache when updating warehouses
+            if (warehouses == null)
+                throw new ArgumentNullException(nameof(warehouses));
+
             _warehouseCache.Clear();
             _cacheTimestamps.Clear();
-            
-            await _dbConnection.DeleteAllAsync<Warehouse>();
-            await _dbConnection.InsertAllAsync(warehouses);
+
+            await _dbConnection.RunInTransactionAsync(conn =>
+            {
+                conn.DeleteAll<Warehouse>();
+                conn.InsertAll(warehouses);
+            }).ConfigureAwait(false);
         }
 
         // Get all warehouses
@@ -406,27 +393,24 @@ namespace AmaScan.Classes
             if (string.IsNullOrWhiteSpace(code))
                 return null;
 
-            // Check cache first
             if (_warehouseCache.TryGetValue(code, out var cachedWarehouse))
             {
-                if (_cacheTimestamps.TryGetValue($"warehouse_{code}", out var timestamp) && 
+                if (_cacheTimestamps.TryGetValue($"warehouse_{code}", out var timestamp) &&
                     DateTime.Now - timestamp < _cacheExpiration)
                 {
                     return cachedWarehouse;
                 }
-                else
-                {
-                    _warehouseCache.TryRemove(code, out _);
-                    _cacheTimestamps.TryRemove($"warehouse_{code}", out _);
-                }
+
+                _warehouseCache.TryRemove(code, out _);
+                _cacheTimestamps.TryRemove($"warehouse_{code}", out _);
             }
 
             var warehouse = await _dbConnection.Table<Warehouse>()
-                                .FirstOrDefaultAsync(w => w.Code == code);
+                .FirstOrDefaultAsync(w => w.Code == code)
+                .ConfigureAwait(false);
 
             if (warehouse != null)
             {
-                // Cache the result
                 _warehouseCache.TryAdd(code, warehouse);
                 _cacheTimestamps.TryAdd($"warehouse_{code}", DateTime.Now);
             }
@@ -437,50 +421,64 @@ namespace AmaScan.Classes
         // Get description by code (utility method) with caching
         public async Task<string?> GetWarehouseDescriptionAsync(string code)
         {
-            var warehouse = await GetWarehouseByCodeAsync(code);
+            var warehouse = await GetWarehouseByCodeAsync(code).ConfigureAwait(false);
             return warehouse?.Description;
         }
 
-        // Optional: Delete all warehouses
+        // Delete all warehouses
         public Task<int> ClearWarehousesAsync()
         {
-            // Clear cache
             _warehouseCache.Clear();
             _cacheTimestamps.Clear();
             return _dbConnection.DeleteAllAsync<Warehouse>();
         }
 
+        // Check if there are any warehouses
         public async Task<bool> HasWarehousesAsync()
         {
-            var count = await _dbConnection.Table<Warehouse>().CountAsync();
+            var count = await _dbConnection.Table<Warehouse>().CountAsync().ConfigureAwait(false);
             return count > 0;
         }
 
-        // Sales Order Operations
-        public async Task<List<SoLine>> GetSoLinesByOrderNoAsync(string orderNo)
+       public async Task<List<SoLine>> GetSoLinesByOrderNoAsync(string orderNo)
         {
+            if (string.IsNullOrWhiteSpace(orderNo))
+                return new List<SoLine>();
+
             orderNo = FixOrderNo(orderNo);
+
             return await _dbConnection.Table<SoLine>()
-                .Where(line => line.DocNum == orderNo)
-                .OrderBy(line => line.Id)
-                .ToListAsync();
+                                      .Where(line => line.DocNum == orderNo)
+                                      .OrderBy(line => line.Id)
+                                      .ToListAsync().ConfigureAwait(false);
         }
 
         public async Task UpdateSoLineAsync(SoLine soLine)
         {
-            await _dbConnection.UpdateAsync(soLine);
+            if (soLine == null)
+                throw new ArgumentNullException(nameof(soLine));
+
+            await _dbConnection.UpdateAsync(soLine).ConfigureAwait(false);
         }
 
         public async Task UpdateSoHeaderAsync(SoHeader soHeader)
         {
-            await _dbConnection.UpdateAsync(soHeader);
-            
-            // Invalidate cache for this SO
-            if (!string.IsNullOrWhiteSpace(soHeader.Reference))
+            if (soHeader?.Reference == null) return;
+
+            await Task.Run(() =>
             {
-                _soHeaderCache.TryRemove(soHeader.Reference, out _);
-                _cacheTimestamps.TryRemove($"soheader_{soHeader.Reference}", out _);
-            }
+                lock (_dbLock)
+                {
+                    try
+                    {
+                        using (var syncConn = new SQLiteConnection(_dbConnection.DatabasePath))
+                        {
+                            syncConn.RunInTransaction(() => syncConn.Update(soHeader));
+                        }
+                    }
+                    catch { }
+                }
+            }).ConfigureAwait(false);
         }
 
         public async Task<SoHeader?> GetSoHeaderByOrderNoAsync(string orderNo)
@@ -490,27 +488,24 @@ namespace AmaScan.Classes
 
             orderNo = FixOrderNo(orderNo);
 
-            // Check cache first
             if (_soHeaderCache.TryGetValue(orderNo, out var cachedHeader))
             {
-                if (_cacheTimestamps.TryGetValue($"soheader_{orderNo}", out var timestamp) && 
+                if (_cacheTimestamps.TryGetValue($"soheader_{orderNo}", out var timestamp) &&
                     DateTime.Now - timestamp < _cacheExpiration)
                 {
                     return cachedHeader;
                 }
-                else
-                {
-                    _soHeaderCache.TryRemove(orderNo, out _);
-                    _cacheTimestamps.TryRemove($"soheader_{orderNo}", out _);
-                }
+
+                _soHeaderCache.TryRemove(orderNo, out _);
+                _cacheTimestamps.TryRemove($"soheader_{orderNo}", out _);
             }
 
             var soHeader = await _dbConnection.Table<SoHeader>()
-                .FirstOrDefaultAsync(h => h.Reference == orderNo);
+                .FirstOrDefaultAsync(h => h.Reference == orderNo)
+                .ConfigureAwait(false);
 
             if (soHeader != null)
             {
-                // Cache the result
                 _soHeaderCache.TryAdd(orderNo, soHeader);
                 _cacheTimestamps.TryAdd($"soheader_{orderNo}", DateTime.Now);
             }
@@ -520,149 +515,127 @@ namespace AmaScan.Classes
 
         public async Task DeleteSoAsync(string orderNo)
         {
-            orderNo = FixOrderNo(orderNo);
-            
-            // Delete SO lines using a query instead of loading all into memory
-            await _dbConnection.Table<SoLine>().Where(p => p.DocNum == orderNo).DeleteAsync();
+            if (string.IsNullOrWhiteSpace(orderNo))
+                return;
 
-            var soHeader = await _dbConnection.Table<SoHeader>().FirstOrDefaultAsync(p => p.Reference == orderNo);
-            if (soHeader != null)
-                await _dbConnection.DeleteAsync(soHeader);
+            orderNo = FixOrderNo(orderNo);
+
+            await _dbConnection.RunInTransactionAsync(conn =>
+            {
+                conn.Table<SoLine>().Where(p => p.DocNum == orderNo).Delete();
+                var soHeader = conn.Table<SoHeader>().FirstOrDefault(p => p.Reference == orderNo);
+                if (soHeader != null)
+                    conn.Delete(soHeader);
+            }).ConfigureAwait(false);
         }
 
         public async Task DeleteAllExceptSoAsync(string orderNo)
         {
+            if (string.IsNullOrWhiteSpace(orderNo))
+                return;
+
             orderNo = FixOrderNo(orderNo);
 
-            // Delete SO lines using a query instead of loading all into memory
-            await _dbConnection.Table<SoLine>().Where(p => p.DocNum != orderNo).DeleteAsync();
-
-            var soHeader = await _dbConnection.Table<SoHeader>().FirstOrDefaultAsync(p => p.Reference != orderNo);
-            if (soHeader != null) await _dbConnection.DeleteAsync(soHeader);
+            await _dbConnection.RunInTransactionAsync(conn =>
+            {
+                conn.Table<SoLine>().Where(p => p.DocNum != orderNo).Delete();
+                var headersToDelete = conn.Table<SoHeader>().Where(p => p.Reference != orderNo).ToList();
+                foreach (var header in headersToDelete)
+                {
+                    conn.Delete(header);
+                }
+            }).ConfigureAwait(false);
         }
-        /// <summary>
-        /// Merges fresh SO data from API with existing local workflow data
-        /// Preserves workflow-specific fields while updating source data
-        /// </summary>
+        
         public async Task MergeSoDataAsync(SalesOrderResponse freshData)
         {
             if (freshData?.Lines == null || !freshData.Lines.Any())
                 throw new ArgumentException("Invalid sales order data for merge.");
-
-            var existingHeader = await GetSoHeaderByOrderNoAsync(freshData.Reference);
-            var existingLines = await GetSoLinesByOrderNoAsync(freshData.Reference);
-
-            // Update or create header
-            if (existingHeader != null)
-            {
-                existingHeader.CustomerOrderNo = freshData.CustomerOrderNo;
-                existingHeader.CustomerName = freshData.CustomerName;
-                existingHeader.AreaDescription = freshData.AreaDescription;
-                existingHeader.DueDate = freshData.DueDate;
-                existingHeader.OrderStatus = freshData.OrderStatus;
-                existingHeader.JsonData = System.Text.Json.JsonSerializer.Serialize(freshData);
-            }
-            else
-            {
-                existingHeader = new SoHeader
-                {
-                    Reference = freshData.Reference,
-                    CustomerOrderNo = freshData.CustomerOrderNo,
-                    CustomerName = freshData.CustomerName,
-                    AreaDescription = freshData.AreaDescription,
-                    DueDate = freshData.DueDate,
-                    OrderStatus = freshData.OrderStatus,
-                    JsonData = System.Text.Json.JsonSerializer.Serialize(freshData)
-                };
-                await InsertAsync(existingHeader);
-            }
-
-            // Create lookup dictionaries
-            var existingLinesDict = existingLines.ToDictionary(l => $"{l.ItemCode}_{l.ItemBarcode}", l => l);
-            var freshLinesDict = freshData.Lines.ToDictionary(l => $"{l.ItemCode}_{l.ItemBarcode}", l => l);
-
-            var linesToUpdate = new List<SoLine>();
-            var linesToInsert = new List<SoLine>();
-            var linesToDelete = new List<SoLine>();
             bool hasQuantityDecreases = false;
-
-            // Process fresh lines
-            foreach (var freshLine in freshData.Lines)
+            await _dbConnection.RunInTransactionAsync(async conn =>
             {
-                var key = $"{freshLine.ItemCode}_{freshLine.ItemBarcode}";
-                if (existingLinesDict.TryGetValue(key, out var existingLine))
-                {
-                    // Check if quantity decreased
-                    if (freshLine.OrderedQty < existingLine.OrderedQty)
-                    {
-                        hasQuantityDecreases = true;
-                    }
+                var existingHeader = await GetSoHeaderByOrderNoAsync(freshData.Reference);
+                var existingLines = await GetSoLinesByOrderNoAsync(freshData.Reference);
 
-                    // Update existing line
-                    UpdateSoLineFromFreshData(existingLine, freshLine);
-                    linesToUpdate.Add(existingLine);
+                // Header processing
+                if (existingHeader != null)
+                {
+                    existingHeader.CustomerOrderNo = freshData.CustomerOrderNo;
+                    existingHeader.CustomerName = freshData.CustomerName;
+                    existingHeader.AreaDescription = freshData.AreaDescription;
+                    existingHeader.DueDate = freshData.DueDate;
+                    existingHeader.OrderStatus = freshData.OrderStatus;
+                    existingHeader.JsonData = System.Text.Json.JsonSerializer.Serialize(freshData);
+                    await UpdateAsync(existingHeader);
                 }
                 else
                 {
-                    // Create new line
-                    var newLine = CreateNewSoLine(freshData.Reference, freshLine);
-                    linesToInsert.Add(newLine);
+                    existingHeader = new SoHeader
+                    {
+                        Reference = freshData.Reference,
+                        CustomerOrderNo = freshData.CustomerOrderNo,
+                        CustomerName = freshData.CustomerName,
+                        AreaDescription = freshData.AreaDescription,
+                        DueDate = freshData.DueDate,
+                        OrderStatus = freshData.OrderStatus,
+                        JsonData = System.Text.Json.JsonSerializer.Serialize(freshData)
+                    };
+                    await InsertAsync(existingHeader);
                 }
-            }
 
-            // Find lines to delete
-            linesToDelete = existingLines.Where(l => !freshLinesDict.ContainsKey($"{l.ItemCode}_{l.ItemBarcode}")).ToList();
+                // Line processing
+                var existingLinesDict = existingLines.ToDictionary(l => $"{l.ItemCode}_{l.ItemBarcode}", l => l);
+                var freshLinesDict = freshData.Lines.ToDictionary(l => $"{l.ItemCode}_{l.ItemBarcode}", l => l);
 
-            // Batch database operations
-            if (linesToDelete.Any())
-            {
-                foreach (var line in linesToDelete)
-                    await _dbConnection.DeleteAsync(line);
-            }
-
-            if (linesToInsert.Any())
-                await _dbConnection.InsertAllAsync(linesToInsert);
-
-            // Update workflow status for all lines
-            var allLines = linesToUpdate.Concat(linesToInsert).ToList();
-            var workflowChanged = UpdateWorkflowStatus(allLines, existingHeader);
-
-            // Batch update all modified lines
-            if (linesToUpdate.Any())
-                await _dbConnection.UpdateAllAsync(linesToUpdate);
-
-            // Update header if workflow status changed
-            if (workflowChanged)
-            {
-                await UpdateSoHeaderAsync(existingHeader);
-
-                // Show notification if new lines were added
-                if (linesToInsert.Any())
+                var linesToUpdate = new List<SoLine>();
+                var linesToInsert = new List<SoLine>();
+               
+                foreach (var freshLine in freshData.Lines)
                 {
-                    await Application.Current.MainPage.DisplayAlert(
-                        "SO Updated",
-                        "New lines were added to this Sales Order.",
-                        "OK"
-                    );
-                }
-            }
+                    var key = $"{freshLine.ItemCode}_{freshLine.ItemBarcode}";
+                    if (existingLinesDict.TryGetValue(key, out var existingLine))
+                    {
+                        if (freshLine.OrderedQty < existingLine.OrderedQty)
+                            hasQuantityDecreases = true;
 
-            // Show alert for quantity decreases
+                        UpdateSoLineFromFreshData(existingLine, freshLine);
+                        linesToUpdate.Add(existingLine);
+                    }
+                    else
+                    {
+                        linesToInsert.Add(CreateNewSoLine(freshData.Reference, freshLine));
+                    }
+                }
+
+                var linesToDelete = existingLines.Where(l => !freshLinesDict.ContainsKey($"{l.ItemCode}_{l.ItemBarcode}")).ToList();
+
+                // Batch operations
+                foreach (var line in linesToDelete)
+                    await DeleteAsync(line);
+
+                if (linesToInsert.Any())
+                    await InsertAllAsync(linesToInsert);
+
+                UpdateWorkflowStatus(linesToUpdate.Concat(linesToInsert).ToList(), existingHeader);
+
+                if (linesToUpdate.Any())
+                    await UpdateAllAsync(linesToUpdate);
+
+                // Cache invalidation
+                if (!string.IsNullOrWhiteSpace(freshData.Reference))
+                {
+                    _soHeaderCache.TryRemove(freshData.Reference, out _);
+                    _cacheTimestamps.TryRemove($"soheader_{freshData.Reference}", out _);
+                }
+            }).ConfigureAwait(false);
+
+            // UI alerts outside transaction
             if (hasQuantityDecreases)
             {
                 await Application.Current.MainPage.DisplayAlert("Quantities Reduced",
-                    "Some item quantities have been reduced. All workflow progress for these items has been reset to zero.",
-                    "OK");
-            }
-            
-            // Clear SO cache when data is merged
-            if (!string.IsNullOrWhiteSpace(freshData.Reference))
-            {
-                _soHeaderCache.TryRemove(freshData.Reference, out _);
-                _cacheTimestamps.TryRemove($"soheader_{freshData.Reference}", out _);
+                    "Some item quantities have been reduced.", "OK");
             }
         }
-
         private void UpdateSoLineFromFreshData(SoLine existingLine, SalesOrderLine freshLine)
         {
 
@@ -730,29 +703,24 @@ namespace AmaScan.Classes
                 Authorized = false
             };
         }
-
         private bool UpdateWorkflowStatus(List<SoLine> lines, SoHeader header)
         {
             bool headerChanged = false;
-            // Check workflow status
-            var hasIncompletePicking = lines.Any(l => !l.Picked);
-            var hasIncompletePacking = lines.Any(l => !l.Packed);
-            var hasIncompleteChecking = lines.Any(l => !l.Checked);
+            var hasIncompletePicking = false;
+            var hasIncompletePacking = false;
+            var hasIncompleteChecking = false;
 
             foreach (var line in lines)
             {
-                // Update completion status based on quantities
                 line.Picked = line.PickedQty >= line.OrderedQty;
                 line.Packed = line.PackedQty >= line.OrderedQty;
                 line.Checked = line.CheckedQty >= line.OrderedQty;
                 line.Authorized = line.AuthorizedQty >= line.OrderedQty;
 
-                // Track incomplete phases
                 if (!line.Picked) hasIncompletePicking = true;
                 if (!line.Packed) hasIncompletePacking = true;
                 if (!line.Checked) hasIncompleteChecking = true;
 
-                // Clear downstream *Started flags when phases are incomplete
                 if (!line.Picked)
                 {
                     line.PackStarted = false;
@@ -770,10 +738,9 @@ namespace AmaScan.Classes
                 }
             }
 
-            // Update header flags based on line status
-            var allPicked = lines.All(l => l.Picked);
-            var allPacked = lines.All(l => l.Packed);
-            var allChecked = lines.All(l => l.Checked);
+            var allPicked = !hasIncompletePicking;
+            var allPacked = !hasIncompletePacking;
+            var allChecked = !hasIncompleteChecking;
             var allAuthorized = lines.All(l => l.Authorized);
 
             if (header.Picked != allPicked) { header.Picked = allPicked; headerChanged = true; }
@@ -791,8 +758,7 @@ namespace AmaScan.Classes
 
             // Single query to check both ItemBarcode and PackBarcode
             var line = await _dbConnection.Table<SoLine>()
-                .FirstOrDefaultAsync(l => l.DocNum == orderNo &&
-                                         (l.ItemBarcode == barcode || l.PackBarcode == barcode));
+                .FirstOrDefaultAsync(l => l.DocNum == orderNo && (l.ItemBarcode == barcode || l.PackBarcode == barcode)).ConfigureAwait(false);
 
             return line;
         }
@@ -800,7 +766,7 @@ namespace AmaScan.Classes
         // Check if any user has started a phase at header level
         public async Task<bool> HasAnyUserStartedPhaseAsync(string orderNo, string phaseField)
         {
-            var header = await GetSoHeaderByOrderNoAsync(orderNo);
+            var header = await GetSoHeaderByOrderNoAsync(orderNo).ConfigureAwait(false);
             if (header == null) return false;
 
             switch (phaseField.ToLower())
@@ -821,7 +787,7 @@ namespace AmaScan.Classes
         // Check if a specific user has started a phase at header level
         public async Task<bool> HasUserStartedPhaseAsync(string orderNo, string userName, string phaseField)
         {
-            var header = await GetSoHeaderByOrderNoAsync(orderNo);
+            var header = await GetSoHeaderByOrderNoAsync(orderNo).ConfigureAwait(false);
             if (header == null) return false;
 
             switch (phaseField.ToLower())
@@ -842,7 +808,7 @@ namespace AmaScan.Classes
         // Set the user who started a phase at header level
         public async Task SetPhaseUserAsync(string orderNo, string userName, string phaseField)
         {
-            var header = await GetSoHeaderByOrderNoAsync(orderNo);
+            var header = await GetSoHeaderByOrderNoAsync(orderNo).ConfigureAwait(false);
             if (header == null) return;
 
             switch (phaseField.ToLower())
@@ -878,7 +844,7 @@ namespace AmaScan.Classes
         // Get phase completion status for all phases in one query
         public async Task<PhaseStatus> GetPhaseStatusAsync(string orderNo)
         {
-            var lines = await GetSoLinesByOrderNoAsync(orderNo);
+            var lines = await GetSoLinesByOrderNoAsync(orderNo).ConfigureAwait(false);
             if (!lines.Any())
                 return new PhaseStatus { HasLines = false };
 
@@ -891,31 +857,27 @@ namespace AmaScan.Classes
                 AllAuthorized = lines.All(l => l.Authorized)
             };
         }
-
         public async Task<bool> AreAllLinesPickedAsync(string orderNo)
         {
-            var status = await GetPhaseStatusAsync(orderNo);
+            var status = await GetPhaseStatusAsync(orderNo).ConfigureAwait(false);
             return status.HasLines && status.AllPicked;
         }
-
         public async Task<bool> AreAllLinesPackedAsync(string orderNo)
         {
-            var status = await GetPhaseStatusAsync(orderNo);
+            var status = await GetPhaseStatusAsync(orderNo).ConfigureAwait(false);
             return status.HasLines && status.AllPacked;
         }
-
         public async Task<bool> AreAllLinesCheckedAsync(string orderNo)
         {
-            var status = await GetPhaseStatusAsync(orderNo);
+            var status = await GetPhaseStatusAsync(orderNo).ConfigureAwait(false);
             return status.HasLines && status.AllChecked;
         }
 
         public async Task<bool> AreAllLinesAuthorizedAsync(string orderNo)
         {
-            var status = await GetPhaseStatusAsync(orderNo);
+            var status = await GetPhaseStatusAsync(orderNo).ConfigureAwait(false);
             return status.HasLines && status.AllAuthorized;
         }
-
         public static string FixOrderNo(string orderNo)
         {
             if (!orderNo.StartsWith("IO"))
@@ -924,9 +886,6 @@ namespace AmaScan.Classes
             }
             return orderNo;
         }
-
-
-
         public async Task SaveReturnLineAsync(ReturnLine returnLine, string userName = null)
         {
             ArgumentNullException.ThrowIfNull(returnLine);
@@ -944,13 +903,12 @@ namespace AmaScan.Classes
             // Insert the return line into the database
             await _dbConnection.InsertAsync(returnLine);
         }
-
         // Stock Count Operations
         public async Task SaveStockCountItemsAsync(List<StockCountItem> items)
         {
             // Get existing items to preserve progress
-            var existingItems = await _dbConnection.Table<StockCountItem>().ToListAsync();
-            
+            var existingItems = await _dbConnection.Table<StockCountItem>().ToListAsync().ConfigureAwait(false);
+
             // Create lookup for existing items by StockCode
             var existingLookup = existingItems.ToDictionary(x => x.StockCode, x => x);
             
@@ -973,9 +931,9 @@ namespace AmaScan.Classes
             }
             
             // Replace all items (preserving progress)
-            await _dbConnection.DeleteAllAsync<StockCountItem>();
-            await _dbConnection.InsertAllAsync(items);
-            
+            await _dbConnection.DeleteAllAsync<StockCountItem>().ConfigureAwait(false);
+            await _dbConnection.InsertAllAsync(items).ConfigureAwait(false);    
+
             // Clear stock count cache when data is updated
             _stockCountItemCache.Clear();
             foreach (var key in _cacheTimestamps.Keys.Where(k => k.StartsWith("stockcount_")))
@@ -983,58 +941,49 @@ namespace AmaScan.Classes
                 _cacheTimestamps.TryRemove(key, out _);
             }
         }
-
         public async Task<List<StockCountItem>> GetStockCountItemsAsync()
         {
-            return await _dbConnection.Table<StockCountItem>().ToListAsync();
+            return await _dbConnection.Table<StockCountItem>().ToListAsync().ConfigureAwait(false);
         }
-
-
-
         public async Task<StockCountItem?> GetStockCountItemByCodeAsync(string stockCode)
         {
             if (string.IsNullOrWhiteSpace(stockCode))
                 return null;
 
-            // Check cache first
             if (_stockCountItemCache.TryGetValue(stockCode, out var cachedItem))
             {
-                if (_cacheTimestamps.TryGetValue($"stockcount_{stockCode}", out var timestamp) && 
+                if (_cacheTimestamps.TryGetValue($"stockcount_{stockCode}", out var timestamp) &&
                     DateTime.Now - timestamp < _cacheExpiration)
                 {
                     return cachedItem;
                 }
-                else
-                {
-                    _stockCountItemCache.TryRemove(stockCode, out _);
-                    _cacheTimestamps.TryRemove($"stockcount_{stockCode}", out _);
-                }
+
+                _stockCountItemCache.TryRemove(stockCode, out _);
+                _cacheTimestamps.TryRemove($"stockcount_{stockCode}", out _);
             }
 
             var stockCountItem = await _dbConnection.Table<StockCountItem>()
-                .FirstOrDefaultAsync(item => item.StockCode == stockCode);
+                .FirstOrDefaultAsync(item => item.StockCode == stockCode)
+                .ConfigureAwait(false);
 
             if (stockCountItem != null)
             {
-                // Cache the result
                 _stockCountItemCache.TryAdd(stockCode, stockCountItem);
                 _cacheTimestamps.TryAdd($"stockcount_{stockCode}", DateTime.Now);
             }
 
             return stockCountItem;
         }
-
         public async Task<StockCountItem?> GetStockCountItemByCodeAndBatchAsync(string stockCode, string batchNo)
         {
             return await _dbConnection.Table<StockCountItem>()
-                .FirstOrDefaultAsync(item => item.StockCode == stockCode && item.BatchNo == batchNo);
+                .FirstOrDefaultAsync(item => item.StockCode == stockCode && item.BatchNo == batchNo).ConfigureAwait(false);
         }
-
         public async Task UpdateStockCountItemAsync(StockCountItem item)
         {
             // Use a more efficient update operation
-            await _dbConnection.UpdateAsync(item);
-            
+            await _dbConnection.UpdateAsync(item).ConfigureAwait(false);
+
             // Invalidate cache for this item to ensure data consistency
             if (!string.IsNullOrWhiteSpace(item.StockCode))
             {
@@ -1042,52 +991,112 @@ namespace AmaScan.Classes
                 _cacheTimestamps.TryRemove($"stockcount_{item.StockCode}", out _);
             }
         }
-
         public async Task<List<StockCountItem>> GetIncompleteStockCountsAsync()
         {
             return await _dbConnection.Table<StockCountItem>()
                 .Where(item => !item.CountComplete)
-                .ToListAsync();
+                .ToListAsync().ConfigureAwait(false);
         }
-
-
         public async Task<StockCountItem?> ResolveStockCountItemByBarcodeAsync(string scannedBarcode)
         {
             if (string.IsNullOrWhiteSpace(scannedBarcode))
                 return null;
 
-            // Use database queries instead of loading all items into memory
             var stockCountItem = await _dbConnection.Table<StockCountItem>()
-                .Where(item => 
+                .Where(item =>
                     (!string.IsNullOrWhiteSpace(item.BarCode) && item.BarCode.Equals(scannedBarcode, StringComparison.OrdinalIgnoreCase)) ||
                     (!string.IsNullOrWhiteSpace(item.BarcodeLmmp) && item.BarcodeLmmp.Equals(scannedBarcode, StringComparison.OrdinalIgnoreCase)))
-                .FirstOrDefaultAsync();
+                .FirstOrDefaultAsync()
+                .ConfigureAwait(false);
 
             if (stockCountItem != null)
                 return stockCountItem;
 
-            // If no direct match, check additional barcodes from StockItem table
-            var stockItems = await _dbConnection.Table<StockItem>()
-                .Where(item => !string.IsNullOrWhiteSpace(item.alternate_bar_codes))
-                .ToListAsync();
+            var matchingStockItem = await _dbConnection.Table<StockItem>()
+                .Where(item => item.alternate_bar_codes != null &&
+                    item.alternate_bar_codes.Contains(scannedBarcode))
+                .FirstOrDefaultAsync()
+                .ConfigureAwait(false);
 
-            foreach (var stockItem in stockItems)
+            if (matchingStockItem != null)
             {
-                if (!string.IsNullOrWhiteSpace(stockItem.alternate_bar_codes))
-                {
-                    var additionalBarcodes = stockItem.alternate_bar_codes
-                        .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-                    
-                    if (additionalBarcodes.Any(b => b.Equals(scannedBarcode, StringComparison.OrdinalIgnoreCase)))
-                    {
-                        // Find corresponding StockCountItem
-                        return await _dbConnection.Table<StockCountItem>()
-                            .FirstOrDefaultAsync(item => item.StockCode == stockItem.stock_code);
-                    }
-                }
+                return await _dbConnection.Table<StockCountItem>()
+                    .FirstOrDefaultAsync(item => item.StockCode == matchingStockItem.stock_code)
+                    .ConfigureAwait(false);
             }
 
             return null;
         }
+
+        private static readonly SemaphoreSlim _transactionLock = new SemaphoreSlim(1, 1);
+
+        public async Task RunInTransactionAsync(Action<SQLiteConnection> action)
+        {
+            // 1. Fail gracefully instead of throwing
+            if (action == null || _dbConnection?.DatabasePath == null)
+                return;
+
+            await _transactionLock.WaitAsync().ConfigureAwait(false);
+            try
+            {
+                await Task.Run(() =>
+                {
+                    using (var syncConn = new SQLiteConnection(_dbConnection.DatabasePath))
+                    {
+                        // 2. Manual transaction with timeout
+                        syncConn.BeginTransaction();
+                        try
+                        {
+                            action(syncConn);
+                            syncConn.Commit();
+                        }
+                        catch (SQLiteException ex) when (IsDatabaseLocked(ex))
+                        {
+                            syncConn.Rollback();
+                            Thread.Sleep(100); // Brief pause
+                            throw; // Or retry logic if needed
+                        }
+                        catch
+                        {
+                            syncConn.Rollback();
+                            // 3. Suppress all other errors
+                        }
+                    }
+                }).ConfigureAwait(false);
+            }
+            finally
+            {
+                _transactionLock.Release();
+            }
+        }
+
+        private static bool IsDatabaseLocked(SQLiteException ex)
+        {
+            return ex.Result == SQLite3.Result.Busy ||
+                   ex.Result == SQLite3.Result.Locked;
+        }
+
+        public static class WarehouseCache
+        {
+            private static readonly List<Warehouse> _cache = new();
+            private static Task<List<Warehouse>>? _loading;
+
+            public static Task<List<Warehouse>> GetAsync()
+            {
+                if (_cache.Any())               // already loaded
+                    return Task.FromResult(_cache);
+
+                _loading ??= LoadAsync();       // start once
+                return _loading;
+            }
+
+            private static async Task<List<Warehouse>> LoadAsync()
+            {
+                var list = await App.Db.GetWarehousesAsync().ConfigureAwait(false);
+                _cache.AddRange(list);
+                return _cache;
+            }
+        }
+
     }
 }

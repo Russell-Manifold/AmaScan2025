@@ -4,6 +4,7 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Windows.Input;
+using static AmaScan.Classes.DatabaseHelper;
 
 namespace AmaScan
 {
@@ -12,6 +13,7 @@ namespace AmaScan
     {
         private PoHeader _poHeader;
         private string _poQuery;
+        private volatile int _loadGuard;
         private bool _isDisposed;
         private CancellationTokenSource _loadingCts;
 
@@ -20,11 +22,11 @@ namespace AmaScan
             get => _poQuery;
             set
             {
-                if (_poQuery != value)
-                {
-                    _poQuery = Uri.UnescapeDataString(value);
+                if (_poQuery == value) return;
+                _poQuery = Uri.UnescapeDataString(value);
+
+                if (Interlocked.CompareExchange(ref _loadGuard, 1, 0) == 0)
                     _ = LoadPoAsync(_poQuery);
-                }
             }
         }
 
@@ -66,6 +68,9 @@ namespace AmaScan
         public string DueDateFormatted => _poHeader?.DueDate.ToString("yyyy-MM-dd") ?? "";
         public string Status => _poHeader?.Status ?? "";
 
+        private int _loadAttempt;
+        
+
         public ReceivingPage(DatabaseHelper databaseHelper)
         {
             InitializeComponent();
@@ -73,51 +78,91 @@ namespace AmaScan
             _loadingCts = new CancellationTokenSource();
         }
 
+        protected override void OnAppearing()
+        {
+            base.OnAppearing();
+            WedgeCatcher.Focus();           // steal focus so wedge lands here
+        }
+
+        protected override async void OnNavigatedTo(NavigatedToEventArgs args)
+        {
+            base.OnNavigatedTo(args);
+
+            // Allow re-entry only if value changed *after* navigation
+            if (!string.IsNullOrWhiteSpace(_poQuery) &&
+                _loadGuard == 0)
+            {
+                _ = LoadPoAsync(_poQuery);
+            }
+        }
+
+        private void OnWedgeCompleted(object sender, EventArgs e)
+        {
+            var code = WedgeCatcher.Text.Trim();
+            if (!string.IsNullOrEmpty(code))
+            {
+                BarcodeEntry.Text = code;       // copy to the visible box
+                OnBarcodeEntered(BarcodeEntry, EventArgs.Empty); // reuse your logic
+            }
+            WedgeCatcher.Text = string.Empty;   // clear for next scan
+            WedgeCatcher.Focus();               // keep focus
+        }
+
+#if ANDROID
+        private void OnBarcodeFocused(object sender, FocusEventArgs e)
+        {
+            // Hide soft keyboard but keep the field able to receive wedge input
+            var entry = (Entry)sender;
+            if (entry.Handler?.PlatformView is Android.Widget.EditText editText)
+            {
+                var imm = Android.App.Application.Context
+                             .GetSystemService(Android.Content.Context.InputMethodService)
+                             as Android.Views.InputMethods.InputMethodManager;
+                imm?.HideSoftInputFromWindow(editText.WindowToken, 0);
+            }
+        }
+#endif
         private async Task LoadPoAsync(string poNumber)
         {
             if (string.IsNullOrWhiteSpace(poNumber)) return;
+
+            _poHeader = null;
+            _poLines.Clear();
 
             try
             {
                 _loadingCts?.Cancel();
                 _loadingCts = new CancellationTokenSource();
                 var ct = _loadingCts.Token;
-
+                66
                 await MainThread.InvokeOnMainThreadAsync(() =>
                 {
                     loadingIndicator.IsVisible = true;
                     loadingIndicator.IsRunning = true;
                 });
 
-                _poHeader = await App.Db.GetPoHeaderByOrderNoAsync(poNumber);
-                if (_poHeader == null)
-                {
-                    await MainThread.InvokeOnMainThreadAsync(async () =>
-                    {
-                        await DisplayAlert("Error", $"PO not found: {poNumber}", "OK");
-                        await Shell.Current.GoToAsync("..");
-                    });
-                    return;
-                }
+                var headerTask = App.Db.GetPoHeaderByOrderNoAsync(poNumber);
+                var linesTask = App.Db.GetPoLinesByOrderNoAsync(poNumber);
 
-                ct.ThrowIfCancellationRequested();
+                await Task.WhenAll(headerTask, linesTask).ConfigureAwait(false);
 
-                var lines = await App.Db.GetPoLinesByOrderNoAsync(_poHeader.OrderNo);
-                ct.ThrowIfCancellationRequested();
-
+                _poHeader = headerTask.Result;
+                var lines = linesTask.Result;
                 // Update UI on main thread
                 await MainThread.InvokeOnMainThreadAsync(() =>
                 {
                     OnPropertyChanged(nameof(PoNumber));
                     OnPropertyChanged(nameof(DueDateFormatted));
                     OnPropertyChanged(nameof(Status));
-                    
+
                     _poLines.Clear();
                     foreach (var line in lines)
                     {
                         _poLines.Add(line);
                     }
-                    
+                    loadingIndicator.IsVisible = false;
+                    loadingIndicator.IsRunning = false;
+
                     AcceptSwitch_Toggled(AcceptSwitch, new ToggledEventArgs(AcceptSwitch.IsToggled));
                 });
             }
@@ -134,13 +179,9 @@ namespace AmaScan
             }
             finally
             {
-                await MainThread.InvokeOnMainThreadAsync(() =>
-                {
-                    loadingIndicator.IsVisible = false;
-                    loadingIndicator.IsRunning = false;
-                });
-            }
-        }
+                Interlocked.Exchange(ref _loadGuard, 0); // release the lock
+            }                                 
+         }
 
         protected void OnPropertyChanged([CallerMemberName] string propertyName = "") =>
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
@@ -461,8 +502,8 @@ namespace AmaScan
         {
             try
             {
-                var warehouses = await App.Db.GetWarehousesAsync();
-                WarehouseList = new ObservableCollection<Warehouse>(warehouses ?? new List<Warehouse>());
+                var warehouses = await WarehouseCache.GetAsync();
+                WarehouseList = new ObservableCollection<Warehouse>(warehouses);
 
                 // Set default warehouse based on current mode
                 if (AcceptSwitch.IsToggled)
