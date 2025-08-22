@@ -39,6 +39,7 @@ namespace AmaScan
                 
                 if (user != null)
                 {
+                    await DbReset.ResetAsync();
                     _userSession.CurrentUser = user;
                     await DisplayAlert("", $"Welcome {user.UserName} ({user.RoleName})", "OK");
                     var dashboard = App.Services.GetRequiredService<Dashboard>();

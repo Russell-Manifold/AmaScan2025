@@ -177,5 +177,12 @@ public partial class SettingsPage : ContentPage
         public List<Warehouse> data { get; set; }
     }
 
+    private async void DataRest_Clicked(object sender, EventArgs e)
+    {
+        await DbReset.fullResetAsync();
+        LoadWarehouses();
+        OnUpdateStockClicked(sender, EventArgs.Empty);
+        ConfirmationLabel.Text = "Database Successfully eset";
+    }
 }
 

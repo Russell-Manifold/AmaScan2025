@@ -18,7 +18,9 @@ namespace AmaScan.Classes
     public class DatabaseHelper
     {
         private readonly SQLiteAsyncConnection _dbConnection;
-
+        // expose it
+        public SQLiteAsyncConnection Connection => _dbConnection;
+  
         // Cache for frequently accessed data
         private static readonly ConcurrentDictionary<string, StockItem> _stockItemCache = new();
         private static readonly ConcurrentDictionary<string, Warehouse> _warehouseCache = new();

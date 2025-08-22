@@ -8,8 +8,7 @@ namespace AmaScan
     public partial class App : Application
     {
         public static IServiceProvider Services { get; private set; }
-
-        public static DatabaseHelper Db { get; private set; }
+        public static DatabaseHelper Db { get; set; }
         public App(IServiceProvider serviceProvider)
         {
             InitializeComponent();

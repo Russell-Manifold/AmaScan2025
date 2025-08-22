@@ -52,6 +52,11 @@
                 BackgroundColor="DarkBlue"
                 TextColor="White" />
 
+            <Button Text="Data Reset"
+             Clicked="DataRest_Clicked"
+             BackgroundColor="DarkOrange"
+             TextColor="White" />   
+
         </VerticalStackLayout>
     </ScrollView>
 </ContentPage>

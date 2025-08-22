@@ -58,6 +58,15 @@
 	</ItemGroup>
 
 	<ItemGroup>
+	  <AndroidResource Remove="config\**" />
+	  <Compile Remove="config\**" />
+	  <EmbeddedResource Remove="config\**" />
+	  <MauiCss Remove="config\**" />
+	  <MauiXaml Remove="config\**" />
+	  <None Remove="config\**" />
+	</ItemGroup>
+
+	<ItemGroup>
 	  <AndroidResource Remove="Platforms\Android\Resources\drawable\splash.xml" />
 	  <AndroidResource Remove="Platforms\Android\Resources\values\styles.xml" />
 	</ItemGroup>
@@ -75,10 +84,6 @@
 		<PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
 		<PackageReference Include="sqlite-net-pcl" Version="1.9.172" />
 		<PackageReference Include="SQLitePCLRaw.bundle_green" Version="2.1.4" />
-	</ItemGroup>
-
-	<ItemGroup>
-	  <Folder Include="config\" />
 	</ItemGroup>
 
 	<ItemGroup>
