@@ -1,5 +1,6 @@
 ﻿using AmaScan.sqliteModels;
 using SQLite;
+using static AmaScan.Classes.DatabaseHelper;
 
 namespace AmaScan.Classes
 {
@@ -8,6 +9,8 @@ namespace AmaScan.Classes
         // 1. Absolute path inside the *writeable* app directory
         public static async Task ResetAsync()
         {
+            DatabaseHelper.ClearCaches();
+
             var connection = App.Db.Connection;
 
             // 1. List of tables to drop (keep StockItem out)
@@ -44,9 +47,9 @@ namespace AmaScan.Classes
 
             // Close the connection
             await (App.Db?.Connection?.CloseAsync() ?? Task.CompletedTask);
-
+            DatabaseHelper.ClearCaches();
             // Wait a moment for the OS to release the file
-            await Task.Delay(150);
+            await Task.Delay(300);
 
             if (File.Exists(dbPath))
                 File.Delete(dbPath);
@@ -68,8 +71,6 @@ namespace AmaScan.Classes
 
             App.Db = new DatabaseHelper(connection);
 
-
         }
-
     }
 }

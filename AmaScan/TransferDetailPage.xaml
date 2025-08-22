@@ -48,6 +48,7 @@
                                 <StackLayout Orientation="Vertical" Spacing="5">
                                     <Label Text="{Binding StockDescription}" FontAttributes="Bold"/>
                                     <Label Text="{Binding StockCode}" TextColor="Gray"/>
+                                    <Label Text="{Binding bar_code}" TextColor="Gray" FontAttributes="Bold"/>
 
                                     <Grid ColumnDefinitions="Auto,60,Auto,80" ColumnSpacing="10">
                                         <Label Text="Requested:" VerticalOptions="Center"/>

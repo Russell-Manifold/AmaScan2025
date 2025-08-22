@@ -3,6 +3,7 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
               xmlns:controls="clr-namespace:AmaScan.Controls"
              x:Class="AmaScan.ReceivingPage"
+             x:Name="PageRoot"
              Title= "Receiving">
     
     <ContentPage.ToolbarItems>
@@ -102,7 +103,7 @@
                                     <SwipeItems Mode="Reveal">
                                         <SwipeItem Text="Reset"
                                                    BackgroundColor="OrangeRed"
-                                                   Command="{Binding BindingContext.ResetPoLineCommand, Source={x:Reference ReceivingPage}}"
+                                                   Command="{Binding BindingContext.ResetPoLineCommand, Source={x:Reference PageRoot}}"
                                                    CommandParameter="{Binding}" />
                                     </SwipeItems>
                                 </SwipeView.RightItems>

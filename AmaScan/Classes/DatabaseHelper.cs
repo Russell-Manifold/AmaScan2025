@@ -5,7 +5,6 @@ using System.Collections.Concurrent;
 
 namespace AmaScan.Classes
 {
-
     public class PhaseStatus
     {
         public bool HasLines { get; set; }
@@ -87,6 +86,10 @@ namespace AmaScan.Classes
                                   .Where(i => i.Id == id)
                                   .FirstOrDefaultAsync()
                                   .ConfigureAwait(false);
+        }
+        public Task<List<StockItem>> GetAllStockItemsAsync()
+        {
+            return _dbConnection.Table<StockItem>().ToListAsync();
         }
 
         public Task<List<T>> GetItemsAsync<T>() where T : new()
@@ -1107,6 +1110,16 @@ namespace AmaScan.Classes
                 _cache.AddRange(list);
                 return _cache;
             }
+        }
+
+        public static void ClearCaches()
+        {
+            _stockItemCache.Clear();
+            _warehouseCache.Clear();
+            _stockCountItemCache.Clear();
+            _poHeaderCache.Clear();
+            _soHeaderCache.Clear();
+            _cacheTimestamps.Clear();
         }
 
     }

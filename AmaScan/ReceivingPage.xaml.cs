@@ -69,13 +69,33 @@ namespace AmaScan
         public string Status => _poHeader?.Status ?? "";
 
         private int _loadAttempt;
-        
+
+        public ICommand ResetPoLineCommand { get; }
 
         public ReceivingPage(DatabaseHelper databaseHelper)
         {
             InitializeComponent();
             BindingContext = this;
             _loadingCts = new CancellationTokenSource();
+            
+            ResetPoLineCommand = new Command<PoLine>(async line =>
+            {
+                if (line == null) return;
+
+                bool ok = await Shell.Current.DisplayAlert(
+                    "Reset Line",
+                    $"Are you sure you want to reset {line.ItemCode}?",
+                    "Yes", "No");
+
+                if (!ok) return;
+
+                line.ScanAcceptQty = 0;
+                line.ScanRejectQty = 0;
+                line.ReceivedString = string.Empty;
+
+                await App.Db.UpdatePoLineAsync(line);
+                await LoadPoAsync(PoNumber);
+            });
         }
 
         protected override void OnAppearing()
@@ -375,20 +395,20 @@ namespace AmaScan
             }
         }
 
-        public ICommand ResetPoLineCommand => new Command<PoLine>(async (line) =>
-        {
-            if (line == null) return;
+        //public ICommand ResetPoLineCommand => new Command<PoLine>(async (line) =>
+        //{
+        //    if (line == null) return;
 
-            bool confirm = await Shell.Current.DisplayAlert("Reset Line", "Are you sure you want to reset this line?", "Yes", "No");
-            if (!confirm) return;
+        //    bool confirm = await Shell.Current.DisplayAlert("Reset Line", "Are you sure you want to reset this line?", "Yes", "No");
+        //    if (!confirm) return;
 
-            line.ScanAcceptQty = 0;
-            line.ScanRejectQty = 0;
-            line.ReceivedString = string.Empty;
-            await App.Db.UpdatePoLineAsync(line);
+        //    line.ScanAcceptQty = 0;
+        //    line.ScanRejectQty = 0;
+        //    line.ReceivedString = string.Empty;
+        //    await App.Db.UpdatePoLineAsync(line);
 
-            await LoadPoAsync(PoNumber);
-        });
+        //    await LoadPoAsync(PoNumber);
+        //});
 
         private void AcceptSwitch_Toggled(object sender, ToggledEventArgs e)
         {

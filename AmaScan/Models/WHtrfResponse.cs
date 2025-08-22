@@ -21,6 +21,7 @@ namespace Data.Model
         public string? destination_warehouse { get; set; }
         public string? destination_warehouse_description { get; set; }
         public string? stock_code { get; set; }
+        public string? bar_code { get; set; }
         public string? stock_description { get; set; }
         public decimal? outstanding_qty_to_deliver { get; set; }
     }
@@ -39,6 +40,7 @@ namespace Data.Model
     public class WHtrfRequestLine
     {
         public string? stock_code { get; set; }
+        public string? bar_code { get; set; }
         public string? stock_description { get; set; }
         public decimal? outstanding_qty_to_deliver { get; set; }
     }
