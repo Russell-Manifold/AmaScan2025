@@ -166,7 +166,7 @@ public partial class TransferDetailPage : ContentPage, INotifyPropertyChanged
         }
 
         var item = TransferLines
-            .FirstOrDefault(x => string.Equals(x.Barcode, barcode, StringComparison.OrdinalIgnoreCase));
+            .FirstOrDefault(x => string.Equals(x.BarCode, barcode, StringComparison.OrdinalIgnoreCase));
 
         if (item == null)
         {
