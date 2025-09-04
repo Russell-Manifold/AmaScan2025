@@ -89,8 +89,7 @@ public partial class PackingDocumentsPage : ContentPage, INotifyPropertyChanged
             // Run database operations on background thread
             var allLines = await Task.Run(async () =>
             {
-                var databaseHelper = AmaScanDatabase.GetDatabaseHelper();
-                return await databaseHelper.GetSoLinesByOrderNoAsync(_soHeader.Reference);
+                return await App.Db.GetSoLinesByOrderNoAsync(_soHeader.Reference);
             });
 
             // Update UI on main thread

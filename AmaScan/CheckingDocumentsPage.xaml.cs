@@ -80,10 +80,8 @@ public partial class CheckingDocumentsPage : ContentPage, INotifyPropertyChanged
             OnPropertyChanged(nameof(CustomerName));
             OnPropertyChanged(nameof(DueDate));
 
-            var databaseHelper = AmaScanDatabase.GetDatabaseHelper();
-
             // Load all SO lines for the current SO
-            var allLines = await databaseHelper.GetSoLinesByOrderNoAsync(_soHeader.Reference);
+            var allLines = await App.Db.GetSoLinesByOrderNoAsync(_soHeader.Reference);
 
             // Clear and reload the collection with all items
             _soLines.Clear();
