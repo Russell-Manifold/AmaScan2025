@@ -300,13 +300,9 @@ public partial class StockCountPage : ContentPage, INotifyPropertyChanged
         {
             return "Matches Expected Level";
         }
-        else if (currentCount > _currentItem.Level)
-        {
-            return $"Over Expected Level";
-        }
         else
         {
-            return "Under Expected Level";
+            return "Does Not Match Expected Level";
         }
     }
 

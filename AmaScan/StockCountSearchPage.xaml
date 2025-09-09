@@ -6,76 +6,61 @@
              Title="Search Stock Count Item">
 
     <Grid RowDefinitions="Auto,*" Padding="20">
-        <!-- Header Info -->
+        <!-- Header -->
         <Frame Grid.Row="0" Padding="10" BackgroundColor="LightGrey" Margin="0,0,0,10">
             <VerticalStackLayout>
-                <Label Text="Scan or enter barcode to find item to count."/>
+                <Label Text="Items to count" FontSize="18" FontAttributes="Bold"/>
+                <Label Text="Tap an item to start counting." FontSize="12"/>
             </VerticalStackLayout>
         </Frame>
 
-        <!-- Search Section -->
-        <ScrollView Grid.Row="1">
-            <StackLayout Spacing="10">
-                <Grid ColumnDefinitions="*,80" Padding="10,5" RowDefinitions="Auto,Auto">
-                    <Label Grid.Column="0" Text="Barcode:" />
-                    <controls:NoKeyboardEntry x:Name="BarcodeEntry" 
-                                            Placeholder="Enter barcode" 
-                                            Completed="OnBarcodeEntered" 
-                                            MaxLength="15" 
-                                            Keyboard="Numeric" 
-                                            Grid.Row="1" Grid.Column="0" 
-                                            FontSize="18" />
-                </Grid>
-                
-                <Grid ColumnDefinitions="*,Auto" Padding="10,0">
-                    <Label Grid.Column="0" Text="Manual" 
-                           VerticalOptions="Center" 
-                           HorizontalOptions="Start" />
-                    <Switch Grid.Column="1" x:Name="ManualInputSwitch" 
-                            IsToggled="False"
-                            Toggled="OnManualInputToggled" 
-                            HorizontalOptions="End"
-                            VerticalOptions="Center" />
-                </Grid>
-                
-                <Button x:Name="SearchButton" 
-                        Text="Search" 
-                        BackgroundColor="Blue"
-                        TextColor="White"
-                        Margin="10,0"
-                        Clicked="OnSearchClicked" />
-
-                <!-- Search Results -->
-                <Frame x:Name="SearchResultFrame" 
-                       Padding="10" 
-                       Margin="10,5" 
-                       BackgroundColor="{Binding StatusColor}"
-                       BorderColor="LightGray"
-                       IsVisible="False">
-                    <StackLayout>
-                        <Label x:Name="ResultStockDescription" FontAttributes="Bold" />
-                        <Label x:Name="ResultStockCode" />
-                        <Label x:Name="ResultStatus" 
-                               TextColor="Red"
-                               IsVisible="False"/>
-                    </StackLayout>
-                </Frame>
-                
-                <Button x:Name="StartCountingButton" 
-                        Text="Start Counting" 
-                        BackgroundColor="DarkGreen"
-                        TextColor="White"
-                        Margin="10,0"
-                        Clicked="OnStartCountingClicked" />
-            </StackLayout>
-        </ScrollView>
+        <!-- Items List -->
+        <CollectionView Grid.Row="1"
+                        x:Name="ItemsListView"
+                        ItemsSource="{Binding Items}"
+                        SelectionMode="Single"
+                        SelectionChanged="OnItemSelected">
+            <CollectionView.ItemTemplate>
+                <DataTemplate>
+                    <Frame Padding="10" Margin="10,5"
+                           BackgroundColor="White"
+                           BorderColor="LightGray"
+                           CornerRadius="5">
+                        <Frame.GestureRecognizers>
+                            <TapGestureRecognizer Tapped="OnItemTapped"
+                                                  CommandParameter="{Binding}" />
+                        </Frame.GestureRecognizers>
+                        <Grid ColumnDefinitions="*,Auto">
+                            <VerticalStackLayout Grid.Column="0">
+                                <Label Text="{Binding StockDescription}"
+                                       FontAttributes="Bold"/>
+                                <Label Text="{Binding StockCode}"
+                                       FontSize="12"/>
+                                <Label Text="{Binding BarCode}"
+                                       FontSize="11"
+                                       TextColor="SteelBlue"/>
+                                <Label Text="{Binding BarcodeLmmp}"
+                                       FontSize="11"
+                                       TextColor="SteelBlue"
+                                       IsVisible="{Binding BarcodeLmmp, Converter={StaticResource StringNotEmpty}}"/>
+                            </VerticalStackLayout>
+                            <Label Grid.Column="1"
+                                   Text="›"
+                                   FontSize="24"
+                                   TextColor="Gray"
+                                   VerticalOptions="Center"/>
+                        </Grid>
+                    </Frame>
+                </DataTemplate>
+            </CollectionView.ItemTemplate>
+        </CollectionView>
 
         <!-- Loading Indicator -->
         <ActivityIndicator Grid.Row="1"
                           x:Name="LoadingIndicator"
-                          IsRunning="False"
-                          IsVisible="False"
+                          IsRunning="{Binding IsLoading}"
+                          IsVisible="{Binding IsLoading}"
                           HorizontalOptions="Center"
                           VerticalOptions="Center"/>
     </Grid>
-</ContentPage> 
+</ContentPage>

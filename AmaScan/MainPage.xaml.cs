@@ -107,7 +107,19 @@ namespace AmaScan
         {
             loadingIndicator.IsVisible = true;
             loadingIndicator.IsRunning = true;
-            
+
+//#if DEBUG
+//            System.Net.ServicePointManager.ServerCertificateValidationCallback +=
+//                (sender, cert, chain, sslPolicyErrors) => true;
+//#endif
+
+//            var client = new HttpClient
+//            {
+//                Timeout = TimeSpan.FromSeconds(10)
+//            };
+
+//            var resp = await client.GetAsync("http://192.168.0.100:8052/api/connection/check-connection");
+
             try
             {
                 // Run connection test on background thread

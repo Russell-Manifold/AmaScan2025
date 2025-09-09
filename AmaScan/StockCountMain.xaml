@@ -4,59 +4,38 @@
              x:Class="AmaScan.StockCountMain"
              Title="Stock Count">
 
-    <Grid RowDefinitions="Auto,*" Padding="20">
-        <!-- Header Info -->
+    <Grid RowDefinitions="Auto,Auto,Auto,*" Padding="20">
+        <!-- Header -->
         <Frame Grid.Row="0" Padding="10" BackgroundColor="LightGrey" Margin="0,0,0,10">
             <VerticalStackLayout>
-                <Label Text="Stock Counts" FontSize="18" FontAttributes="Bold"/>
-                <Label Text="Select a stock count to begin counting" FontSize="12"/>
+                <Label Text="Load Stock Count Items To Scanner" FontSize="18" FontAttributes="Bold" HorizontalTextAlignment="Center"/>
+                <Label Text="Enter Stock-Take Reference" FontSize="12" HorizontalTextAlignment="Center"/>
             </VerticalStackLayout>
         </Frame>
 
-        <!-- Stock Count Sessions List -->
-        <ScrollView Grid.Row="1">
-            <VerticalStackLayout>
-                <CollectionView ItemsSource="{Binding StockCountSessions}"
-                              SelectionMode="Single"
-                              SelectionChanged="OnSessionSelected">
-                    <CollectionView.ItemTemplate>
-                        <DataTemplate>
-                            <Frame Padding="10" Margin="0,5" 
-                                   BackgroundColor="White"
-                                   BorderColor="DarkGrey">
-                                <Frame.GestureRecognizers>
-                                    <TapGestureRecognizer Tapped="OnSessionTapped" 
-                                                          CommandParameter="{Binding}" />
-                                </Frame.GestureRecognizers>
-                                <Grid ColumnDefinitions="*,Auto">
-                                    <VerticalStackLayout Grid.Column="0">
-                                        <Label Text="{Binding BatchNo}" FontAttributes="Bold" FontSize="16" />
-                                        <Label Text="{Binding TotalItems, StringFormat='Total Items: {0}'}" />
-                                        <Label Text="{Binding CompletedItems, StringFormat='Completed: {0}'}" />
-                                    </VerticalStackLayout>
-                                    <VerticalStackLayout Grid.Column="1" HorizontalOptions="End" VerticalOptions="Center">
-                                        <Button Text="Upload Data" 
-                                                BackgroundColor="{Binding UploadButtonColor}"
-                                                TextColor="White"
-                                                Padding="10,5"
-                                                FontSize="14"
-                                                IsEnabled="{Binding HasCompletedItems}"
-                                                Clicked="OnUploadDataClicked"
-                                                CommandParameter="{Binding}" />
-                                    </VerticalStackLayout>
-                                </Grid>
-                            </Frame>
-                        </DataTemplate>
-                    </CollectionView.ItemTemplate>
-                </CollectionView>
-            </VerticalStackLayout>
-        </ScrollView>
+        <!-- Reference Entry -->
+        <Entry x:Name="ReferenceEntry"
+               Grid.Row="1"
+               Placeholder="Stock-Take reference"
+               MaxLength="20"
+               Completed="OnReferenceCompleted"
+               Margin="0,0,0,10"
+               HorizontalTextAlignment="Center"/>
+
+        <!-- Upload Button -->
+        <Button Grid.Row="2"
+                Text="Load"
+                Clicked="OnLoadClicked"
+                HorizontalOptions="Center"
+                WidthRequest="120"
+                Margin="0,0,0,20"/>
 
         <!-- Loading Indicator -->
-        <ActivityIndicator Grid.Row="1"
+        <ActivityIndicator Grid.Row="3"
                           IsRunning="{Binding IsLoading}"
                           IsVisible="{Binding IsLoading}"
                           HorizontalOptions="Center"
-                          VerticalOptions="Center"/>
+                          VerticalOptions="Start"
+                          Color="{StaticResource Primary}"/>
     </Grid>
-</ContentPage> 
+</ContentPage>

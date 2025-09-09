@@ -2,6 +2,7 @@
 using Data.Model;
 using SQLite;
 using System.Collections.Concurrent;
+using System.Diagnostics;
 
 namespace AmaScan.Classes
 {
@@ -918,42 +919,51 @@ namespace AmaScan.Classes
             await _dbConnection.InsertAsync(returnLine);
         }
         // Stock Count Operations
+       
         public async Task SaveStockCountItemsAsync(List<StockCountItem> items)
         {
-            // Get existing items to preserve progress
-            var existingItems = await _dbConnection.Table<StockCountItem>().ToListAsync().ConfigureAwait(false);
-
-            // Create lookup for existing items by StockCode
-            var existingLookup = existingItems.ToDictionary(x => x.StockCode, x => x);
-            
-            // Process each new item
-            foreach (var newItem in items)
+            await _dbConnection.ExecuteAsync("DROP INDEX IF EXISTS idx_unique_line");
+            foreach (var item in items)
             {
-                if (existingLookup.TryGetValue(newItem.StockCode, out var existingItem))
+                try
                 {
-                    // Preserve counting progress from existing item
-                    newItem.Count1Qty = existingItem.Count1Qty;
-                    newItem.Count2Qty = existingItem.Count2Qty;
-                    newItem.ConfirmCountQty = existingItem.ConfirmCountQty;
-                    newItem.CountBy = existingItem.CountBy;
-                    newItem.ConfirmBy = existingItem.ConfirmBy;
-                    newItem.CountComplete = existingItem.CountComplete;
-                    newItem.CountString = existingItem.CountString;
-                    newItem.Phase1Complete = existingItem.Phase1Complete;
-                    newItem.Phase2Complete = existingItem.Phase2Complete;
+                    // raw SQL so we control every byte
+                    var sql = @"INSERT OR REPLACE INTO StockCountItem
+                        (BatchNo, StockCode, StockItemIsActive, ProductGroup, StockCategory,
+                         StockDescription, BarCode, BarcodeLmmp, WarehouseCode,
+                         Pack, Level, Count1Qty, Count2Qty, CountBy,
+                         ConfirmCountQty, ConfirmBy, CountComplete, CountString,
+                         Phase1Complete, Phase2Complete)
+                        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?);";
+
+                    var rows = await _dbConnection.ExecuteAsync(sql,
+                        item.BatchNo,
+                        item.StockCode,
+                        item.StockItemIsActive,
+                        item.ProductGroup,
+                        item.StockCategory,
+                        item.StockDescription,
+                        item.BarCode,
+                        item.BarcodeLmmp,
+                        item.WarehouseCode,
+                        item.Pack,
+                        item.Level,
+                        item.Count1Qty,
+                        item.Count2Qty,
+                        item.CountBy,
+                        item.ConfirmCountQty,
+                        item.ConfirmBy,
+                        item.CountComplete,
+                        item.CountString,
+                        item.Phase1Complete,
+                        item.Phase2Complete);
+                }
+                catch (Exception ex)
+                {
+                    Debug.WriteLine($"FAILED BatchNo={item.BatchNo}, StockCode={item.StockCode} → {ex.Message}");
                 }
             }
-            
-            // Replace all items (preserving progress)
-            await _dbConnection.DeleteAllAsync<StockCountItem>().ConfigureAwait(false);
-            await _dbConnection.InsertAllAsync(items).ConfigureAwait(false);    
 
-            // Clear stock count cache when data is updated
-            _stockCountItemCache.Clear();
-            foreach (var key in _cacheTimestamps.Keys.Where(k => k.StartsWith("stockcount_")))
-            {
-                _cacheTimestamps.TryRemove(key, out _);
-            }
         }
         public async Task<List<StockCountItem>> GetStockCountItemsAsync()
         {
@@ -1004,6 +1014,19 @@ namespace AmaScan.Classes
                 _stockCountItemCache.TryRemove(item.StockCode, out _);
                 _cacheTimestamps.TryRemove($"stockcount_{item.StockCode}", out _);
             }
+        }
+
+        public async Task<List<StockCountItem>> GetStockCountItemsByBatchAsync(string batchNo)
+        {
+            //Debug.WriteLine($"Querying database for batch: {batchNo}");
+            var query = _dbConnection.Table<StockCountItem>().Where(item => item.BatchNo == batchNo);
+            var list = await query.ToListAsync();
+           // Debug.WriteLine($"Query returned {list.Count} items for batch {batchNo}");
+            //foreach (var item in list)
+            //{
+            //    Debug.WriteLine($"Loaded item: BatchNo={item.BatchNo}, StockCode={item.StockCode}");
+            //}
+            return list;
         }
         public async Task<List<StockCountItem>> GetIncompleteStockCountsAsync()
         {

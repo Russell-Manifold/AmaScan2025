@@ -19,7 +19,7 @@
 
             <!-- SO Number -->
             <Label Grid.Row="1" Grid.Column="0" Text="SO Number" FontSize="18"/>
-            <Entry Grid.Row="1" Grid.Column="1" x:Name="soEntry" Placeholder="(Optional)" Keyboard="Numeric" FontSize="18"/>
+            <Entry Grid.Row="1" Grid.Column="1" x:Name="soEntry" Placeholder="(Optional)" FontSize="18"/>
 
             <!-- Barcode -->
             <Label Grid.Row="2" Grid.Column="0" Text="Barcode" FontSize="18"/>
@@ -42,13 +42,13 @@
                 HorizontalOptions="End"/>
 
             <!-- Quantity -->
-            <Label Grid.Row="4" Grid.Column="0" Text="Quantity" VerticalOptions="Center"/>
+            <Label Grid.Row="4" Grid.Column="0" Text="Quantity" VerticalOptions="Start"/>
             <Entry Grid.Row="4" Grid.Column="1"
                x:Name="QuantityEntry"
                Placeholder="Qty"
                Keyboard="Numeric"
-               MaxLength="5"
-               HorizontalTextAlignment="Center"
+               MaxLength="6"
+               HorizontalTextAlignment="Start"
                TextChanged="QuantityEntry_TextChanged"
                MinimumWidthRequest="60"
                MaximumWidthRequest="60"/>
