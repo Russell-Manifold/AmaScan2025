@@ -9,13 +9,14 @@
         <ToolbarItem IconImageSource="resumeimg.png" Clicked="OnRestartClicked" Order="Primary" Priority="1" />
     </ContentPage.ToolbarItems>
 
+    <ScrollView>
     <Grid Padding="20" RowDefinitions="*,Auto">
         <!-- Main Content -->
-        <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto" ColumnDefinitions="Auto,*" ColumnSpacing="10" RowSpacing="15">
+        <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto, Auto, Auto" ColumnDefinitions="Auto,*" ColumnSpacing="10" RowSpacing="15">
 
             <!-- Warehouse -->
             <Label Grid.Row="0" Grid.Column="0" Text="Warehouse:" FontAttributes="Bold" FontSize="18"/>
-            <Label Grid.Row="0" Grid.Column="1" Text="{Binding ReturnsWarehouse}" FontSize="18" HorizontalOptions="StartAndExpand"/>
+            <Label Grid.Row="0" Grid.Column="1" Text="{Binding ReturnsWarehouse}" FontSize="18" />
 
             <!-- SO Number -->
             <Label Grid.Row="1" Grid.Column="0" Text="SO Number" FontSize="18"/>
@@ -31,39 +32,51 @@
                                    FontSize="18"
                                    BackgroundColor="Transparent"
                                    Focused="OnBarcodeFocused"
-                                   Unfocused="OnBarcodeUnfocused"/>
-
+                                   Unfocused="OnBarcodeUnfocused"
+                                      TextChanged="OnBarcodeCompleted"/>
+            <Label x:Name="DescriptionLabel" Grid.Row="3" Grid.Column="0" Text="Manual" VerticalOptions="Start"/>
+            
             <!-- Manual Input -->
-            <Label Grid.Row="3" Grid.Column="0" Text="Manual" VerticalOptions="Center"/>
-            <Switch Grid.Row="3" Grid.Column="1"
+            <Label Grid.Row="4" Grid.Column="0" Text="Manual" VerticalOptions="Center"/>
+            <Switch Grid.Row="4" Grid.Column="1"
                 x:Name="ManualInputSwitch"
                 IsToggled="False"
                 Toggled="OnManualInputToggled"
                 HorizontalOptions="End"/>
 
             <!-- Quantity -->
-            <Label Grid.Row="4" Grid.Column="0" Text="Quantity" VerticalOptions="Start"/>
-            <Entry Grid.Row="4" Grid.Column="1"
+            <Label Grid.Row="5" Grid.Column="0" Text="Quantity" HorizontalOptions="Start"/>
+            <Entry Grid.Row="5" Grid.Column="1"
                x:Name="QuantityEntry"
                Placeholder="Qty"
                Keyboard="Numeric"
                MaxLength="6"
-               HorizontalTextAlignment="Start"
+               HorizontalOptions="Start"
                TextChanged="QuantityEntry_TextChanged"
                MinimumWidthRequest="60"
-               MaximumWidthRequest="60"/>
+               MaximumWidthRequest="60"
+               Focused="QuantityEntry_Focused"/>
 
             <!-- Reason -->
-            <Label Grid.Row="5" Grid.Column="0" Text="Reason" VerticalOptions="Center"/>
-            <Picker Grid.Row="5" Grid.Column="1"
+            <Label Grid.Row="6" Grid.Column="0" Text="Reason" HorizontalOptions="Start"/>
+            <Picker Grid.Row="6" Grid.Column="1" x:Name="ddReason"
                 Title="Select Reason"
                 SelectedItem="{Binding SelectedReturnReason}"
                 ItemsSource="{Binding ReturnReasons}"
                 HorizontalTextAlignment="Center"
-                MinimumWidthRequest="120"/>
+                MinimumWidthRequest="120"
+                HorizontalOptions="Start"/>
 
+            <Label Grid.Row="7" Grid.Column="0" Text="Comments" HorizontalOptions="Start"/>
+            <Editor Grid.Row="7" Grid.Column="1" x:Name="Comments"
+            Placeholder="Comments"
+            MinimumHeightRequest="100"
+            MaxLength="250"
+            AutoSize="TextChanges" />
             <!-- Process Button -->
-            <Button Grid.Row="6" Grid.Column="0" Grid.ColumnSpan="2"
+           
+            
+            <Button Grid.Row="8" Grid.Column="0" Grid.ColumnSpan="2"
                 x:Name="ProcessReturnButton"
                 Text="Process Return"
                 BackgroundColor="Green"
@@ -86,4 +99,5 @@
                            Scale="1.5"/>
         </Grid>
     </Grid>
+    </ScrollView>
 </ContentPage> 

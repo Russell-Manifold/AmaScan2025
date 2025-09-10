@@ -1,12 +1,8 @@
 using AmaScan.Classes;
 using AmaScan.sqliteModels;
-using SQLite;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
-using Microsoft.Maui.Dispatching;
-using System.Windows.Input;
-using Microsoft.Maui.Storage;
 using System.Net.Http.Json;
 using Data.Model;
 
@@ -88,7 +84,8 @@ namespace AmaScan
 
             BarcodeEntry.Text = string.Empty;
             QuantityEntry.Text = string.Empty;
-
+            Comments.Text = string.Empty;
+            ddReason.SelectedIndex = -1;
             // Reset manual input toggle
             ManualInputSwitch.IsToggled = false;
             BarcodeEntry.IsReadOnly = true;
@@ -352,6 +349,33 @@ namespace AmaScan
             {
                 ve.BackgroundColor = Colors.White; // Reset to white
             }
+        }
+        private async void OnBarcodeCompleted(object sender, EventArgs e)
+        {
+            var code = BarcodeEntry.Text?.Trim();
+            if (string.IsNullOrWhiteSpace(code)) return;
+
+            if (code.Length < 10) return;
+            var item = await App.Db.ResolveStockItemByBarcodeAsync(code);
+            if (item == null)
+            {
+                return;
+            }
+            DescriptionLabel.Text = item.stock_description;
+        }
+
+        private async void QuantityEntry_Focused(object sender, FocusEventArgs e)
+        {
+            var code = BarcodeEntry.Text?.Trim();
+            if (string.IsNullOrWhiteSpace(code)) return;
+
+            var item = await App.Db.ResolveStockItemByBarcodeAsync(code);
+            if (item == null)
+            {
+                await DisplayAlert("Not found", "Barcode not recognised", "OK");
+                return;
+            }
+            DescriptionLabel.Text = item.stock_description;
         }
     }
 }
