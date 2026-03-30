@@ -20,7 +20,7 @@ namespace AmaScan.Classes
         private readonly SQLiteAsyncConnection _dbConnection;
         // expose it
         public SQLiteAsyncConnection Connection => _dbConnection;
-  
+
         // Cache for frequently accessed data
         private static readonly ConcurrentDictionary<string, StockItem> _stockItemCache = new();
         private static readonly ConcurrentDictionary<string, Warehouse> _warehouseCache = new();
@@ -326,7 +326,7 @@ namespace AmaScan.Classes
             }
         }
 
-       private void UpdatePoLineFromFreshData(PoLine existingLine, PurchaseOrderLine freshLine)
+        private void UpdatePoLineFromFreshData(PoLine existingLine, PurchaseOrderLine freshLine)
         {
             if (existingLine == null || freshLine == null)
                 throw new ArgumentNullException("PoLine or PurchaseOrderLine is null.");
@@ -455,7 +455,7 @@ namespace AmaScan.Classes
             return count > 0;
         }
 
-       public async Task<List<SoLine>> GetSoLinesByOrderNoAsync(string orderNo)
+        public async Task<List<SoLine>> GetSoLinesByOrderNoAsync(string orderNo)
         {
             if (string.IsNullOrWhiteSpace(orderNo))
                 return new List<SoLine>();
@@ -561,7 +561,7 @@ namespace AmaScan.Classes
                 }
             }).ConfigureAwait(false);
         }
-        
+
         public async Task MergeSoDataAsync(SalesOrderResponse freshData)
         {
             if (freshData?.Lines == null || !freshData.Lines.Any())
@@ -580,6 +580,8 @@ namespace AmaScan.Classes
                     existingHeader.AreaDescription = freshData.AreaDescription;
                     existingHeader.DueDate = freshData.DueDate;
                     existingHeader.OrderStatus = freshData.OrderStatus;
+                    existingHeader.Picker = freshData.Picker;
+                    existingHeader.Sequence = freshData.Sequence.HasValue ? (double?)freshData.Sequence.Value : null;
                     existingHeader.JsonData = System.Text.Json.JsonSerializer.Serialize(freshData);
                     await UpdateAsync(existingHeader);
                 }
@@ -593,6 +595,8 @@ namespace AmaScan.Classes
                         AreaDescription = freshData.AreaDescription,
                         DueDate = freshData.DueDate,
                         OrderStatus = freshData.OrderStatus,
+                        Picker = freshData.Picker,
+                        Sequence = freshData.Sequence.HasValue ? (double?)freshData.Sequence.Value : null,
                         JsonData = System.Text.Json.JsonSerializer.Serialize(freshData)
                     };
                     await InsertAsync(existingHeader);
@@ -604,7 +608,7 @@ namespace AmaScan.Classes
 
                 var linesToUpdate = new List<SoLine>();
                 var linesToInsert = new List<SoLine>();
-               
+
                 foreach (var freshLine in freshData.Lines)
                 {
                     var key = $"{freshLine.ItemCode}_{freshLine.ItemBarcode}";
@@ -919,7 +923,7 @@ namespace AmaScan.Classes
             await _dbConnection.InsertAsync(returnLine);
         }
         // Stock Count Operations
-       
+
         public async Task SaveStockCountItemsAsync(List<StockCountItem> items)
         {
             await _dbConnection.ExecuteAsync("DROP INDEX IF EXISTS idx_unique_line");
@@ -1021,7 +1025,7 @@ namespace AmaScan.Classes
             //Debug.WriteLine($"Querying database for batch: {batchNo}");
             var query = _dbConnection.Table<StockCountItem>().Where(item => item.BatchNo == batchNo);
             var list = await query.ToListAsync();
-           // Debug.WriteLine($"Query returned {list.Count} items for batch {batchNo}");
+            // Debug.WriteLine($"Query returned {list.Count} items for batch {batchNo}");
             //foreach (var item in list)
             //{
             //    Debug.WriteLine($"Loaded item: BatchNo={item.BatchNo}, StockCode={item.StockCode}");

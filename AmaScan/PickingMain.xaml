@@ -4,15 +4,31 @@
              x:Class="AmaScan.PickingMain"
              Title="Picking - Load SO">
     <ContentPage.ToolbarItems>
-        <ToolbarItem x:Name="ResetSO" IconImageSource="resumeimg.png" Clicked="OnResetClicked" Order="Primary" Priority="1" />
+        <ToolbarItem x:Name="RefreshButton" Text="Refresh" Clicked="OnRefreshClicked" Order="Primary" Priority="1" />
+        <ToolbarItem x:Name="ResetSO" IconImageSource="resumeimg.png" Clicked="OnResetClicked" Order="Primary" Priority="2" />
     </ContentPage.ToolbarItems>
 
     <Grid RowDefinitions="Auto,*,Auto" Padding="20">
         <!-- Top Section -->
         <VerticalStackLayout Grid.Row="0" Spacing="10">
-            <Label Text="Enter SO Number" FontSize="18" />
-            <Entry x:Name="soEntry" Placeholder="e.g., 000123" Keyboard="Numeric" />
-            <Button Text="Fetch SO" Clicked="OnFetchSOClicked" />
+            <!-- Search Section (only visible when no orders assigned) -->
+            <VerticalStackLayout x:Name="SearchSection" Spacing="10">
+                <Label Text="Enter SO Number" FontSize="18" />
+                <Entry x:Name="soEntry" Placeholder="e.g., 000123" Keyboard="Numeric" />
+                <Button Text="Fetch SO" Clicked="OnFetchSOClicked" />
+            </VerticalStackLayout>
+
+            <!-- Next Order Info (visible when order is loaded) -->
+            <Label x:Name="nextOrderLabel" 
+                   Text="Next Order in Sequence" 
+                   FontSize="16" 
+                   FontAttributes="Bold" 
+                   IsVisible="False" />
+            <Label x:Name="sequenceLabel" 
+                   Text="" 
+                   FontSize="14" 
+                   IsVisible="False" />
+
             <ActivityIndicator x:Name="loadingIndicator" IsVisible="False" IsRunning="False" />
             <Frame Padding="10" BackgroundColor="LightGray" IsVisible="False" x:Name="soHeaderFrame">
                 <VerticalStackLayout>

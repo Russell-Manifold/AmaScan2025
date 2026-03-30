@@ -1,11 +1,17 @@
-using AmaScan.sqliteModels;
 using AmaScan.Classes;
+using AmaScan.Models;
+using AmaScan.sqliteModels;
+using Data.Model;
+using Java.Lang.Ref;
+using Newtonsoft.Json;
+using SQLite;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
-using System.Runtime.CompilerServices;
-using System.Threading.Tasks;
 using System.Linq;
-using SQLite;
+using System.Net.Http;
+using System.Runtime.CompilerServices;
+using System.Text;
+using System.Threading.Tasks;
 
 namespace AmaScan;
 
@@ -198,7 +204,7 @@ public partial class PickingPage : ContentPage, INotifyPropertyChanged
         string currentUserName = GetCurrentUserName();
 
         // Set the header-level user for picking
-        await App.Db.SetPhaseUserAsync(_soHeader.Reference, currentUserName, "picking");;
+        await App.Db.SetPhaseUserAsync(_soHeader.Reference, currentUserName, "picking"); ;
 
         // Set the line-level flag
         if (SelectedLine != null)
@@ -260,6 +266,10 @@ public partial class PickingPage : ContentPage, INotifyPropertyChanged
             {
                 await App.Db.UpdateSoLineAsync(line);
             }
+
+            // Check if all lines are picked and update header accordingly
+            bool allLinesPicked = await App.Db.AreAllLinesPickedAsync(_soHeader.Reference);
+            _soHeader.Picked = allLinesPicked;
 
             await App.Db.UpdateSoHeaderAsync(_soHeader);
             PickingWorkflowSession.CurrentSoHeader = _soHeader;
@@ -362,7 +372,7 @@ public partial class PickingPage : ContentPage, INotifyPropertyChanged
         try
         {
             var soLines = await App.Db.GetSoLinesByOrderNoAsync(_soHeader.Reference);
-            bool success = await SendToApiForCompletionAsync(_soHeader.Reference, soLines);
+            bool success = await SendToApiForCompletionAsync(_soHeader);
 
             if (success)
             {
@@ -376,8 +386,9 @@ public partial class PickingPage : ContentPage, INotifyPropertyChanged
                     $"Next phase: Packing\n\n" +
                     $"Order: {_soHeader.Reference}", "OK");
 
-                var dashboard = App.Services.GetRequiredService<Dashboard>();
-                await Navigation.PushAsync(dashboard);
+                // Navigate directly to picking dashboard
+                var dashboardPicking = App.Services.GetRequiredService<DashboardPicking>();
+                await Navigation.PushAsync(dashboardPicking);
             }
             else
             {
@@ -506,6 +517,20 @@ public partial class PickingPage : ContentPage, INotifyPropertyChanged
 
         await App.Db.UpdateSoLineAsync(lineInCollection);
 
+        // Check if all lines are picked and update header accordingly
+        bool allLinesPicked = await App.Db.AreAllLinesPickedAsync(_soHeader.Reference);
+        if (allLinesPicked && !_soHeader.Picked)
+        {
+            _soHeader.Picked = true;
+            await App.Db.UpdateSoHeaderAsync(_soHeader);
+        }
+        else if (!allLinesPicked && _soHeader.Picked)
+        {
+            // If a line was reset and not all lines are picked anymore, update header
+            _soHeader.Picked = false;
+            await App.Db.UpdateSoHeaderAsync(_soHeader);
+        }
+
         if (SelectedLine?.Id == lineInCollection.Id)
         {
             SelectedLine = lineInCollection;
@@ -576,6 +601,10 @@ public partial class PickingPage : ContentPage, INotifyPropertyChanged
 
         await App.Db.UpdateSoLineAsync(SelectedLine);
 
+        // Check if all lines are still picked after reset, and update header accordingly
+        bool allLinesPicked = await App.Db.AreAllLinesPickedAsync(_soHeader.Reference);
+        _soHeader.Picked = allLinesPicked;
+
         // Reset the Picker field in the header (this field exists in the database)
         _soHeader.Picker = null;
         _soHeader.PickStarted = false;
@@ -594,17 +623,41 @@ public partial class PickingPage : ContentPage, INotifyPropertyChanged
         await DisplayAlert("Reset Complete", $"Successfully reset {SelectedLine.ItemDesc}", "OK");
     }
 
-    private async Task<bool> SendToApiForCompletionAsync(string soNumber, List<SoLine> soLines)
+    private async Task<bool> SendToApiForCompletionAsync(SoHeader soHeader)
     {
         try
         {
-            // TODO: Implement API call when needed
-            // var result = await ApiService.SubmitCompletedSoAsync(soNumber, soLines);
-            // return result.IsSuccess;
-            return true;
+            var client = new HttpClient();
+
+            // Create the request payload matching SalesOrderUpdateRequest model
+            var payload = new SalesHeaderUpdateRequest
+            {
+                Reference = soHeader.Reference,
+                Picker = soHeader.Picker,
+                PickStarted = soHeader.PickStarted,
+                Picked = soHeader.Picked
+            };
+
+            string json = JsonConvert.SerializeObject(payload);
+            var content = new StringContent(json, Encoding.UTF8, "application/json");
+
+            string url = $"{AppConfig.ApiBaseUrl}UpdateSalesOrderHeader";
+            var response = await client.PostAsync(url, content);
+
+            if (response.IsSuccessStatusCode)
+            {
+                return true;
+            }
+            else
+            {
+                string errorContent = await response.Content.ReadAsStringAsync();
+                System.Diagnostics.Debug.WriteLine($"API Error: {response.StatusCode} - {errorContent}");
+                return false;
+            }
         }
-        catch
+        catch (Exception ex)
         {
+            System.Diagnostics.Debug.WriteLine($"SendToApiForCompletionAsync Error: {ex.Message}");
             return false;
         }
     }
