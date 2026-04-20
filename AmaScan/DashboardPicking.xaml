@@ -48,7 +48,8 @@
                          Clicked="OnPage3Clicked"/>
                 <Label Text="Picking"
                        HorizontalOptions="Center"
-                       VerticalOptions="Center"/>
+                       VerticalOptions="Center"
+                       IsVisible="{Binding CanPick}"/>
 
                 <!-- 🔘 Image Button 4 - Packing -->
                 <ImageButton x:Name="BtnPacking" Source="receivestck.png" IsVisible="{Binding CanPack}"
@@ -57,7 +58,8 @@
                          Clicked="OnPage4Clicked"/>
                 <Label Text="Packing"
                        HorizontalOptions="Center"
-                       VerticalOptions="Center"/>
+                       VerticalOptions="Center"
+                       IsVisible="{Binding CanPack}"/>
 
                 <!-- 🔘 Image Button 5 - Checking -->
                 <ImageButton x:Name="BtnChecking" Source="receivestck.png" IsVisible="{Binding CanCheck}"
@@ -66,7 +68,8 @@
                          Clicked="OnPage5Clicked"/>
                 <Label Text="Checking"
                        HorizontalOptions="Center"
-                       VerticalOptions="Center"/>
+                       VerticalOptions="Center"
+                       IsVisible="{Binding CanCheck}"/>
 
                 <!-- 🔘 Image Button 6 - Authorization -->
                 <ImageButton x:Name="BtnAuthorization" Source="receivestck.png" IsVisible="{Binding CanAuth}"
@@ -75,7 +78,8 @@
                          Clicked="OnPage6Clicked"/>
                 <Label Text="Authorization"
                        HorizontalOptions="Center"
-                       VerticalOptions="Center"/>
+                       VerticalOptions="Center"
+                       IsVisible="{Binding CanAuth}"/>
 
 
             </VerticalStackLayout>

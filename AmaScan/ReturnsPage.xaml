@@ -9,95 +9,101 @@
         <ToolbarItem IconImageSource="resumeimg.png" Clicked="OnRestartClicked" Order="Primary" Priority="1" />
     </ContentPage.ToolbarItems>
 
-    <ScrollView>
-    <Grid Padding="20" RowDefinitions="*,Auto">
-        <!-- Main Content -->
-        <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto,Auto,Auto, Auto, Auto" ColumnDefinitions="Auto,*" ColumnSpacing="10" RowSpacing="15">
+    <!-- Root Grid allows ScrollView + Overlay to stack on top of each other -->
+    <Grid>
+        <ScrollView>
+            <VerticalStackLayout Padding="20" Spacing="4">
 
-            <!-- Warehouse -->
-            <Label Grid.Row="0" Grid.Column="0" Text="Warehouse:" FontAttributes="Bold" FontSize="18"/>
-            <Label Grid.Row="0" Grid.Column="1" Text="{Binding ReturnsWarehouse}" FontSize="18" />
+                <!-- Warehouse -->
+                <Label Text="Warehouse:" FontAttributes="Bold" FontSize="18"/>
+                <Label Text="{Binding ReturnsWarehouse}" FontSize="18" Margin="0,0,0,10"/>
 
-            <!-- SO Number -->
-            <Label Grid.Row="1" Grid.Column="0" Text="SO Number" FontSize="18"/>
-            <Entry Grid.Row="1" Grid.Column="1" x:Name="soEntry" Placeholder="(Optional)" FontSize="18"/>
+                <!-- SO Number -->
+                <Label Text="SO Number" FontSize="18"/>
+                <Entry x:Name="soEntry" Placeholder="(Optional)" FontSize="18" Margin="0,0,0,10"/>
 
-            <!-- Barcode -->
-            <Label Grid.Row="2" Grid.Column="0" Text="Barcode" FontSize="18"/>
-            <controls:NoKeyboardEntry Grid.Row="2" Grid.Column="1"
-                                   x:Name="BarcodeEntry"
-                                   Placeholder="Barcode"
-                                   MaxLength="15"
-                                   Keyboard="Numeric"
-                                   FontSize="18"
-                                   BackgroundColor="Transparent"
-                                   Focused="OnBarcodeFocused"
-                                   Unfocused="OnBarcodeUnfocused"
-                                      TextChanged="OnBarcodeCompleted"/>
-            <Label x:Name="DescriptionLabel" Grid.Row="3" Grid.Column="0" Text="Manual" VerticalOptions="Start"/>
-            
-            <!-- Manual Input -->
-            <Label Grid.Row="4" Grid.Column="0" Text="Manual" VerticalOptions="Center"/>
-            <Switch Grid.Row="4" Grid.Column="1"
-                x:Name="ManualInputSwitch"
-                IsToggled="False"
-                Toggled="OnManualInputToggled"
-                HorizontalOptions="End"/>
+                <!-- Barcode -->
+                <Label Text="Barcode" FontSize="18"/>
+                <controls:NoKeyboardEntry
+                    x:Name="BarcodeEntry"
+                    Placeholder="Barcode"
+                    MaxLength="15"
+                    Keyboard="Numeric"
+                    FontSize="18"
+                    BackgroundColor="Transparent"
+                    Focused="OnBarcodeFocused"
+                    Unfocused="OnBarcodeUnfocused"
+                    TextChanged="OnBarcodeCompleted"
+                    Margin="0,0,0,10"/>
 
-            <!-- Quantity -->
-            <Label Grid.Row="5" Grid.Column="0" Text="Quantity" HorizontalOptions="Start"/>
-            <Entry Grid.Row="5" Grid.Column="1"
-               x:Name="QuantityEntry"
-               Placeholder="Qty"
-               Keyboard="Numeric"
-               MaxLength="6"
-               HorizontalOptions="Start"
-               TextChanged="QuantityEntry_TextChanged"
-               MinimumWidthRequest="60"
-               MaximumWidthRequest="60"
-               Focused="QuantityEntry_Focused"/>
+                <!-- Description -->
+                <Label x:Name="DescriptionLabel" Text="Description" Margin="0,0,0,10"/>
 
-            <!-- Reason -->
-            <Label Grid.Row="6" Grid.Column="0" Text="Reason" HorizontalOptions="Start"/>
-            <Picker Grid.Row="6" Grid.Column="1" x:Name="ddReason"
-                Title="Select Reason"
-                SelectedItem="{Binding SelectedReturnReason}"
-                ItemsSource="{Binding ReturnReasons}"
-                HorizontalTextAlignment="Center"
-                MinimumWidthRequest="120"
-                HorizontalOptions="Start"/>
+                <!-- Manual Input -->
+                <Label Text="Manual Input" FontSize="18"/>
+                <Switch
+                    x:Name="ManualInputSwitch"
+                    IsToggled="False"
+                    Toggled="OnManualInputToggled"
+                    HorizontalOptions="Start"
+                    Margin="0,0,0,10"/>
 
-            <Label Grid.Row="7" Grid.Column="0" Text="Comments" HorizontalOptions="Start"/>
-            <Editor Grid.Row="7" Grid.Column="1" x:Name="Comments"
-            Placeholder="Comments"
-            MinimumHeightRequest="100"
-            MaxLength="250"
-            AutoSize="TextChanges" />
-            <!-- Process Button -->
-           
-            
-            <Button Grid.Row="8" Grid.Column="0" Grid.ColumnSpan="2"
-                x:Name="ProcessReturnButton"
-                Text="Process Return"
-                BackgroundColor="Green"
-                TextColor="White"
-                Margin="0,20,0,0"
-                Clicked="OnSaveProgressClicked"/>
-        </Grid>
+                <!-- Quantity -->
+                <Label Text="Quantity" FontSize="18"/>
+                <Entry
+                    x:Name="QuantityEntry"
+                    Placeholder="Qty"
+                    Keyboard="Numeric"
+                    MaxLength="6"
+                    HorizontalOptions="Start"
+                    TextChanged="QuantityEntry_TextChanged"
+                    MinimumWidthRequest="80"
+                    MaximumWidthRequest="80"
+                    Focused="QuantityEntry_Focused"
+                    Margin="0,0,0,10"/>
 
-        <!-- Loading Overlay -->
+                <!-- Reason -->
+                <Label Text="Reason" FontSize="18"/>
+                <Picker x:Name="ddReason"
+                    Title="Select Reason"
+                    SelectedItem="{Binding SelectedReturnReason}"
+                    ItemsSource="{Binding ReturnReasons}"
+                    HorizontalOptions="Fill"
+                    Margin="0,0,0,10"/>
+
+                <!-- Comments -->
+                <Label Text="Comments" FontSize="18"/>
+                <Editor x:Name="Comments"
+                    Placeholder="Comments"
+                    MinimumHeightRequest="100"
+                    MaxLength="250"
+                    AutoSize="TextChanges"
+                    Margin="0,0,0,20"/>
+
+                <!-- Process Button -->
+                <Button
+                    x:Name="ProcessReturnButton"
+                    Text="Process Return"
+                    BackgroundColor="Green"
+                    TextColor="White"
+                    HorizontalOptions="Fill"
+                    Clicked="OnSaveProgressClicked"/>
+
+            </VerticalStackLayout>
+        </ScrollView>
+
+        <!-- Loading Overlay sits on top of ScrollView, covers full screen -->
         <Grid x:Name="LoadingOverlay"
-          Grid.RowSpan="2"
-          IsVisible="False"
-          BackgroundColor="Black"
-          Opacity="0.5">
+            IsVisible="False"
+            BackgroundColor="Black"
+            Opacity="0.5">
             <ActivityIndicator x:Name="loadingIndicator"
-                           IsRunning="False"
-                           HorizontalOptions="Center"
-                           VerticalOptions="Center"
-                           Color="White"
-                           Scale="1.5"/>
+                IsRunning="False"
+                HorizontalOptions="Center"
+                VerticalOptions="Center"
+                Color="White"
+                Scale="1.5"/>
         </Grid>
+
     </Grid>
-    </ScrollView>
-</ContentPage> 
+</ContentPage>

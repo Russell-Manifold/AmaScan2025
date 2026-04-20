@@ -25,7 +25,7 @@ public partial class SettingsPage : ContentPage
         ApiUrlEntry.Text = AppConfig.ApiBaseUrl;
         ApiUrlEntry.IsEnabled = false;
         LocationSwitch.Toggled += LocationSwitch_Toggled;
-        LocationSwitch.IsToggled = AppConfig.IsOnSite;
+        //LocationSwitch.IsToggled = AppConfig.IsOnSite;
         LoadWarehouses();
     }
 
@@ -33,6 +33,7 @@ public partial class SettingsPage : ContentPage
     {
         AppConfig.IsOnSite = e.Value;
         ApiUrlEntry.Text = AppConfig.ApiBaseUrl;
+        //ApiUrlEntry.Text = "http://175.25.97.2:8079/api/";
     }
 
     private async void LoadWarehouses()
@@ -129,6 +130,7 @@ public partial class SettingsPage : ContentPage
 
             ConfirmationLabel.Text = "API URL and Default Warehouse saved.";
             ConfirmationLabel.IsVisible = true;
+        //ApiUrlEntry.IsEnabled = false;
     }
 
     private void SaveWarehouseSelection(Picker picker, string preferenceKey)

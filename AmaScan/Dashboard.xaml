@@ -46,7 +46,7 @@
                                  Clicked="OnPage1Clicked"/>
                     <Label Text="Receiving"
                            HorizontalOptions="Center"
-                           VerticalOptions="Center" FontSize="Small"/>
+                           VerticalOptions="Center" FontSize="Small" IsVisible="{Binding CanReceive}"/>
                 </VerticalStackLayout>
 
                 <!-- Column 2 -->
@@ -59,7 +59,7 @@
                                  Clicked="OnPage2Clicked"/>
                     <Label Text="W/hse Transfer"
                            HorizontalOptions="Center"
-                           VerticalOptions="Center" FontSize="Small"/>
+                           VerticalOptions="Center" FontSize="Small" IsVisible="{Binding CanTransfer}"/>
                 </VerticalStackLayout>
 
                 <!-- Row 2 -->
