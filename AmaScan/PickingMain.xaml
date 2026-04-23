@@ -4,74 +4,66 @@
              x:Class="AmaScan.PickingMain"
              Title="Picking - Load SO">
     <ContentPage.ToolbarItems>
-        <ToolbarItem x:Name="RefreshButton" Text="Refresh" Clicked="OnRefreshClicked" Order="Primary" Priority="1" />
+        <ToolbarItem x:Name="RefreshButton" IconImageSource="refresh.PNG"  Clicked="OnRefreshClicked" Order="Primary" Priority="1" />
         <ToolbarItem x:Name="ResetSO" IconImageSource="resumeimg.png" Clicked="OnResetClicked" Order="Primary" Priority="2" />
     </ContentPage.ToolbarItems>
-
     <Grid RowDefinitions="Auto,*,Auto" Padding="20">
         <!-- Top Section -->
         <VerticalStackLayout Grid.Row="0" Spacing="10">
-            <!-- Search Section (only visible when no orders assigned) -->
             <VerticalStackLayout x:Name="SearchSection" Spacing="10">
-                <Label Text="Enter SO Number" FontSize="18" />
-                <Entry x:Name="soEntry" Placeholder="e.g., 000123" Keyboard="Numeric" />
-                <Button Text="Fetch SO" Clicked="OnFetchSOClicked" />
+                <Label Text="Enter SO Number" FontSize="20" />
+                <Entry x:Name="soEntry" Placeholder="e.g., 000123" Keyboard="Numeric" FontSize="20"/>
+                <Button Text="Fetch SO" Clicked="OnFetchSOClicked" FontSize="18"/>
             </VerticalStackLayout>
-
-            <!-- Next Order Info (visible when order is loaded) -->
-            <Label x:Name="nextOrderLabel" 
-                   Text="Next Order in Sequence" 
-                   FontSize="16" 
-                   FontAttributes="Bold" 
+            <Label x:Name="sequenceLabel"
+                   Text=""
+                   FontSize="14"
                    IsVisible="False" />
-            <Label x:Name="sequenceLabel" 
-                   Text="" 
-                   FontSize="14" 
-                   IsVisible="False" />
-
             <ActivityIndicator x:Name="loadingIndicator" IsVisible="False" IsRunning="False" />
             <Frame Padding="10" BackgroundColor="LightGray" IsVisible="False" x:Name="soHeaderFrame">
-                <VerticalStackLayout>
-                    <Label x:Name="customerLabel" FontAttributes="Bold" />
-                    <Label x:Name="dueDateLabel" />
+                <VerticalStackLayout Spacing="4">
+                    <Label x:Name="customerLabel" FontAttributes="Bold" FontSize="16"/>
+                    <Label x:Name="dueDateLabel" FontSize="16"/>
                 </VerticalStackLayout>
             </Frame>
         </VerticalStackLayout>
 
         <!-- Middle Section - SO Lines -->
         <ScrollView Grid.Row="1">
-            <VerticalStackLayout>
-                <CollectionView x:Name="soLinesView" 
-                              IsVisible="False">
-                    <CollectionView.ItemTemplate>
-                        <DataTemplate>
-                            <Frame Padding="10" Margin="0,5" BackgroundColor="{Binding StatusColor}">
-                                <VerticalStackLayout>
-                                    <Label Text="{Binding ItemDesc}" FontAttributes="Bold" />
-                                    <Label Text="{Binding ItemCode, StringFormat='Item Code: {0}'}" />
-                                    <Label Text="{Binding ItemBarcode, StringFormat='Barcode: {0}'}"/>
-                                    <Label Text="{Binding PackSize, StringFormat='Pack Size: {0}'}"/>
-                                    <Label Text="{Binding OrderedQty, StringFormat='Ordered Qty: {0}'}" />
-                                    <Label Text="{Binding DiscrepancyStatus}" 
-                                           TextColor="Red"
-                                           IsVisible="{Binding ShowDiscrepancyStatus}"
-                                           HeightRequest="0"/>
-                                </VerticalStackLayout>
-                            </Frame>
-                        </DataTemplate>
-                    </CollectionView.ItemTemplate>
-                </CollectionView>
-            </VerticalStackLayout>
+            <CollectionView x:Name="soLinesView" IsVisible="False">
+                <CollectionView.ItemTemplate>
+                    <DataTemplate>
+                        <Frame Padding="10" Margin="0,5" BackgroundColor="{Binding StatusColor}">
+                            <VerticalStackLayout Spacing="4">
+                                <Label Text="{Binding ItemDesc}" FontAttributes="Bold" FontSize="16" HorizontalOptions="Fill"/>
+                                <Grid ColumnDefinitions="Auto,Auto" ColumnSpacing="16">
+                                    <Label Grid.Column="0" Text="{Binding ItemCode, StringFormat='Code: {0}'}" FontSize="16"/>
+                                    <Label Grid.Column="1" Text="{Binding ItemBarcode, StringFormat=EAN:'{0}'}" FontSize="16"/>
+                                </Grid>
+                                <Grid ColumnDefinitions="Auto,Auto" ColumnSpacing="16">
+                                    <Label Grid.Column="0" Text="{Binding PackSize, StringFormat='Pack Size: {0}'}" FontSize="16"/>
+                                    <Label Grid.Column="1" Text="{Binding OrderedQty, StringFormat='Ordered Qty: {0}'}" FontSize="16"/>
+                                </Grid>
+                                <Label Text="{Binding DiscrepancyStatus}"
+                                       TextColor="Red"
+                                       FontSize="16"
+                                       IsVisible="{Binding ShowDiscrepancyStatus}"/>
+                            </VerticalStackLayout>
+                        </Frame>
+                    </DataTemplate>
+                </CollectionView.ItemTemplate>
+            </CollectionView>
         </ScrollView>
 
         <!-- Bottom Section -->
-        <Button Grid.Row="2" 
-                x:Name="LoadSOButton" 
-                Text="Load SO" 
+        <Button Grid.Row="2"
+                x:Name="LoadSOButton"
+                Text="Load SO"
                 Clicked="OnLoadSOClicked"
                 IsVisible="False"
                 BackgroundColor="DarkGreen"
                 TextColor="White"
+                FontSize="18"
                 Margin="0,10,0,0" />
     </Grid>
 </ContentPage>

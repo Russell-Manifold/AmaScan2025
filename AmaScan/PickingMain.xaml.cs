@@ -42,7 +42,7 @@ public partial class PickingMain : ContentPage
         sequenceLabel.Text = string.Empty;
         soHeaderFrame.IsVisible = false;
         LoadSOButton.IsVisible = false;
-        nextOrderLabel.IsVisible = false;
+        //nextOrderLabel.IsVisible = false;
         sequenceLabel.IsVisible = false;
 
         soLinesView.ItemsSource = null;
@@ -155,7 +155,7 @@ public partial class PickingMain : ContentPage
     private void ShowSearchSection()
     {
         SearchSection.IsVisible = true;
-        nextOrderLabel.IsVisible = false;
+        //nextOrderLabel.IsVisible = false;
         sequenceLabel.IsVisible = false;
         soHeaderFrame.IsVisible = false;
         soLinesView.IsVisible = false;
@@ -181,10 +181,10 @@ public partial class PickingMain : ContentPage
         await MainThread.InvokeOnMainThreadAsync(() =>
         {
             SearchSection.IsVisible = false;
-            nextOrderLabel.IsVisible = true;
+            //nextOrderLabel.IsVisible = true;
             sequenceLabel.IsVisible = true;
             sequenceLabel.Text = _currentSoResponse.Sequence.HasValue
-                ? $"Sequence: {_currentSoResponse.Sequence.Value}"
+                ? $"Next Sequence: {_currentSoResponse.Sequence.Value}"
                 : "Sequence: N/A";
         });
 
@@ -226,7 +226,7 @@ public partial class PickingMain : ContentPage
         {
             loadingIndicator.IsVisible = true;
             loadingIndicator.IsRunning = true;
-            nextOrderLabel.IsVisible = false;
+            //nextOrderLabel.IsVisible = false;
             sequenceLabel.IsVisible = false;
         });
 

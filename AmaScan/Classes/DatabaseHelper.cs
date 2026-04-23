@@ -474,6 +474,7 @@ namespace AmaScan.Classes
                 throw new ArgumentNullException(nameof(soLine));
 
             await _dbConnection.UpdateAsync(soLine).ConfigureAwait(false);
+
         }
 
         public async Task UpdateSoHeaderAsync(SoHeader soHeader)
@@ -583,6 +584,7 @@ namespace AmaScan.Classes
                     existingHeader.Picker = freshData.Picker;
                     existingHeader.Sequence = freshData.Sequence.HasValue ? (double?)freshData.Sequence.Value : null;
                     existingHeader.JsonData = System.Text.Json.JsonSerializer.Serialize(freshData);
+                    existingHeader.Packer = freshData.PackedBy;
                     await UpdateAsync(existingHeader);
                 }
                 else

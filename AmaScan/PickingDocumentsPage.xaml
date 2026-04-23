@@ -4,65 +4,56 @@
              xmlns:local="clr-namespace:AmaScan"
              x:Class="AmaScan.PickingDocumentsPage"
              Title="Picking Items">
-
-    <Grid RowDefinitions="Auto,Auto,*" Padding="20">
-        <!-- SO Header Info -->
-        <Frame Grid.Row="0" Padding="10" BackgroundColor="LightGray" Margin="0,0,0,10">
-            <VerticalStackLayout>
+    <Grid RowDefinitions="Auto,Auto,*" Padding="10">
+        <Frame Grid.Row="0" Padding="8" BackgroundColor="LightGray" Margin="0,0,0,8">
+            <VerticalStackLayout Spacing="2">
                 <Label Text="{Binding SoNumber, StringFormat='SO: {0}'}" FontSize="18" FontAttributes="Bold"/>
-                <Label Text="{Binding CustomerName}" FontSize="14"/>
-                <Label Text="{Binding DueDate, StringFormat='Due Date: {0:d}'}" FontSize="12"/>
+                <Label Text="{Binding CustomerName}" FontSize="16"/>
+                <Label Text="{Binding DueDate, StringFormat='Due: {0:d}'}" FontSize="16"/>
             </VerticalStackLayout>
         </Frame>
 
-        <Label Grid.Row="1" 
-               Text="Click on an item below to select it for picking:" 
-               FontSize="16" 
-               FontAttributes="Bold"
-               Margin="5,0,0,5"/>
+        <Label Grid.Row="1" Text="Click item to pick:" FontSize="14" FontAttributes="Bold" Margin="4,0,0,4"/>
 
         <!-- SO Items List -->
         <ScrollView Grid.Row="2">
-            <VerticalStackLayout>
-                <CollectionView ItemsSource="{Binding SoLines}"
-                              SelectionMode="Single"
-                              SelectionChanged="OnSoLineSelected">
-                    <CollectionView.ItemTemplate>
-                        <DataTemplate>
-                            <Frame Padding="10" Margin="0,5" 
-                                   BackgroundColor="{Binding StatusColor}"
-                                   BorderColor="LightGray">
-                                <Frame.GestureRecognizers>
-                                    <TapGestureRecognizer Tapped="OnItemTapped" 
-                                                          CommandParameter="{Binding}" />
-                                </Frame.GestureRecognizers>
-                                <Grid ColumnDefinitions="*,Auto">
-                                    <VerticalStackLayout Grid.Column="0">
-                                        <Label Text="{Binding ItemDesc}" FontAttributes="Bold" />
-                                        <Label Text="{Binding ItemCode, StringFormat='Item Code: {0}'}" />
-                                        <Label Text="{Binding ItemBarcode, StringFormat='Barcode: {0}'}" />
-                                        <Label Text="{Binding OrderedQty, StringFormat='Ordered Qty: {0}'}" />
-                                        <Label Text="{Binding DiscrepancyStatus}" 
-                                               TextColor="Red"
-                                               IsVisible="{Binding ShowDiscrepancyStatus}"/>
-                                    </VerticalStackLayout>
-                                    <VerticalStackLayout Grid.Column="1" VerticalOptions="Center">
-                                        <Label Text="{Binding PickedQty, StringFormat='Picked: {0}'}" 
-                                               FontAttributes="Bold"/>
-                                    </VerticalStackLayout>
+            <CollectionView ItemsSource="{Binding SoLines}"
+                            SelectionMode="Single"
+                            SelectionChanged="OnSoLineSelected">
+                <CollectionView.ItemTemplate>
+                    <DataTemplate>
+                        <Frame Padding="10" Margin="0,4"
+                               BackgroundColor="{Binding StatusColor}"
+                               BorderColor="LightGray">
+                            <Frame.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="OnItemTapped" CommandParameter="{Binding}" />
+                            </Frame.GestureRecognizers>
+                            <VerticalStackLayout Spacing="4">
+                                <Label Text="{Binding ItemDesc}" FontAttributes="Bold" FontSize="15" HorizontalOptions="Fill"/>
+                                <Grid ColumnDefinitions="Auto,Auto" ColumnSpacing="16">
+                                    <Label Grid.Column="0" Text="{Binding ItemCode, StringFormat='Code: {0}'}" FontSize="16"/>
+                                    <Label Grid.Column="1" Text="{Binding ItemBarcode, StringFormat='Barcode: {0}'}" FontSize="16"/>
                                 </Grid>
-                            </Frame>
-                        </DataTemplate>
-                    </CollectionView.ItemTemplate>
-                </CollectionView>
-            </VerticalStackLayout>
+                                <Grid ColumnDefinitions="Auto,Auto" ColumnSpacing="16">
+                                    <Label Grid.Column="0" Text="{Binding OrderedQty, StringFormat='Ordered Qty: {0}'}" FontSize="16"/>
+                                    <Label Grid.Column="1" Text="{Binding PickedQty, StringFormat='Picked: {0}'}" FontAttributes="Bold" FontSize="16"/>
+                                </Grid>
+                                <Label Text="{Binding DiscrepancyStatus}"
+                                   TextColor="Red"
+                                   FontSize="16"
+                                   IsVisible="{Binding ShowDiscrepancyStatus}"/>    
+                            </VerticalStackLayout>
+                        </Frame>
+                    </DataTemplate>
+                </CollectionView.ItemTemplate>
+            </CollectionView>
         </ScrollView>
 
         <!-- Loading Indicator -->
         <ActivityIndicator Grid.Row="2"
-                          IsRunning="{Binding IsLoading}"
-                          IsVisible="{Binding IsLoading}"
-                          HorizontalOptions="Center"
-                          VerticalOptions="Center"/>
+                           IsRunning="{Binding IsLoading}"
+                           IsVisible="{Binding IsLoading}"
+                           HorizontalOptions="Center"
+                           VerticalOptions="Center"/>
     </Grid>
-</ContentPage> 
+</ContentPage>

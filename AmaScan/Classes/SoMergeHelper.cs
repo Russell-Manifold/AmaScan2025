@@ -43,8 +43,8 @@ public static class SoMergeHelper
                 // Show fresh data from API on main thread
                 await MainThread.InvokeOnMainThreadAsync(() =>
                 {
-                    customerLabel.Text = $"Customer: {freshData.CustomerName}";
-                    dueDateLabel.Text = $"Due Date: {freshData.DueDate:yyyy-MM-dd}";
+                    customerLabel.Text = $"{soNumber} : {freshData.CustomerName}";
+                    dueDateLabel.Text = $"Due: {freshData.DueDate:yyyy-MM-dd}";
                     soHeaderFrame.IsVisible = true;
 
                     soLinesView.ItemsSource = freshData.Lines;

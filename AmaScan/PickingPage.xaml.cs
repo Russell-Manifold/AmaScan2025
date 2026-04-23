@@ -1,17 +1,10 @@
 using AmaScan.Classes;
 using AmaScan.Models;
 using AmaScan.sqliteModels;
-using Data.Model;
-using Java.Lang.Ref;
 using Newtonsoft.Json;
-using SQLite;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
-using System.Linq;
-using System.Net.Http;
-using System.Runtime.CompilerServices;
 using System.Text;
-using System.Threading.Tasks;
 
 namespace AmaScan;
 
@@ -27,6 +20,7 @@ public partial class PickingPage : ContentPage, INotifyPropertyChanged
     #region Properties
     public string SoNumber => _soHeader?.Reference ?? "";
     public string PickerName => _soHeader?.Picker ?? "";
+    public string PackerName => _soHeader?.Packer ?? "";
     public ObservableCollection<SoLine> SoLines => _soLines;
 
     public SoLine SelectedLine
@@ -204,7 +198,9 @@ public partial class PickingPage : ContentPage, INotifyPropertyChanged
         string currentUserName = GetCurrentUserName();
 
         // Set the header-level user for picking
-        await App.Db.SetPhaseUserAsync(_soHeader.Reference, currentUserName, "picking"); ;
+        await App.Db.SetPhaseUserAsync(_soHeader.Reference, currentUserName, "picking");
+        _soHeader.PickStarted = true;
+        bool success = await SendToApiForCompletionAsync(_soHeader);
 
         // Set the line-level flag
         if (SelectedLine != null)

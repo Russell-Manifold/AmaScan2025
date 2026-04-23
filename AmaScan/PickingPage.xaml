@@ -68,7 +68,7 @@
                 <StackLayout>
                     <Label Text="{Binding ItemDesc}" FontAttributes="Bold" />
                     <Label Text="{Binding ItemCode, StringFormat='Code: {0}'}" />
-                    <Label Text="{Binding ItemBarcode, StringFormat='Barcode: {0}'}" />
+                    <Label Text="{Binding ItemBarcode, StringFormat='EAN: {0}'}" />
                     <Label Text="{Binding OrderedQty, StringFormat='Ordered: {0}'}" />
                     <Label Text="{Binding PickedQty, StringFormat='Picked: {0}'}" />
                     <Label Text="{Binding OutstandingPickingQty, StringFormat='Outstanding Qty: {0}'}" />
