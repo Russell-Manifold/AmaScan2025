@@ -1,8 +1,12 @@
 using AmaScan.Classes;
+using AmaScan.Data;
 using AmaScan.sqliteModels;
+using Data.Model;
+using Newtonsoft.Json;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
+using System.Text;
 using System.Windows.Input;
 using static AmaScan.Classes.DatabaseHelper;
 
@@ -69,6 +73,7 @@ namespace AmaScan
         public string Status => _poHeader?.Status ?? "";
 
         private int _loadAttempt;
+        private bool _isAcceptMode = true;
 
         public ICommand ResetPoLineCommand { get; }
 
@@ -96,6 +101,8 @@ namespace AmaScan
                 await App.Db.UpdatePoLineAsync(line);
                 await LoadPoAsync(PoNumber);
             });
+
+            LoadWarehouses();
         }
 
         protected override void OnAppearing()
@@ -108,9 +115,9 @@ namespace AmaScan
         {
             base.OnNavigatedTo(args);
 
-            // Allow re-entry only if value changed *after* navigation
+            // Allow re-entry only if value changed *after* navigation (atomic check)
             if (!string.IsNullOrWhiteSpace(_poQuery) &&
-                _loadGuard == 0)
+                Interlocked.CompareExchange(ref _loadGuard, 1, 0) == 0)
             {
                 _ = LoadPoAsync(_poQuery);
             }
@@ -167,6 +174,17 @@ namespace AmaScan
 
                 _poHeader = headerTask.Result;
                 var lines = linesTask.Result;
+
+                // Set audit fields on first open
+                if (_poHeader != null && string.IsNullOrWhiteSpace(_poHeader.Receiver))
+                {
+                    _poHeader.Receiver = App.Services.GetRequiredService<UserSession>().CurrentUser?.UserName;
+                    _poHeader.ReceiveStartTime = DateTime.Now;
+                    _poHeader.DeviceName = AppConfig.DeviceName;
+                    _poHeader.TotalLines = lines.Count;
+                    await App.Db.UpdatePoHeaderAsync(_poHeader);
+                }
+
                 // Update UI on main thread
                 await MainThread.InvokeOnMainThreadAsync(() =>
                 {
@@ -182,7 +200,7 @@ namespace AmaScan
                     loadingIndicator.IsVisible = false;
                     loadingIndicator.IsRunning = false;
 
-                    AcceptSwitch_Toggled(AcceptSwitch, new ToggledEventArgs(AcceptSwitch.IsToggled));
+                    UpdateModeUI();
                 });
             }
             catch (OperationCanceledException)
@@ -205,26 +223,49 @@ namespace AmaScan
         protected void OnPropertyChanged([CallerMemberName] string propertyName = "") =>
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
 
-        private void OnStartReceivingClicked(object sender, EventArgs e)
+        private async void OnBarcodeEntered(object sender, EventArgs e)
         {
-            if (ReceivingInputSection == null || StartReceivingButton == null) return;
+            var code = BarcodeEntry.Text?.Trim();
+            if (string.IsNullOrWhiteSpace(code)) return;
 
-            ReceivingInputSection.IsVisible = true;
-            StartReceivingButton.IsVisible = false;
-            if (BarcodeEntry != null)
+            var stockItem = await App.Db.ResolveStockItemByBarcodeAsync(code);
+            if (stockItem != null)
             {
-                BarcodeEntry.Text = string.Empty;
-                BarcodeEntry.Focus();
+                DescriptionLabel.Text = stockItem.stock_description;
+                DescriptionLabel.TextColor = Colors.Black;
+                DescriptionLabel.FontAttributes = FontAttributes.Bold;
+
+                var packSize = stockItem.pack.GetValueOrDefault(1);
+                if (packSize > 1)
+                {
+                    PackInfoLabel.IsVisible = true;
+                    PackInfoLabel.Text = $"Pack size: {packSize} � enter number of packs (total = qty � {packSize})";
+                }
+                else
+                {
+                    PackInfoLabel.IsVisible = false;
+                }
+
+                QuantityEntry?.Focus();
             }
-            if (QuantityEntry != null)
+            else
             {
-                QuantityEntry.Text = string.Empty;
+                DescriptionLabel.Text = "Barcode not found � check and try again";
+                DescriptionLabel.TextColor = Colors.OrangeRed;
+                DescriptionLabel.FontAttributes = FontAttributes.Italic;
+                PackInfoLabel.IsVisible = false;
             }
         }
 
-        private void OnBarcodeEntered(object sender, EventArgs e)
+        private void OnBarcodeTextChanged(object sender, TextChangedEventArgs e)
         {
-            QuantityEntry?.Focus();
+            if (string.IsNullOrWhiteSpace(e.NewTextValue))
+            {
+                DescriptionLabel.Text = "Scan a barcode to begin";
+                DescriptionLabel.TextColor = Colors.Gray;
+                DescriptionLabel.FontAttributes = FontAttributes.Italic;
+                PackInfoLabel.IsVisible = false;
+            }
         }
 
         private async void OnSaveProgressClicked(object sender, EventArgs e)
@@ -267,14 +308,15 @@ namespace AmaScan
 
                 decimal thisTotQty = thisQty * stockItem.pack.GetValueOrDefault(1);
 
-                if (AcceptSwitch.IsToggled)
+                if (_isAcceptMode)
                     matchingLine.ScanAcceptQty += thisTotQty;
                 else
                     matchingLine.ScanRejectQty += thisTotQty;
 
+                var modeLabel = _isAcceptMode ? "A" : "R";
                 matchingLine.ReceivedString = string.IsNullOrWhiteSpace(matchingLine.ReceivedString)
-                    ? thisTotQty.ToString()
-                    : $"{matchingLine.ReceivedString} + {thisTotQty}";
+                    ? $"{modeLabel}:{thisTotQty}"
+                    : $"{matchingLine.ReceivedString} | {modeLabel}:{thisTotQty}";
 
                 await App.Db.UpdatePoLineAsync(matchingLine);
 
@@ -286,6 +328,14 @@ namespace AmaScan
                 }
 
                 ClearInputs();
+
+                // Auto-prompt if all lines are fully received
+                if (PoLines.All(l => l.OutstandingQty == 0))
+                {
+                    bool complete = await DisplayAlert("All Lines Received", "All lines are fully received. Complete GRV now?", "Yes", "No");
+                    if (complete)
+                        await CompleteGrvAsync();
+                }
             }
             catch (Exception ex)
             {
@@ -301,9 +351,12 @@ namespace AmaScan
                 BarcodeEntry.Focus();
             }
             if (QuantityEntry != null)
-            {
                 QuantityEntry.Text = string.Empty;
-            }
+
+            DescriptionLabel.Text = "Scan a barcode to begin";
+            DescriptionLabel.TextColor = Colors.Gray;
+            DescriptionLabel.FontAttributes = FontAttributes.Italic;
+            PackInfoLabel.IsVisible = false;
         }
 
         private async void OnRestartClicked(object sender, EventArgs e)
@@ -316,38 +369,40 @@ namespace AmaScan
                     line.ScanAcceptQty = 0;
                     line.ScanRejectQty = 0;
                     line.ReceivedString = string.Empty;
-                    await App.Db.UpdatePoLineAsync(line);
                 }
+                await App.Db.UpdateAllAsync(PoLines.ToList());
                 OnPropertyChanged(nameof(PoLines));
             }
         }
 
         private async void OnCompleteClicked(object sender, EventArgs e)
         {
+            await CompleteGrvAsync();
+        }
+
+        private async Task CompleteGrvAsync()
+        {
             try
             {
                 if (_poHeader == null)
                 {
                     await DisplayAlert("Error", "No PO loaded. Please restart the process.", "OK");
-                    await Shell.Current.GoToAsync("..");
+                    await Shell.Current.GoToAsync(nameof(ReceivingMain));
                     return;
                 }
-                var poLines = await App.Db.GetPoLinesByOrderNoAsync(PoNumber);
+                var poLines = PoLines.ToList();
 
                 bool hasDiscrepancies = poLines.Any(line =>
                     line.OrderedQty != (line.ScanAcceptQty + line.ScanRejectQty));
 
                 if (hasDiscrepancies)
                 {
-                    bool confirm = await DisplayAlert("Confirm Submission", "Proceed to generate GRV?", "Yes", "No");
+                    bool confirm = await DisplayAlert("Discrepancies Found", "Quantities do not match the PO. Supervisor authorisation is required to proceed.", "Authorise", "Cancel");
                     if (!confirm)
                         return;
 
-                    await DisplayAlert("Not authorised", "Discrepancies found. Supervisor authorisation is required.", "OK");
                     bool authorised = await PromptSupervisorauthorisationAsync();
-
-                    bool confirmed = await DisplayAlert("Confirm Submission", "Proceed to generate GRV with discrepancies?", "Yes", "No");
-                    if (!confirmed)
+                    if (!authorised)
                         return;
                 }
                 else
@@ -362,7 +417,7 @@ namespace AmaScan
                 if (success)
                 {
                     await DisplayAlert("Success", "GRV successfully generated.", "OK");
-                    await Shell.Current.GoToAsync("..");
+                    await Shell.Current.GoToAsync(nameof(ReceivingMain));
                 }
                 else
                     await DisplayAlert("Error", "Failed to generate GRV. Please try again.", "OK");
@@ -375,22 +430,142 @@ namespace AmaScan
 
         private async Task<bool> PromptSupervisorauthorisationAsync()
         {
-            string password = await DisplayPromptAsync("Password", "Enter supervisor password:", "OK", "Cancel", "Password", -1, Keyboard.Text);
+            string username = App.Services.GetRequiredService<UserSession>().CurrentUser?.UserName ?? "";
+            string password = await DisplayPromptAsync("Supervisor Authorisation", $"Enter password for {username}:", "OK", "Cancel", "Password", -1, Keyboard.Text);
 
             if (string.IsNullOrWhiteSpace(password))
                 return false;
 
-            return true;
+            try
+            {
+                var client = AppConfig.GetHttpClient();
+                var payload = new { Username = username, Password = password };
+                string json = JsonConvert.SerializeObject(payload);
+                var content = new StringContent(json, Encoding.UTF8, "application/json");
+
+                var response = await client.PostAsync("GetUser/GetUserAsync", content);
+                if (!response.IsSuccessStatusCode)
+                {
+                    await DisplayAlert("Unauthorised", "Invalid password.", "OK");
+                    return false;
+                }
+
+                string responseContent = await response.Content.ReadAsStringAsync();
+                var user = JsonConvert.DeserializeObject<User>(responseContent);
+
+                if (user == null || !user.CanAuthReceiving)
+                {
+                    await DisplayAlert("Unauthorised", "This user does not have authority to authorise receiving discrepancies.", "OK");
+                    return false;
+                }
+
+                // Record the authorizer on the PO header
+                if (_poHeader != null)
+                {
+                    _poHeader.Authorised = user.UserName;
+                    await App.Db.UpdatePoHeaderAsync(_poHeader);
+                }
+
+                return true;
+            }
+            catch (Exception ex)
+            {
+                await DisplayAlert("Error", $"Authorisation failed: {ex.Message}", "OK");
+                return false;
+            }
         }
 
         private async Task<bool> SendToApiForGrvAsync(string poNumber, List<PoLine> poLines)
         {
             try
             {
-                return true;
+                // Map PoLines to GrvLines — warehouse is always the device's default receiving warehouse
+                string defaultWh = (Preferences.Get("DefaultReceivingWarehouseCode", "") ?? "").PadLeft(3, '0');
+                var grvLines = poLines
+                    .Where(l => l.ScanAcceptQty > 0 || l.ScanRejectQty > 0)
+                    .Select(l => new GrvLine
+                    {
+                        LineNo = l.LineNo,
+                        ItemCode = l.ItemCode,
+                        ScanAcceptQty = l.ScanAcceptQty,
+                        ScanRejectQty = l.ScanRejectQty,
+                        CostPrice = l.CostPrice,
+                        CostPricePer = l.CostPricePer,
+                        VatCode = l.VatCode,
+                        VatRate = l.VatRate,
+                        WarehouseId = defaultWh
+                    })
+                    .ToList();
+
+                if (!grvLines.Any())
+                {
+                    await DisplayAlert("Error", "No scanned quantities to submit.", "OK");
+                    return false;
+                }
+
+                // Determine reject warehouse
+                string rejectWarehouseCode = "";
+                if (RejStorePicker.IsVisible && SelectedWarehouse != null)
+                {
+                    rejectWarehouseCode = SelectedWarehouse.Code;
+                }
+                else if (poLines.Any(l => l.ScanRejectQty > 0))
+                {
+                    rejectWarehouseCode = Preferences.Get("RejectWarehouse1Code", "");
+                }
+
+                // Build receiving audit header
+                int scannedLines = poLines.Count(l => l.ScanAcceptQty > 0 || l.ScanRejectQty > 0);
+                int discrepancyLines = poLines.Count(l => l.OrderedQty != (l.ScanAcceptQty + l.ScanRejectQty));
+                var header = new GrvHeader
+                {
+                    Receiver = _poHeader?.Receiver,
+                    ReceiveStartTime = _poHeader?.ReceiveStartTime,
+                    ReceiveEndTime = DateTime.Now,
+                    Authorised = _poHeader?.Authorised,
+                    DeviceName = _poHeader?.DeviceName ?? AppConfig.DeviceName,
+                    TotalLines = poLines.Count,
+                    ScannedLines = scannedLines,
+                    DiscrepancyLines = discrepancyLines
+                };
+
+                IGrvService grvService = new OmniGrvService();
+                var result = await grvService.SendAsync(
+                    poNumber,
+                    _poHeader?.AcctCode ?? "",
+                    _poHeader?.BranchCode ?? "HO",
+                    rejectWarehouseCode,
+                    grvLines,
+                    header);
+
+                if (result.Success)
+                {
+                    // Update local PO header with completion audit
+                    if (_poHeader != null)
+                    {
+                        _poHeader.ReceiveEndTime = header.ReceiveEndTime;
+                        _poHeader.GrvNumber = result.ReferenceNumber;
+                        _poHeader.ScannedLines = scannedLines;
+                        _poHeader.DiscrepancyLines = discrepancyLines;
+                        _poHeader.iscompleted = true;
+                        await App.Db.UpdatePoHeaderAsync(_poHeader);
+                    }
+
+                    if (result.DocumentType == GrvDocumentType.DeliveryNote)
+                        await DisplayAlert("Success", $"Delivery Note {result.ReferenceNumber} created.", "OK");
+                    else
+                        await DisplayAlert("Success", $"Supplier Invoice {result.ReferenceNumber} created.", "OK");
+                    return true;
+                }
+                else
+                {
+                    await DisplayAlert("Error", $"Failed to generate GRV: {result.ErrorMessage}", "OK");
+                    return false;
+                }
             }
-            catch
+            catch (Exception ex)
             {
+                await DisplayAlert("Error", $"Unexpected error: {ex.Message}", "OK");
                 return false;
             }
         }
@@ -410,28 +585,41 @@ namespace AmaScan
         //    await LoadPoAsync(PoNumber);
         //});
 
-        private void AcceptSwitch_Toggled(object sender, ToggledEventArgs e)
+        private void OnAcceptRejectToggled(object sender, ToggledEventArgs e)
         {
-            if (e.Value)
+            _isAcceptMode = !e.Value; // false = Accept, true = Reject
+            UpdateModeUI();
+        }
+
+        private void UpdateModeUI()
+        {
+            if (_isAcceptMode)
             {
+                ToggleModeLabel.Text = "Accept";
+                ToggleModeLabel.TextColor = Colors.Green;
+                AcceptRejectSwitch.IsToggled = false;
                 SaveButton.BackgroundColor = Colors.Green;
-                SaveButton.TextColor = Colors.White;
-                SaveButton.Text = "Accept";
+                SaveButton.Text = "Save as Accepted";
                 RejStorePicker.IsVisible = false;
                 lblRejStore.IsVisible = false;
-
-                // Set default receiving warehouse for accepts
                 SetDefaultReceivingWarehouse();
             }
             else
             {
+                ToggleModeLabel.Text = "Reject";
+                ToggleModeLabel.TextColor = Colors.Red;
+                AcceptRejectSwitch.IsToggled = true;
                 SaveButton.BackgroundColor = Colors.Red;
-                SaveButton.TextColor = Colors.White;
                 SaveButton.Text = "Save as Rejected";
                 LoadRejectWarehouses();
                 RejStorePicker.IsVisible = true;
                 lblRejStore.IsVisible = true;
             }
+        }
+
+        private void OnQuantityCompleted(object sender, EventArgs e)
+        {
+            OnSaveProgressClicked(sender, e);
         }
 
         private void SetDefaultReceivingWarehouse()
@@ -476,10 +664,6 @@ namespace AmaScan
             }
         }
 
-        private void OnSave_Click(object sender, EventArgs e)
-        {
-        }
-
         private void OnManualInputToggled(object sender, ToggledEventArgs e)
         {
             if (e.Value)
@@ -496,13 +680,9 @@ namespace AmaScan
 
         private void QuantityEntry_TextChanged(object sender, TextChangedEventArgs e)
         {
-            if (int.TryParse(e.NewTextValue, out int val))
-            {
-                if (e.NewTextValue.Length >= 7)
-                {
-                    QuantityEntry.Text = string.Empty;
-                }
-            }
+            if (string.IsNullOrEmpty(e.NewTextValue)) return;
+            if (!int.TryParse(e.NewTextValue, out _))
+                ((Entry)sender).Text = e.OldTextValue;
         }
 
         public class Item
@@ -525,14 +705,7 @@ namespace AmaScan
                 WarehouseList = new ObservableCollection<Warehouse>(warehouses);
 
                 // Set default warehouse based on current mode
-                if (AcceptSwitch.IsToggled)
-                {
-                    SetDefaultReceivingWarehouse();
-                }
-                else
-                {
-                    LoadRejectWarehouses();
-                }
+                UpdateModeUI();
             }
             catch (Exception ex)
             {
