@@ -4,17 +4,20 @@ using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Net.Http.Json;
+using System.Text;
+using System.Text.Json;
 using Data.Model;
 
 namespace AmaScan
 {
     public partial class ReturnsPage : ContentPage, INotifyPropertyChanged
     {
-        private readonly HttpClient _httpClient = new();
+        private readonly HttpClient _httpClient = AppConfig.GetHttpClient();
         private SoHeader _soHeader;
         private ObservableCollection<SoLine> _soLines = new();
         private string _returnsWarehouse = "Loading...";
         private string _selectedReturnReason = "Damaged";
+        private sqliteModels.StockItem _resolvedStockItem;
 
         public string ReturnsWarehouse
         {
@@ -67,7 +70,15 @@ namespace AmaScan
         {
             base.OnAppearing();
             ClearUI();
-            await LoadReturnsWarehouseAsync();
+            try
+            {
+                await LoadReturnsWarehouseAsync();
+            }
+            catch (Exception ex)
+            {
+                ReturnsWarehouse = "Error loading warehouse";
+                System.Diagnostics.Debug.WriteLine($"Failed to load warehouse: {ex.Message}");
+            }
             MainThread.BeginInvokeOnMainThread(() =>
             {
                 BarcodeEntry?.Focus(); // Auto-focus when page loads
@@ -78,17 +89,28 @@ namespace AmaScan
         {
             _soLines.Clear();
             _soHeader = null;
+            _resolvedStockItem = null;
 
-            // Clear UI elements
             soEntry.Text = string.Empty;
-
             BarcodeEntry.Text = string.Empty;
             QuantityEntry.Text = string.Empty;
             Comments.Text = string.Empty;
             ddReason.SelectedIndex = -1;
-            // Reset manual input toggle
+            DescriptionLabel.Text = "Scan a barcode to see item description";
+            DescriptionLabel.TextColor = Colors.Gray;
+            DescriptionLabel.FontAttributes = FontAttributes.Italic;
             ManualInputSwitch.IsToggled = false;
-            BarcodeEntry.IsReadOnly = true;
+#if ANDROID
+            try
+            {
+                if (BarcodeEntry.Handler?.PlatformView is Android.Widget.EditText et)
+                    et.ShowSoftInputOnFocus = false;
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"ClearUI Android error: {ex.Message}");
+            }
+#endif
 
             OnPropertyChanged(nameof(SoLines));
         }
@@ -128,54 +150,41 @@ namespace AmaScan
                 return;
             }
 
+            LoadingOverlay.IsVisible = true;
+            loadingIndicator.IsRunning = true;
+
             try
             {
-                await MainThread.InvokeOnMainThreadAsync(() =>
-                {
-                    LoadingOverlay.IsVisible = true;
-                    loadingIndicator.IsRunning = true;
-                });
-
                 string itemCode = "";
                 string itemDesc = "";
 
-                // Run heavy operations on background thread
-                var result = await Task.Run(async () =>
+                // If SO number is provided, try to get item details from SO
+                if (!string.IsNullOrWhiteSpace(soNumber))
                 {
-                    // If SO number is provided, try to get item details from SO
-                    if (!string.IsNullOrWhiteSpace(soNumber))
-                    {
-                        await LoadSoDataAsync(soNumber);
+                    await LoadSoDataAsync(soNumber);
 
-                        if (_soHeader != null)
+                    if (_soHeader != null)
+                    {
+                        var soLine = await GetItemByBarcode(barcode);
+                        if (soLine != null)
                         {
-                            var soLine = await GetItemByBarcode(barcode);
-                            if (soLine != null)
-                            {
-                                itemCode = soLine.ItemCode;
-                                itemDesc = soLine.ItemDesc;
-                            }
+                            itemCode = soLine.ItemCode;
+                            itemDesc = soLine.ItemDesc;
                         }
                     }
+                }
 
-                    // If we don't have item details from SO, try to get from stock items
-                    if (string.IsNullOrEmpty(itemCode))
+                // Use cached item from barcode scan, or fall back to a fresh lookup
+                if (string.IsNullOrEmpty(itemCode))
+                {
+                    var stockItem = _resolvedStockItem ?? await App.Db.ResolveStockItemByBarcodeAsync(barcode);
+                    if (stockItem != null)
                     {
-                        var stockItem = await App.Db.ResolveStockItemByBarcodeAsync(barcode);
-                        if (stockItem != null)
-                        {
-                            itemCode = stockItem.stock_code;
-                            itemDesc = stockItem.stock_description;
-                        }
+                        itemCode = stockItem.stock_code;
+                        itemDesc = stockItem.stock_description;
                     }
+                }
 
-                    return new { itemCode, itemDesc };
-                });
-
-                itemCode = result.itemCode;
-                itemDesc = result.itemDesc;
-
-                // If still no item details, use barcode as item code and empty description
                 if (string.IsNullOrEmpty(itemCode))
                 {
                     itemCode = barcode;
@@ -189,7 +198,7 @@ namespace AmaScan
 
                 if (!confirmed) return;
 
-                // Create and save return line
+                // Create and save return line locally
                 var returnLine = new sqliteModels.ReturnLine
                 {
                     OrderNumber = soNumber ?? "",
@@ -201,13 +210,51 @@ namespace AmaScan
                 };
 
                 var userSession = App.Services.GetRequiredService<UserSession>();
-                await App.Db.SaveReturnLineAsync(returnLine, userSession.CurrentUser?.UserName);
+                string userName = userSession.CurrentUser?.UserName;
+                await App.Db.SaveReturnLineAsync(returnLine, userName);
 
-                await DisplayAlert("Success", $"Return processed for {itemDesc}", "OK");
+                // Submit to API
+                string returnsWarehouseCode = Preferences.Get("ReturnsWarehouseCode", "");
+
+                var payload = new
+                {
+                    warehouseCode = returnsWarehouseCode,
+                    itemCode = itemCode,
+                    quantity = quantity,
+                    reference = soNumber ?? "",
+                    narrative = SelectedReturnReason,
+                    comments = Comments.Text?.Trim() ?? ""
+                };
+
+                string json = JsonSerializer.Serialize(payload);
+                var content = new StringContent(json, Encoding.UTF8, "application/json");
+                var response = await _httpClient.PostAsync("StockJournalEntry", content);
+                string responseBody = await response.Content.ReadAsStringAsync();
+
+                if (response.IsSuccessStatusCode)
+                {
+                    string referenceNumber = "";
+                    try
+                    {
+                        using var doc = JsonDocument.Parse(responseBody);
+                        if (doc.RootElement.TryGetProperty("referenceNumber", out var refProp))
+                            referenceNumber = refProp.GetString();
+                    }
+                    catch
+                    {
+                        referenceNumber = responseBody.Trim();
+                    }
+
+                    await DisplayAlert("Success", $"Return processed: {referenceNumber}", "OK");
+                }
+                else
+                {
+                    await DisplayAlert("Error", $"Failed to submit return: {responseBody}", "OK");
+                    return;
+                }
 
                 // Navigate back to dashboard
-                var dashboardPage = App.Services.GetRequiredService<Dashboard>();
-                await Navigation.PushAsync(dashboardPage);
+                await Navigation.PopAsync();
             }
             catch (Exception ex)
             {
@@ -220,11 +267,6 @@ namespace AmaScan
             }
         }
 
-        private async void OnSave_Click(object sender, EventArgs e)
-        {
-            await DisplayAlert("Info", "Returns are saved immediately when processed.", "OK");
-        }
-
         private async void OnRestartClicked(object sender, EventArgs e)
         {
             bool answer = await DisplayAlert("Restart", "Are you sure you want to restart the returns process?", "Yes", "No");
@@ -233,8 +275,6 @@ namespace AmaScan
                 ClearUI();
             }
         }
-
-
 
         private async Task LoadReturnsWarehouseAsync()
         {
@@ -327,7 +367,29 @@ namespace AmaScan
 
         private void OnManualInputToggled(object sender, ToggledEventArgs e)
         {
-            BarcodeEntry.IsReadOnly = !e.Value;
+#if ANDROID
+            try
+            {
+                if (BarcodeEntry.Handler?.PlatformView is Android.Widget.EditText editText)
+                {
+                    editText.ShowSoftInputOnFocus = e.Value;
+                    if (!e.Value)
+                    {
+                        var activity = Platform.CurrentActivity;
+                        if (activity != null)
+                        {
+                            var imm = (Android.Views.InputMethods.InputMethodManager)
+                                activity.GetSystemService(Android.Content.Context.InputMethodService);
+                            imm?.HideSoftInputFromWindow(editText.WindowToken, 0);
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"ManualInputToggle error: {ex.Message}");
+            }
+#endif
             BarcodeEntry.Focus();
         }
 
@@ -347,35 +409,48 @@ namespace AmaScan
         {
             if (sender is VisualElement ve)
             {
-                ve.BackgroundColor = Colors.White; // Reset to white
+                ve.BackgroundColor = Colors.Transparent;
             }
         }
-        private async void OnBarcodeCompleted(object sender, EventArgs e)
+        private async void OnBarcodeCompleted(object sender, TextChangedEventArgs e)
         {
-            var code = BarcodeEntry.Text?.Trim();
-            if (string.IsNullOrWhiteSpace(code)) return;
-
-            if (code.Length < 10) return;
-            var item = await App.Db.ResolveStockItemByBarcodeAsync(code);
-            if (item == null)
+            var code = e.NewTextValue?.Trim();
+            _resolvedStockItem = null;
+            if (string.IsNullOrWhiteSpace(code) || code.Length < 10)
             {
+                DescriptionLabel.Text = "Scan a barcode to see item description";
+                DescriptionLabel.TextColor = Colors.Gray;
+                DescriptionLabel.FontAttributes = FontAttributes.Italic;
                 return;
             }
-            DescriptionLabel.Text = item.stock_description;
+
+            try
+            {
+                _resolvedStockItem = await App.Db.ResolveStockItemByBarcodeAsync(code);
+                if (_resolvedStockItem == null)
+                {
+                    DescriptionLabel.Text = "Item not found in local database";
+                    DescriptionLabel.TextColor = Colors.OrangeRed;
+                    DescriptionLabel.FontAttributes = FontAttributes.Italic;
+                    return;
+                }
+
+                DescriptionLabel.Text = _resolvedStockItem.stock_description;
+                DescriptionLabel.TextColor = Colors.Black;
+                DescriptionLabel.FontAttributes = FontAttributes.Bold;
+            }
+            catch (Exception ex)
+            {
+                DescriptionLabel.Text = "Error looking up item";
+                DescriptionLabel.TextColor = Colors.OrangeRed;
+                DescriptionLabel.FontAttributes = FontAttributes.Italic;
+                System.Diagnostics.Debug.WriteLine($"Barcode lookup error: {ex.Message}");
+            }
         }
 
-        private async void QuantityEntry_Focused(object sender, FocusEventArgs e)
+        private void OnBarcodeEntryCompleted(object sender, EventArgs e)
         {
-            var code = BarcodeEntry.Text?.Trim();
-            if (string.IsNullOrWhiteSpace(code)) return;
-
-            var item = await App.Db.ResolveStockItemByBarcodeAsync(code);
-            if (item == null)
-            {
-                await DisplayAlert("Not found", "Barcode not recognised", "OK");
-                return;
-            }
-            DescriptionLabel.Text = item.stock_description;
+            QuantityEntry.Focus();
         }
     }
 }

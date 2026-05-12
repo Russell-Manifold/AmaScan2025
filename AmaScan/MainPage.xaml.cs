@@ -63,7 +63,7 @@ namespace AmaScan
 
         public async Task<User?> LoginAsync(string username, string password)
         {
-            var client = new HttpClient();
+            var client = AppConfig.GetHttpClient();
 
             var loginPayload = new
             {
@@ -76,7 +76,7 @@ namespace AmaScan
 
             try
             {
-                var response = await client.PostAsync($"{AppConfig.ApiBaseUrl}GetUser/GetUserAsync", content);
+                var response = await client.PostAsync("GetUser/GetUserAsync", content);
                 if (response.IsSuccessStatusCode)
                 {
                     string responseContent = await response.Content.ReadAsStringAsync();

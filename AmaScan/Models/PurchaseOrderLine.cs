@@ -17,13 +17,17 @@ namespace Data.Model
         public string? ItemBarcode { get; set; }
         public string? ItemCode { get; set; }
         public string? ItemDesc { get; set; }
-        public int PackSize { get; set; }
+        public int PackSize { get; set; }   
         public string? PackBarcode { get; set; }
         public int no_of_packs { get; set; }
-        public int OrderedQty { get; set; }
+        public decimal OrderedQty { get; set; }
+        public decimal CostPrice { get; set; }
+        public decimal CostPricePer { get; set; }
+        public string? VatCode { get; set; }
+        public decimal VatRate { get; set; }
         public int ScanAcceptQty { get; set; }
         public int ScanRejectQty { get; set; }
-        public int Balance { get; set; }
+        public decimal Balance { get; set; }
         public string? Complete { get; set; }
         public int PalletNum { get; set; }
         public string? BinLocation { get; set; }

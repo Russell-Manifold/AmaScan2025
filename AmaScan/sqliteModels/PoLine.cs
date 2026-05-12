@@ -3,11 +3,11 @@ using System.ComponentModel;
 
 namespace AmaScan.sqliteModels
 {
-    public class PoLine: IIdentifiable, INotifyPropertyChanged
+    public class PoLine : IIdentifiable, INotifyPropertyChanged
     {
         [PrimaryKey, AutoIncrement]
         public int Id { get; set; }
-        
+
         [Indexed(Name = "idx_po_line", Order = 1)]
         public string? OrderNo { get; set; }
 
@@ -15,7 +15,7 @@ namespace AmaScan.sqliteModels
         public long LineNo { get; set; }
         public string? ItemCode { get; set; }
         public string? ItemDesc { get; set; }
-        
+
         [Indexed(Name = "idx_po_line", Order = 2)]
         public string? ItemBarcode { get; set; }
         public int PackSize { get; set; }
@@ -25,7 +25,11 @@ namespace AmaScan.sqliteModels
         public int NoOfPacks { get; set; }
         public decimal OrderedQty { get; set; }
         public decimal ReceivedQty { get; set; }
-        //public decimal ScanAcceptQty { get; set; }
+        public decimal CostPrice { get; set; }
+        public decimal CostPricePer { get; set; }
+        public string? VatCode { get; set; }
+        public decimal VatRate { get; set; }
+
         private decimal _scanAcceptQty;
         public decimal ScanAcceptQty
         {
@@ -41,7 +45,7 @@ namespace AmaScan.sqliteModels
                 }
             }
         }
-        //public decimal ScanRejectQty { get; set; }
+
         private decimal _scanRejectQty;
         public decimal ScanRejectQty
         {
@@ -58,11 +62,11 @@ namespace AmaScan.sqliteModels
             }
         }
         public string? BinLocation { get; set; }
-        
+
         [Indexed(Name = "idx_po_line", Order = 4)]
         public string? WhID { get; set; }
         public string? GRNum { get; set; }
-        //public string? ReceivedString { get; set; }
+
         private string? _receivedString;
         public string? ReceivedString
         {
@@ -78,20 +82,21 @@ namespace AmaScan.sqliteModels
         }
         public string CodeAndBarcode => $"Code: {ItemCode}; Barcode: {ItemBarcode}";
         public decimal OutstandingQty => OrderedQty - (ScanAcceptQty + ScanRejectQty);
-       
+
         public string StatusColor
         {
             get
             {
-                var outstanding = OrderedQty - (ScanAcceptQty + ScanRejectQty);
-
                 if (ScanAcceptQty == 0 && ScanRejectQty == 0)
-                    return "Transparent"; // Clear if unstarted
+                    return "Transparent";
 
-                if (outstanding > 0)
-                    return "#FFEFD5"; // Pale orange (PapayaWhip)
+                var total = ScanAcceptQty + ScanRejectQty;
+                if (total == OrderedQty)
+                    return "#DFFFD6"; // pale green — exact match
+                if (total > OrderedQty)
+                    return "#FFB6C1"; // light pink — over-received
 
-                return "#DFFFD6"; // Pale green
+                return "#FFDAB9"; // pale orange — under-received
             }
         }
         public event PropertyChangedEventHandler? PropertyChanged;

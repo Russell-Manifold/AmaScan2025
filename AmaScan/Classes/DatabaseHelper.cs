@@ -302,6 +302,8 @@ namespace AmaScan.Classes
                     existingHeader.DueDate = freshData.DueDate;
                     existingHeader.Status = freshData.Status;
                     existingHeader.SupplierName = freshData.SupplierName;
+                    existingHeader.AcctCode = freshData.SupplierCode;
+                    existingHeader.BranchCode = freshData.BranchCode ?? "HO";
                     existingHeader.JsonData = System.Text.Json.JsonSerializer.Serialize(freshData);
                     conn.Update(existingHeader);
                 }
@@ -313,6 +315,8 @@ namespace AmaScan.Classes
                         DueDate = freshData.DueDate,
                         Status = freshData.Status,
                         SupplierName = freshData.SupplierName,
+                        AcctCode = freshData.SupplierCode,
+                        BranchCode = freshData.BranchCode ?? "HO",
                         JsonData = System.Text.Json.JsonSerializer.Serialize(freshData),
                         iscompleted = false
                     });
@@ -350,7 +354,7 @@ namespace AmaScan.Classes
             existingLine.NoOfPacks = freshLine.no_of_packs;
             existingLine.OrderedQty = freshLine.OrderedQty;
             existingLine.BinLocation = freshLine.BinLocation;
-            existingLine.WhID = freshLine.WhID;
+            existingLine.WhID = !string.IsNullOrWhiteSpace(freshLine.WhID) ? freshLine.WhID.PadLeft(3, '0') : freshLine.WhID;
         }
 
         private PoLine CreateNewPoLine(string orderNo, PurchaseOrderLine freshLine)
@@ -373,7 +377,7 @@ namespace AmaScan.Classes
                 ScanAcceptQty = 0,
                 ScanRejectQty = 0,
                 BinLocation = freshLine.BinLocation,
-                WhID = freshLine.WhID,
+                WhID = !string.IsNullOrWhiteSpace(freshLine.WhID) ? freshLine.WhID.PadLeft(3, '0') : freshLine.WhID,
                 GRNum = null,
                 ReceivedString = null
             };

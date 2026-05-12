@@ -29,11 +29,42 @@ namespace AmaScan
                     typeof(ReturnLine),
                     typeof(StockCountItem));
 
+            // Migrate existing PoHeader table with new receiving audit columns
+            MigratePoHeaderAsync(connection).ConfigureAwait(false);
+
             // Instantiate the singleton helper
             Db = new DatabaseHelper(connection);
 
 
             MainPage = new AppShell(); // or NavigationPage if needed
+        }
+
+        private static async Task MigratePoHeaderAsync(SQLiteAsyncConnection conn)
+        {
+            var newColumns = new Dictionary<string, string>
+            {
+                ["Receiver"] = "TEXT",
+                ["ReceiveStartTime"] = "TEXT",
+                ["ReceiveEndTime"] = "TEXT",
+                ["Authorised"] = "TEXT",
+                ["GrvNumber"] = "TEXT",
+                ["DeviceName"] = "TEXT",
+                ["TotalLines"] = "INTEGER DEFAULT 0",
+                ["ScannedLines"] = "INTEGER DEFAULT 0",
+                ["DiscrepancyLines"] = "INTEGER DEFAULT 0"
+            };
+
+            foreach (var kv in newColumns)
+            {
+                try
+                {
+                    await conn.ExecuteAsync($"ALTER TABLE PoHeader ADD COLUMN {kv.Key} {kv.Value}");
+                }
+                catch
+                {
+                    // Column already exists — skip
+                }
+            }
         }
     }
 }

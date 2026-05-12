@@ -6,6 +6,7 @@
 
     <ContentPage.ToolbarItems>
         <ToolbarItem x:Name="ResetSO" IconImageSource="resumeimg.png" Clicked="OnResetClicked" Order="Primary" Priority="1" />
+        <ToolbarItem IconImageSource="mainiconlogin.png" Text="Log Out" Clicked="OnLogoutClicked" Order="Primary" Priority="2" />
     </ContentPage.ToolbarItems>
 
     <Grid RowDefinitions="Auto,*,Auto" Padding="20">

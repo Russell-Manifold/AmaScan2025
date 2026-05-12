@@ -29,11 +29,11 @@
 
             <Entry x:Name="usernameEntry"
                Placeholder="Username"
-               Keyboard="Default" Text="Pick" />
+               Keyboard="Default" Text="Nomiso" />
 
             <Entry x:Name="passwordEntry"
                Placeholder="Password"
-               IsPassword="True" Text="pi" />
+               IsPassword="True" Text="FDB100" />
 
             <Button Text="Login"
                 Clicked="OnLogin_Clicked"

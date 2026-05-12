@@ -5,6 +5,7 @@
              Title="Dashboard">
     <ContentPage.ToolbarItems>
         <ToolbarItem IconImageSource="settings.png" Text="" Clicked="OnSettingsClicked" Order="Primary" Priority="1" />
+        <ToolbarItem IconImageSource="mainiconlogin.png" Text="Log Out" Clicked="OnLogoutClicked" Order="Primary" Priority="2" />
     </ContentPage.ToolbarItems>
     <Grid>
         <!-- Row Definitions for Fixed and Scrollable Content -->

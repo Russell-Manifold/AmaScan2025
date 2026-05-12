@@ -7,122 +7,125 @@
              Title= "Receiving">
     
     <ContentPage.ToolbarItems>
-        <ToolbarItem  IconImageSource="save.png" Clicked="OnSave_Click" Order="Primary" Priority="1" />
-        <ToolbarItem  IconImageSource="resumeimg.png" Clicked="OnRestartClicked" Order="Primary" Priority="2" />
-        <ToolbarItem IconImageSource="ticksmallo.png"  Clicked="OnCompleteClicked" Order="Primary" Priority="3" />
+        <ToolbarItem IconImageSource="resumeimg.png" Clicked="OnRestartClicked" Order="Primary" Priority="1" />
+        <ToolbarItem IconImageSource="ticksmallo.png" Clicked="OnCompleteClicked" Order="Primary" Priority="2" />
     </ContentPage.ToolbarItems>
 
     <Grid>
-        <Entry x:Name="WedgeCatcher"
-           IsVisible="False"
-           Completed="OnWedgeCompleted" />
-        
-        <!-- Overlay ActivityIndicator -->
+        <Entry x:Name="WedgeCatcher" IsVisible="False" Completed="OnWedgeCompleted" />
+
+        <!-- Loading overlay -->
         <ActivityIndicator x:Name="loadingIndicator"
-                           IsRunning="False"
-                           IsVisible="False"
-                           VerticalOptions="Center"
-                           HorizontalOptions="Center"
-                           Color="Gray"
-                           WidthRequest="60"
-                           HeightRequest="60"
-                           ZIndex="1" />
+                           IsRunning="False" IsVisible="False"
+                           VerticalOptions="Center" HorizontalOptions="Center"
+                           Color="Gray" WidthRequest="60" HeightRequest="60" ZIndex="1" />
 
-        <!-- Scrollable content -->
         <ScrollView>
-            <StackLayout Padding="10" Spacing="5">
-                <!-- Receiving input section -->
-                <StackLayout x:Name="ReceivingInputSection" IsVisible="False" Spacing="2">
-                    <Label Text="{Binding PoNumber, StringFormat='PO:{0}'}"
-                           FontAttributes="Bold"
-                           FontSize="Medium"
-                           HorizontalOptions="Center" />
+            <StackLayout Padding="10" Spacing="4">
 
-                    <Grid ColumnDefinitions="*,80" Padding="4,4,4,0" RowDefinitions="Auto,Auto">
-                        <Label Grid.Column="0" Text="Scan/Enter Barcode:" />
-                        <Entry x:Name="BarcodeEntry"
-                               Placeholder="Scan barcode"
-                               MaxLength="15"
-                               Keyboard="Plain"
-                               Grid.Row="1"
-                               Grid.Column="0"
-                               FontSize="18"
-                               Completed="OnBarcodeEntered"
-                               Focused="OnBarcodeFocused" />   
-                        
-                        <Label Grid.Column="1" Text="Qty:" HorizontalOptions="Center" />
-                        <Entry x:Name="QuantityEntry"
-                               Placeholder="Qty"
-                               Keyboard="Numeric"
-                               MaxLength="10"
-                               TextChanged="QuantityEntry_TextChanged"
-                               Grid.Row="1"
-                               Grid.Column="1"
-                               MinimumWidthRequest="60"
-                               MaximumWidthRequest="60"
-                               HorizontalOptions="End" />
-                    </Grid>
+                <!-- PO header summary -->
+                <Label Text="{Binding PoNumber, StringFormat='PO: {0}'}"
+                       FontAttributes="Bold" FontSize="16" HorizontalOptions="Center" />
+                <Grid ColumnDefinitions="*,*" Margin="0,0,0,6">
+                    <Label Grid.Column="0" Text="{Binding DueDateFormatted, StringFormat='Due: {0}'}" FontSize="13" TextColor="Gray"/>
+                    <Label Grid.Column="1" Text="{Binding Status, StringFormat='Status: {0}'}" FontSize="13" TextColor="Gray" HorizontalOptions="End"/>
+                </Grid>
 
-                    <Grid ColumnDefinitions="60,Auto,*,Auto,Auto" Padding="3" RowDefinitions="Auto,Auto">
-                        <Label Grid.Column="0" Text="Reject" VerticalOptions="Center" HorizontalOptions="Start" />
-                        <Switch Grid.Column="1" x:Name="AcceptSwitch" IsToggled="True" VerticalOptions="Center" Toggled="AcceptSwitch_Toggled" HorizontalOptions="Start" />
-                        <Label Grid.Column="2" Text="Accept" VerticalOptions="Center" HorizontalOptions="Start" />
-                        <Label Grid.Column="3" Text="Type" VerticalOptions="Center" HorizontalOptions="End" />
-                        <Switch Grid.Column="4" x:Name="ManualInputSwitch" Toggled="OnManualInputToggled" HorizontalOptions="End" />
+                <!-- Barcode + Manual toggle -->
+                <Grid ColumnDefinitions="*,Auto" Margin="0,0,0,2">
+                    <Label Grid.Column="0" Text="Barcode" FontSize="13" TextColor="Gray" VerticalOptions="Center"/>
+                    <HorizontalStackLayout Grid.Column="1" Spacing="4" VerticalOptions="Center">
+                        <Label Text="Manual" FontSize="12" TextColor="Gray" VerticalOptions="Center"/>
+                        <Switch x:Name="ManualInputSwitch" Toggled="OnManualInputToggled" VerticalOptions="Center"/>
+                    </HorizontalStackLayout>
+                </Grid>
+                <Entry x:Name="BarcodeEntry"
+                       Placeholder="Scan or enter barcode"
+                       MaxLength="15" Keyboard="Plain" FontSize="16"
+                       TextChanged="OnBarcodeTextChanged"
+                       Completed="OnBarcodeEntered"
+                       Focused="OnBarcodeFocused"
+                       Margin="0,0,0,4"/>
 
-                        <Label x:Name="lblRejStore"
-                               Grid.Row="1"
-                               Grid.Column="0"
-                                Grid.ColumnSpan="2"
-                               Text="Into:"
-                               VerticalOptions="Center"
-                               IsVisible="False" />
-                        <Picker x:Name="RejStorePicker"
-                                Grid.Row="1"
-                                Grid.Column="1"
-                                Grid.ColumnSpan="3"
-                                Title="Reject Warehouse"
-                                ItemsSource="{Binding WarehouseList}"
-                                ItemDisplayBinding="{Binding Description}"
-                                SelectedItem="{Binding SelectedWarehouse}"
-                                IsVisible="False" />
-                    </Grid>
+                <!-- Item description and pack info -->
+                <Label x:Name="DescriptionLabel"
+                       Text="Scan a barcode to begin"
+                       FontSize="13" TextColor="Gray" FontAttributes="Italic"
+                       Margin="0,0,0,2"/>
+                <Label x:Name="PackInfoLabel"
+                       Text="" FontSize="12" TextColor="DodgerBlue"
+                       IsVisible="False" Margin="0,0,0,6"/>
 
-                    <Button x:Name="SaveButton" Text="Accept" Clicked="OnSaveProgressClicked" />
-                </StackLayout>
+                <!-- Quantity + Accept/Reject toggle on one line -->
+                <Grid ColumnDefinitions="*,Auto" Margin="0,2,0,8">
+                    <Entry x:Name="QuantityEntry"
+                           Grid.Column="0"
+                           Placeholder="Enter quantity"
+                           Keyboard="Numeric" MaxLength="6"
+                           HorizontalOptions="Fill"
+                           TextChanged="QuantityEntry_TextChanged"
+                           Completed="OnQuantityCompleted"
+                           Margin="0,0,8,0"/>
+                    <HorizontalStackLayout Grid.Column="1" Spacing="4" VerticalOptions="Center">
+                        <Label x:Name="ToggleModeLabel" Text="Accept" FontSize="12" TextColor="Green" VerticalOptions="Center"/>
+                        <Switch x:Name="AcceptRejectSwitch" Toggled="OnAcceptRejectToggled" VerticalOptions="Center"/>
+                    </HorizontalStackLayout>
+                </Grid>
 
-                <!-- Start Receiving button -->
-                <Button x:Name="StartReceivingButton" Text="Start Receiving" Clicked="OnStartReceivingClicked" />
+                <!-- Reject warehouse (shown only in reject mode) -->
+                <Label x:Name="lblRejStore" Text="Reject to Warehouse:"
+                       FontSize="13" TextColor="Gray" IsVisible="False"/>
+                <Picker x:Name="RejStorePicker"
+                        Title="Select Reject Warehouse"
+                        ItemsSource="{Binding WarehouseList}"
+                        ItemDisplayBinding="{Binding Description}"
+                        SelectedItem="{Binding SelectedWarehouse}"
+                        IsVisible="False" Margin="0,2,0,8"/>
 
-                <!-- PO Lines list -->
+                <!-- Save button -->
+                <Button x:Name="SaveButton"
+                        Text="Save as Accepted"
+                        BackgroundColor="Green" TextColor="White"
+                        FontSize="15" FontAttributes="Bold"
+                        HorizontalOptions="Fill"
+                        Clicked="OnSaveProgressClicked"
+                        Margin="0,0,0,10"/>
+
+                <!-- PO Lines -->
                 <CollectionView ItemsSource="{Binding PoLines}" Margin="3">
                     <CollectionView.ItemTemplate>
                         <DataTemplate>
                             <SwipeView>
                                 <SwipeView.RightItems>
                                     <SwipeItems Mode="Reveal">
-                                        <SwipeItem Text="Reset"
-                                                   BackgroundColor="OrangeRed"
+                                        <SwipeItem Text="Reset" BackgroundColor="OrangeRed"
                                                    Command="{Binding BindingContext.ResetPoLineCommand, Source={x:Reference PageRoot}}"
                                                    CommandParameter="{Binding}" />
                                     </SwipeItems>
                                 </SwipeView.RightItems>
-
-                                <Frame Padding="10" Margin="5" BorderColor="LightGray" BackgroundColor="{Binding StatusColor}">
+                                <Frame Padding="8" Margin="0,3" BorderColor="LightGray" BackgroundColor="{Binding StatusColor}">
                                     <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto">
-                                        <Label Text="{Binding CodeAndBarcode}" FontAttributes="Bold" Grid.Column="0" Grid.Row="0" Grid.ColumnSpan="2" />
-                                        <Label Text="{Binding ItemDesc}" FontSize="Small" Grid.Column="0" Grid.Row="1" Grid.ColumnSpan="2" />
-                                        <Label Text="{Binding OrderedQty, StringFormat='Ordered: {0}'}" Grid.Column="0" Grid.Row="2" />
-                                        <Label Text="{Binding ScanAcceptQty, StringFormat='Accept: {0}'}" Grid.Column="1" Grid.Row="2" />
-                                        <Label Text="{Binding ScanRejectQty, StringFormat='Reject: {0}'}" Grid.Column="0" Grid.Row="3" />
-                                        <Label Text="{Binding OutstandingQty, StringFormat='O/S: {0}'}" Grid.Column="1" Grid.Row="3" />
-                                        <Label Text="{Binding ReceivedString, StringFormat='Received: {0}'}" Grid.Column="0" Grid.Row="4" Grid.ColumnSpan="2" />
+                                        <Label Text="{Binding CodeAndBarcode}" FontAttributes="Bold" FontSize="13"
+                                               Grid.Column="0" Grid.Row="0" Grid.ColumnSpan="2"/>
+                                        <Label Text="{Binding ItemDesc}" FontSize="12" TextColor="Gray"
+                                               Grid.Column="0" Grid.Row="1" Grid.ColumnSpan="2"/>
+                                        <Label Text="{Binding OrderedQty, StringFormat='Ordered: {0}'}" FontSize="12"
+                                               Grid.Column="0" Grid.Row="2"/>
+                                        <Label Text="{Binding ScanAcceptQty, StringFormat='Accept: {0}'}" FontSize="12"
+                                               Grid.Column="1" Grid.Row="2"/>
+                                        <Label Text="{Binding ScanRejectQty, StringFormat='Reject: {0}'}" FontSize="12"
+                                               Grid.Column="0" Grid.Row="3"/>
+                                        <Label Text="{Binding OutstandingQty, StringFormat='O/S: {0}'}" FontSize="12"
+                                               Grid.Column="1" Grid.Row="3"/>
+                                        <Label Text="{Binding ReceivedString, StringFormat='Received: {0}'}" FontSize="11"
+                                               TextColor="Gray" Grid.Column="0" Grid.Row="4" Grid.ColumnSpan="2"/>
                                     </Grid>
                                 </Frame>
                             </SwipeView>
                         </DataTemplate>
                     </CollectionView.ItemTemplate>
                 </CollectionView>
+
             </StackLayout>
         </ScrollView>
     </Grid>

@@ -25,9 +25,18 @@ public partial class ReceivingMain : ContentPage
         }
     }
 
-    protected override void OnAppearing()
+    protected override async void OnAppearing()
     {
         base.OnAppearing();
+
+        // Guard: default receiving warehouse must be set per device
+        string defaultWh = Preferences.Get("DefaultReceivingWarehouseCode", "");
+        if (string.IsNullOrWhiteSpace(defaultWh))
+        {
+            await DisplayAlert("Setup Required", "Please select a default receiving warehouse in Settings before receiving.", "OK");
+            await Shell.Current.GoToAsync(nameof(SettingsPage));
+            return;
+        }
 
         // Clear in-memory variables
         _currentPoResponse = null;
@@ -111,6 +120,10 @@ public partial class ReceivingMain : ContentPage
                 PackSize = line.PackSize,
                 no_of_packs = line.NoOfPacks,
                 OrderedQty = (int)line.OrderedQty,
+                CostPrice = line.CostPrice,
+                CostPricePer = line.CostPricePer,
+                VatCode = line.VatCode,
+                VatRate = line.VatRate,
                 ScanAcceptQty = (int)line.ScanAcceptQty,
                 ScanRejectQty = (int)line.ScanRejectQty,
                 BinLocation = line.BinLocation,
@@ -206,20 +219,19 @@ public partial class ReceivingMain : ContentPage
             // Reload the merged data for display
             await LoadExistingPoForDisplayAsync(poNumber);
 
-            // Show merge summary
-            var summary = $"Merge Complete!\n\n" +
-                         $"{updatedLines} lines updated\n" +
-                         $"{newLines} new lines added\n" +
-                         $"{removedLines} lines removed\n\n" +
-                         $"Your received quantities have been preserved.";
+            // Only show merge summary when something actually changed
+            if (newLines > 0 || removedLines > 0)
+            {
+                var summary = $"Merge Complete!\n\n" +
+                             $"{updatedLines} lines updated\n" +
+                             $"{newLines} new lines added\n" +
+                             $"{removedLines} lines removed\n\n" +
+                             $"Your received quantities have been preserved.";
 
-            if (removedLines > 0)
-            {
-                await DisplayAlert("Merge Summary", summary + "\n\nNote: Lines removed from the source document have been deleted locally, even if they had progress.", "OK");
-            }
-            else
-            {
-                await DisplayAlert("Merge Summary", summary, "OK");
+                if (removedLines > 0)
+                    await DisplayAlert("Merge Summary", summary + "\n\nNote: Removed lines have been deleted locally, even if they had progress.", "OK");
+                else
+                    await DisplayAlert("Merge Summary", summary, "OK");
             }
         }
         catch (Exception ex)
@@ -281,36 +293,46 @@ public partial class ReceivingMain : ContentPage
             DueDate = response.DueDate,
             Status = response.Status,
             SupplierName = response.SupplierName,
-            JsonData = JsonSerializer.Serialize(response), // store full response as Json
-            iscompleted = false // Assuming default is not completed
+            AcctCode = response.SupplierCode,
+            BranchCode = response.BranchCode ?? "HO",
+            JsonData = JsonSerializer.Serialize(response),
+            iscompleted = false
         };
 
         // Insert or update the PoHeader
         await App.Db.InsertAsync(poHeader);
 
-        // Save each line as PoLine
-        foreach (var line in response.Lines)
+        // Batch build and insert all lines in a single transaction
+        var poLines = response.Lines.Select(line => new PoLine
         {
-            var poLine = new PoLine
-            {
-                OrderNo = line.DocNum,
-                LineNo = line.LineNo,
-                ItemCode = line.ItemCode,
-                ItemDesc = line.ItemDesc,
-                ItemBarcode = line.ItemBarcode,
-                PackBarcode = line.PackBarcode,
-                PackSize = line.PackSize,
-                NoOfPacks = line.no_of_packs,
-                OrderedQty = line.OrderedQty,
-                ReceivedQty = 0, // default as 0
-                BinLocation = line.BinLocation,
-                WhID = line.WhID,
-                GRNum = null // to be updated during receiving process
-            };
+            OrderNo = line.DocNum,
+            LineNo = line.LineNo,
+            ItemCode = line.ItemCode,
+            ItemDesc = line.ItemDesc,
+            ItemBarcode = line.ItemBarcode,
+            PackBarcode = line.PackBarcode,
+            PackSize = line.PackSize,
+            NoOfPacks = line.no_of_packs,
+            OrderedQty = line.OrderedQty,
+            CostPrice = line.CostPrice,
+            CostPricePer = line.CostPricePer,
+            VatCode = line.VatCode,
+            VatRate = line.VatRate,
+            ReceivedQty = 0,
+            BinLocation = line.BinLocation,
+            WhID = !string.IsNullOrWhiteSpace(line.WhID) ? line.WhID.PadLeft(3, '0') : line.WhID,
+            GRNum = null
+        }).ToList();
 
-            // Insert each PoLine
-            await App.Db.InsertAsync(poLine);
-        }
+        await App.Db.InsertAllAsync(poLines);
+    }
+
+    private async void OnLogoutClicked(object sender, EventArgs e)
+    {
+        bool confirm = await DisplayAlert("Log Out", "Are you sure you want to log out?", "Yes", "No");
+        if (!confirm) return;
+        App.Services.GetRequiredService<UserSession>().CurrentUser = null;
+        await Navigation.PopToRootAsync();
     }
 
     private async void Reset_Clicked(object sender, EventArgs e)

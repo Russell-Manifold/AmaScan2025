@@ -84,6 +84,14 @@ public partial class TransferMainPage : ContentPage
         }
     }
 
+    private async void OnLogoutClicked(object sender, EventArgs e)
+    {
+        bool confirm = await DisplayAlert("Log Out", "Are you sure you want to log out?", "Yes", "No");
+        if (!confirm) return;
+        App.Services.GetRequiredService<UserSession>().CurrentUser = null;
+        await Navigation.PopToRootAsync();
+    }
+
     private async void Frame_Tapped(object sender, EventArgs e)
     {
         if (sender is Frame frame && frame.BindingContext is WHtrfRequestHeader selectedHeader)

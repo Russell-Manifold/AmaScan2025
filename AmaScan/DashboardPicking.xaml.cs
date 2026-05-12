@@ -46,4 +46,12 @@ public partial class DashboardPicking : ContentPage
         var authorizationMain = App.Services.GetRequiredService<AuthorizationMain>();
         await Navigation.PushAsync(authorizationMain);
     }
+
+    private async void OnLogoutClicked(object sender, EventArgs e)
+    {
+        bool confirm = await DisplayAlert("Log Out", "Are you sure you want to log out?", "Yes", "No");
+        if (!confirm) return;
+        _userSession.CurrentUser = null;
+        await Navigation.PopToRootAsync();
+    }
 }

@@ -258,4 +258,12 @@ public partial class CheckingMain : ContentPage
             if (confirm) ClearSessionAndUI();
         }
     }
+
+    private async void OnLogoutClicked(object sender, EventArgs e)
+    {
+        bool confirm = await DisplayAlert("Log Out", "Are you sure you want to log out?", "Yes", "No");
+        if (!confirm) return;
+        App.Services.GetRequiredService<UserSession>().CurrentUser = null;
+        await Navigation.PopToRootAsync();
+    }
 }

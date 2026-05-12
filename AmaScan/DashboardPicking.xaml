@@ -4,6 +4,10 @@
              x:Class="AmaScan.DashboardPicking"
              Title="Picking and Packing">
     
+    <ContentPage.ToolbarItems>
+        <ToolbarItem IconImageSource="mainiconlogin.png" Text="Log Out" Clicked="OnLogoutClicked" Order="Primary" Priority="1" />
+    </ContentPage.ToolbarItems>
+
     <Grid>
         <!-- Row Definitions for Fixed and Scrollable Content -->
         <Grid.RowDefinitions>
