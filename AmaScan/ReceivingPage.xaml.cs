@@ -430,7 +430,12 @@ namespace AmaScan
 
         private async Task<bool> PromptSupervisorauthorisationAsync()
         {
-            string username = App.Services.GetRequiredService<UserSession>().CurrentUser?.UserName ?? "";
+            // Prompt for username first, then password
+            string username = await DisplayPromptAsync("Supervisor Authorisation", "Enter supervisor username:", "Next", "Cancel", "Username", -1, Keyboard.Text);
+            
+            if (string.IsNullOrWhiteSpace(username))
+                return false;
+
             string password = await DisplayPromptAsync("Supervisor Authorisation", $"Enter password for {username}:", "OK", "Cancel", "Password", -1, Keyboard.Text);
 
             if (string.IsNullOrWhiteSpace(password))
@@ -446,7 +451,7 @@ namespace AmaScan
                 var response = await client.PostAsync("GetUser/GetUserAsync", content);
                 if (!response.IsSuccessStatusCode)
                 {
-                    await DisplayAlert("Unauthorised", "Invalid password.", "OK");
+                    await DisplayAlert("Unauthorised", "Invalid username or password.", "OK");
                     return false;
                 }
 
@@ -728,6 +733,15 @@ namespace AmaScan
 
             _isDisposed = true;
             GC.SuppressFinalize(this);
+        }
+
+        private async void OnLogoutClicked(object sender, EventArgs e)
+        {
+            bool confirm = await DisplayAlert("Log Out", "Are you sure you want to log out? Any unsaved progress will remain on the device.", "Yes", "No");
+            if (!confirm) return;
+
+            App.Services.GetRequiredService<UserSession>().CurrentUser = null;
+            await Shell.Current.GoToAsync($"//{nameof(MainPage)}");
         }
     }
 }

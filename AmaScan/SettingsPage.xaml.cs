@@ -24,8 +24,11 @@ public partial class SettingsPage : ContentPage
         InitializeComponent();
         ApiUrlEntry.Text = AppConfig.ApiBaseUrl;
         ApiUrlEntry.IsEnabled = false;
+
+        // Set the LocationSwitch to reflect saved setting (default is OffSite/false, OnSite is true)
+        LocationSwitch.IsToggled = AppConfig.IsOnSite;
+
         LocationSwitch.Toggled += LocationSwitch_Toggled;
-        //LocationSwitch.IsToggled = AppConfig.IsOnSite;
         LoadWarehouses();
     }
 

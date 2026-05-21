@@ -140,23 +140,27 @@ public partial class CheckingDocumentsPage : ContentPage, INotifyPropertyChanged
                 }
             }
 
-            // Check if the item has been packed
-            if (!soLine.Packed)
-            {
-                await DisplayAlert("Checking Unavailable",
-                    $"{soLine.ItemDesc} has not been packed yet.\n\n" +
-                    "Checking is unavailable until packing is completed.", "OK");
-                return;
-            }
+            // TEMP (2026-05-21): Picking/packing workflow paused — checking may proceed
+            // for an unpicked/unpacked SO. Restore this gate when picking/packing returns.
+            //// Check if the item has been packed
+            //if (!soLine.Packed)
+            //{
+            //    await DisplayAlert("Checking Unavailable",
+            //        $"{soLine.ItemDesc} has not been packed yet.\n\n" +
+            //        "Checking is unavailable until packing is completed.", "OK");
+            //    return;
+            //}
 
-            // Check if authorization has started
-            if (soLine.AuthStarted)
-            {
-                await DisplayAlert("Checking Unavailable",
-                    $"{soLine.ItemDesc} has already been started for authorization.\n\n" +
-                    "Checking cannot be modified once authorization has started. Please complete authorization first.", "OK");
-                return;
-            }
+            // TEMP (2026-05-21): Authorization phase moved out of this app for the current
+            // milestone. Restore this gate if/when authorization returns.
+            //// Check if authorization has started
+            //if (soLine.AuthStarted)
+            //{
+            //    await DisplayAlert("Checking Unavailable",
+            //        $"{soLine.ItemDesc} has already been started for authorization.\n\n" +
+            //        "Checking cannot be modified once authorization has started. Please complete authorization first.", "OK");
+            //    return;
+            //}
 
             // Set the selected SO line in the session
             PickingWorkflowSession.CurrentSoLine = soLine;

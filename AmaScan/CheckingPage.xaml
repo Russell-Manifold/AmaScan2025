@@ -48,11 +48,17 @@
                             HorizontalOptions="End" />
                 </Grid>
 
-                <Button x:Name="SaveButton" 
-                        Text="Save" 
+                <Button x:Name="SaveButton"
+                        Text="Save"
                         BackgroundColor="Green"
                         TextColor="White"
                         Clicked="OnSaveProgressClicked" />
+
+                <Button x:Name="MarkShortButton"
+                        Text="Mark Short"
+                        BackgroundColor="DarkOrange"
+                        TextColor="White"
+                        Clicked="OnMarkShortClicked" />
             </StackLayout>
 
             <Button x:Name="StartCheckingButton" 

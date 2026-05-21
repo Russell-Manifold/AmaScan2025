@@ -75,7 +75,9 @@
                        VerticalOptions="Center"
                        IsVisible="{Binding CanCheck}"/>
 
-                <!-- 🔘 Image Button 6 - Authorization -->
+                <!-- TEMP (2026-05-21): Authorization phase moved out of this app for the
+                     current milestone. Restore this tile if/when authorization returns. -->
+                <!--
                 <ImageButton x:Name="BtnAuthorization" Source="receivestck.png" IsVisible="{Binding CanAuth}"
                          WidthRequest="50"
                          HeightRequest="50"
@@ -84,6 +86,8 @@
                        HorizontalOptions="Center"
                        VerticalOptions="Center"
                        IsVisible="{Binding CanAuth}"/>
+                -->
+
 
 
             </VerticalStackLayout>

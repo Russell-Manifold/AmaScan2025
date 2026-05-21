@@ -145,15 +145,23 @@ public partial class CheckingPage : ContentPage, INotifyPropertyChanged
     {
         if (SelectedLine == null) return;
 
-        bool isFullyChecked = SelectedLine.CheckedQty >= SelectedLine.PickedQty;
+        // TEMP (2026-05-21): Picking/packing workflow paused — compare against OrderedQty
+        // instead of PickedQty so checking works without a prior pick/pack.
+        //// bool isFullyChecked = SelectedLine.CheckedQty >= SelectedLine.PickedQty;
+        bool isFullyChecked = SelectedLine.CheckedQty >= SelectedLine.OrderedQty;
 
-        BarcodeEntry.IsEnabled = !isFullyChecked;
-        QuantityEntry.IsEnabled = !isFullyChecked;
-        SaveButton.IsEnabled = !isFullyChecked;
+        // Line is "done" when Checked is true — either fully checked (qty match)
+        // or explicitly marked short via OnMarkShortClicked.
+        bool isCompleted = SelectedLine.Checked;
 
-        if (isFullyChecked)
+        BarcodeEntry.IsEnabled = !isCompleted;
+        QuantityEntry.IsEnabled = !isCompleted;
+        SaveButton.IsEnabled = !isCompleted;
+        MarkShortButton.IsEnabled = !isCompleted;
+
+        if (isCompleted)
         {
-            SaveButton.Text = "Fully Checked";
+            SaveButton.Text = isFullyChecked ? "Fully Checked" : "Marked Short";
             SaveButton.BackgroundColor = Colors.Gray;
             SaveButton.TextColor = Colors.White;
         }
@@ -263,8 +271,11 @@ public partial class CheckingPage : ContentPage, INotifyPropertyChanged
                 await App.Db.UpdateSoLineAsync(line);
             }
 
-            await App.Db.UpdateSoHeaderAsync(_soHeader);
-            PickingWorkflowSession.CurrentSoHeader = _soHeader;
+            // TEMP (2026-05-21): Nothing on this page mutates the SoHeader, so writing it
+            // back here just clobbers any header changes another user/phase made between
+            // load and save. Restore if/when this page actually edits header fields.
+            //// await App.Db.UpdateSoHeaderAsync(_soHeader);
+            //// PickingWorkflowSession.CurrentSoHeader = _soHeader;
 
             await DisplayAlert("Success", "Progress saved successfully.", "OK");
         }
@@ -310,46 +321,44 @@ public partial class CheckingPage : ContentPage, INotifyPropertyChanged
 
             if (!SelectedLine.Checked)
             {
-                var currentLineOutstanding = SelectedLine.CheckingOutstandingQty;
+                // TEMP (2026-05-21): Picking/packing workflow paused — outstanding qty based
+                // on OrderedQty rather than CheckingOutstandingQty (which assumes PackedQty).
+                //// var currentLineOutstanding = SelectedLine.CheckingOutstandingQty;
+                var currentLineOutstanding = SelectedLine.OrderedQty - SelectedLine.CheckedQty;
                 await DisplayAlert("Incomplete",
                     $"The selected item must be checked before completing.\n\n" +
                     $"{currentLineOutstanding} items still need checking", "OK");
                 return;
             }
 
-            bool confirmed = await DisplayAlert("Confirm Completion", "Item checked. Proceed to complete checking?", "Yes", "No");
-            if (!confirmed) return;
+            // Determine state first, then ask the user the right question once.
+            bool allChecked = await App.Db.AreAllLinesCheckedAsync(_soHeader.Reference);
 
-            // Check if all lines are checked
-            if (await App.Db.AreAllLinesCheckedAsync(_soHeader.Reference))
+            if (allChecked)
             {
-                // All items are checked, prompt to complete the entire order
                 bool completeOrder = await DisplayAlert("All Items Checked",
-                    $"All items have been checked for {_soHeader.Reference}!\n\n" +
-                    "Would you like to complete the entire checking phase now?", "Complete Order", "Continue Checking");
+                    $"All items have been checked for {_soHeader.Reference}.\n\n" +
+                    "Complete the checking phase now?", "Complete Order", "Continue");
 
                 if (completeOrder)
                 {
-                    // Complete the entire order
                     await CompleteCheckingPhase();
                 }
                 else
                 {
-                    // Go back to documents page to continue
-                    await DisplayAlert("Line Complete",
-                        $"Checking completed for {SelectedLine.ItemDesc}!\n\n" +
-                        $"Returning to documents page to continue.", "OK");
                     await Shell.Current.GoToAsync("..");
                 }
             }
             else
             {
-                // Not all items checked, go back to documents page
-                await DisplayAlert("Line Complete",
-                    $"Checking completed for {SelectedLine.ItemDesc}!\n\n" +
-                    $"Returning to documents page to select next item.", "OK");
+                bool confirmed = await DisplayAlert("Confirm Line Complete",
+                    $"Mark {SelectedLine.ItemDesc} as checked?", "Yes", "No");
+                if (!confirmed) return;
 
-                // Navigate back to documents page
+                await DisplayAlert("Line Complete",
+                    $"Checking completed for {SelectedLine.ItemDesc}.\n\n" +
+                    "Returning to documents page to select next item.", "OK");
+
                 await Shell.Current.GoToAsync("..");
             }
         }
@@ -375,11 +384,16 @@ public partial class CheckingPage : ContentPage, INotifyPropertyChanged
                 PickingWorkflowSession.Clear();
                 await DisplayAlert("Checking Phase Complete",
                     $"Checking successfully completed for entire SO!\n\n" +
-                    $"Next phase: Authorization\n\n" +
+                    // TEMP (2026-05-21): Authorization phase moved out of this app for the
+                    // current milestone. Restore the next-phase line if/when it returns.
+                    //// $"Next phase: Authorization\n\n" +
                     $"Order: {_soHeader.Reference}", "OK");
 
-                var dashboardPage = App.Services.GetRequiredService<Dashboard>();
-                await Navigation.PushAsync(dashboardPage);
+                // TEMP (2026-05-21): Was PushAsync(Dashboard) which left CheckingPage on
+                // the navigation stack; back button then re-entered a cleared session.
+                //// var dashboardPage = App.Services.GetRequiredService<Dashboard>();
+                //// await Navigation.PushAsync(dashboardPage);
+                await Navigation.PopToRootAsync();
             }
             else
             {
@@ -389,6 +403,92 @@ public partial class CheckingPage : ContentPage, INotifyPropertyChanged
         catch (Exception ex)
         {
             await DisplayAlert("Error", $"Unexpected error: {ex.Message}", "OK");
+        }
+    }
+
+    private async void OnMarkShortClicked(object sender, EventArgs e)
+    {
+        try
+        {
+            if (SelectedLine == null)
+            {
+                await DisplayAlert("No Item Selected", "Please select an item.", "OK");
+                return;
+            }
+
+            if (SelectedLine.Checked)
+            {
+                await DisplayAlert("Already Complete", "This line is already marked complete.", "OK");
+                return;
+            }
+
+            decimal shortQty = SelectedLine.OrderedQty - SelectedLine.CheckedQty;
+            if (shortQty <= 0)
+            {
+                await DisplayAlert("Nothing to Short",
+                    "Checked quantity already meets the ordered quantity. Use Complete instead.", "OK");
+                return;
+            }
+
+            bool confirmed = await DisplayAlert("Mark Short?",
+                $"{SelectedLine.ItemDesc}\n\n" +
+                $"Checked: {SelectedLine.CheckedQty}\n" +
+                $"Ordered: {SelectedLine.OrderedQty}\n" +
+                $"Short by: {shortQty}\n\n" +
+                "This will close out the line with the shortfall. The remainder will be reconciled at the next stage.",
+                "Mark Short", "Cancel");
+            if (!confirmed) return;
+
+            var lineInCollection = _soLines.FirstOrDefault(l => l.Id == SelectedLine.Id) ?? SelectedLine;
+
+            lineInCollection.Checked = true;
+            lineInCollection.CheckCompleteDateTime = DateTime.Now;
+            // TEMP (2026-05-21): Picking/packing workflow paused — flip Picked/Packed flags
+            // so downstream views show the line as if it went through the full workflow.
+            // No timestamps set; restore proper Pick/Pack handling when those phases return.
+            lineInCollection.Picked = true;
+            lineInCollection.Packed = true;
+            if (string.IsNullOrEmpty(lineInCollection.CheckedBy))
+                lineInCollection.CheckedBy = GetCurrentUserName();
+            if (lineInCollection.CheckStartDateTime == null)
+                lineInCollection.CheckStartDateTime = DateTime.Now;
+            if (!lineInCollection.CheckStarted)
+                lineInCollection.CheckStarted = true;
+
+            await App.Db.UpdateSoLineAsync(lineInCollection);
+
+            SelectedLine = lineInCollection;
+            SelectedItemFrame.BindingContext = lineInCollection;
+            OnPropertyChanged(nameof(SelectedLine));
+            UpdateInputState();
+
+            // Run the same post-Checked flow as OnCompleteClicked, minus the
+            // line-confirm prompt (user already confirmed via Mark Short).
+            bool allChecked = await App.Db.AreAllLinesCheckedAsync(_soHeader.Reference);
+
+            if (allChecked)
+            {
+                bool completeOrder = await DisplayAlert("All Items Checked",
+                    $"All items have been checked for {_soHeader.Reference}.\n\n" +
+                    "Complete the checking phase now?", "Complete Order", "Continue");
+
+                if (completeOrder)
+                    await CompleteCheckingPhase();
+                else
+                    await Shell.Current.GoToAsync("..");
+            }
+            else
+            {
+                await DisplayAlert("Line Marked Short",
+                    $"{SelectedLine.ItemDesc} marked short ({SelectedLine.CheckedQty}/{SelectedLine.OrderedQty}).\n\n" +
+                    "Returning to documents page to select next item.", "OK");
+
+                await Shell.Current.GoToAsync("..");
+            }
+        }
+        catch (Exception ex)
+        {
+            await DisplayAlert("Error", $"Failed to mark short: {ex.Message}", "OK");
         }
     }
 
@@ -467,20 +567,39 @@ public partial class CheckingPage : ContentPage, INotifyPropertyChanged
             return;
         }
 
-        if (lineInCollection.CheckedQty >= lineInCollection.PickedQty)
+        // TEMP (2026-05-21): Picking/packing workflow paused — cap on OrderedQty.
+        // Restore the PickedQty/PackedQty comparisons when picking/packing returns.
+        //// if (lineInCollection.CheckedQty >= lineInCollection.PickedQty)
+        //// {
+        ////     await DisplayAlert("Already Checked",
+        ////         $"{lineInCollection.ItemDesc} has already been fully checked ({lineInCollection.CheckedQty}/{lineInCollection.PickedQty}).\n\n" +
+        ////         "No further checking allowed.", "OK");
+        ////     return;
+        //// }
+        ////
+        //// if ((lineInCollection.CheckedQty + quantity) > lineInCollection.PickedQty)
+        //// {
+        ////     await DisplayAlert("Over-Checking Not Allowed",
+        ////         $"Cannot check {quantity} more items. This would exceed the packed quantity of {lineInCollection.PackedQty}.\n\n" +
+        ////         $"Already checked: {lineInCollection.CheckedQty}\n" +
+        ////         $"Remaining: {lineInCollection.PickedQty - lineInCollection.CheckedQty}", "OK");
+        ////     return;
+        //// }
+
+        if (lineInCollection.CheckedQty >= lineInCollection.OrderedQty)
         {
             await DisplayAlert("Already Checked",
-                $"{lineInCollection.ItemDesc} has already been fully checked ({lineInCollection.CheckedQty}/{lineInCollection.PickedQty}).\n\n" +
+                $"{lineInCollection.ItemDesc} has already been fully checked ({lineInCollection.CheckedQty}/{lineInCollection.OrderedQty}).\n\n" +
                 "No further checking allowed.", "OK");
             return;
         }
 
-        if ((lineInCollection.CheckedQty + quantity) > lineInCollection.PickedQty)
+        if ((lineInCollection.CheckedQty + quantity) > lineInCollection.OrderedQty)
         {
             await DisplayAlert("Over-Checking Not Allowed",
-                $"Cannot check {quantity} more items. This would exceed the packed quantity of {lineInCollection.PackedQty}.\n\n" +
+                $"Cannot check {quantity} more items. This would exceed the ordered quantity of {lineInCollection.OrderedQty}.\n\n" +
                 $"Already checked: {lineInCollection.CheckedQty}\n" +
-                $"Remaining: {lineInCollection.PickedQty - lineInCollection.CheckedQty}", "OK");
+                $"Remaining: {lineInCollection.OrderedQty - lineInCollection.CheckedQty}", "OK");
             return;
         }
 
@@ -491,10 +610,23 @@ public partial class CheckingPage : ContentPage, INotifyPropertyChanged
     {
         lineInCollection.CheckedQty += quantity;
 
-        lineInCollection.CheckCompleteDateTime = lineInCollection.CheckedQty == lineInCollection.PickedQty ? DateTime.Now : null;
+        // TEMP (2026-05-21): Picking/packing workflow paused — completion based on OrderedQty.
+        //// lineInCollection.CheckCompleteDateTime = lineInCollection.CheckedQty == lineInCollection.PickedQty ? DateTime.Now : null;
+        //// // Set Checked flag when quantities match exactly
+        //// lineInCollection.Checked = lineInCollection.CheckedQty == lineInCollection.PickedQty;
+        lineInCollection.CheckCompleteDateTime = lineInCollection.CheckedQty == lineInCollection.OrderedQty ? DateTime.Now : null;
 
         // Set Checked flag when quantities match exactly
-        lineInCollection.Checked = lineInCollection.CheckedQty == lineInCollection.PickedQty;
+        lineInCollection.Checked = lineInCollection.CheckedQty == lineInCollection.OrderedQty;
+
+        // TEMP (2026-05-21): Picking/packing workflow paused — flip Picked/Packed flags
+        // so downstream views show the line as if it went through the full workflow.
+        // No timestamps set; restore proper Pick/Pack handling when those phases return.
+        if (lineInCollection.Checked)
+        {
+            lineInCollection.Picked = true;
+            lineInCollection.Packed = true;
+        }
 
         // Ensure CheckedBy is set when completing the line
         if (string.IsNullOrEmpty(lineInCollection.CheckedBy))
@@ -529,9 +661,12 @@ public partial class CheckingPage : ContentPage, INotifyPropertyChanged
 
         if (lineInCollection.Checked)
         {
+            // TEMP (2026-05-21): Picking/packing workflow paused — show OrderedQty in alert.
+            //// await DisplayAlert("Checking Complete",
+            ////     $"{lineInCollection.ItemDesc} has been fully checked ({lineInCollection.CheckedQty}/{lineInCollection.PickedQty})\n\n" +
+            ////     "Checking complete, needs authorization", "OK");
             await DisplayAlert("Checking Complete",
-                $"{lineInCollection.ItemDesc} has been fully checked ({lineInCollection.CheckedQty}/{lineInCollection.PickedQty})\n\n" +
-                "Checking complete, needs authorization", "OK");
+                $"{lineInCollection.ItemDesc} has been fully checked ({lineInCollection.CheckedQty}/{lineInCollection.OrderedQty})", "OK");
         }
     }
 

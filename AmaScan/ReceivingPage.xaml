@@ -9,6 +9,7 @@
     <ContentPage.ToolbarItems>
         <ToolbarItem IconImageSource="resumeimg.png" Clicked="OnRestartClicked" Order="Primary" Priority="1" />
         <ToolbarItem IconImageSource="ticksmallo.png" Clicked="OnCompleteClicked" Order="Primary" Priority="2" />
+        <ToolbarItem IconImageSource="mainiconlogin.png" Text="Log Out" Clicked="OnLogoutClicked" Order="Primary" Priority="3" />
     </ContentPage.ToolbarItems>
 
     <Grid>

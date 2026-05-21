@@ -130,7 +130,7 @@ public partial class ReceivingMain : ContentPage
                 WhID = line.WhID
             }).ToList();
 
-            // Create display response
+            // Create display response - ensure we're using a fresh collection
             _currentPoResponse = new PurchaseOrderResponse
             {
                 OrderNo = existingPo.OrderNo,
@@ -148,7 +148,8 @@ public partial class ReceivingMain : ContentPage
                 dueDateLabel.Text = $"Due: {_currentPoResponse.DueDate:yyyy-MM-dd}";
                 poHeaderFrame.IsVisible = true;
 
-                // Show lines
+                // Clear and re-bind lines to prevent duplication
+                poLinesView.ItemsSource = null;
                 poLinesView.ItemsSource = _currentPoResponse.Lines;
                 poLinesView.IsVisible = true;
 

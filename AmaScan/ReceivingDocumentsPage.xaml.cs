@@ -29,6 +29,7 @@ public partial class ReceivingDocumentsPage : ContentPage, INotifyPropertyChange
 
     private PoHeader _poHeader;
     private string _dnNumber;
+    private string _selectedWarehouseCode;
 
     public string DNnumber
     {
@@ -108,6 +109,22 @@ public partial class ReceivingDocumentsPage : ContentPage, INotifyPropertyChange
         {
             await LoadPoHeaderAsync(PoQuery);
         }
+        else if (_poHeader != null && !string.IsNullOrWhiteSpace(_selectedWarehouseCode))
+        {
+            // Restore previously selected warehouse when navigating back
+            var previousWarehouse = WarehouseList.FirstOrDefault(w => w.Code == _selectedWarehouseCode);
+            if (previousWarehouse != null)
+            {
+                SelectedWarehouse = previousWarehouse;
+            }
+        }
+    }
+
+    protected override void OnDisappearing()
+    {
+        base.OnDisappearing();
+        // Save selected warehouse before leaving the page
+        _selectedWarehouseCode = SelectedWarehouse?.Code;
     }
 
     private async Task LoadPoHeaderAsync(string poNumber)
