@@ -6,6 +6,7 @@ namespace Data.Model
     {
         public int Id { get; set; }
         public int SalesOrderHeaderId { get; set; }
+        public int SoLLineNo { get; set; }
         public string? DocNum { get; set; }
         public string? CustomerAccount { get; set; }
         public string? CustomerName { get; set; }

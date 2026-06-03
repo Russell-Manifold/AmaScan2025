@@ -389,16 +389,14 @@ public partial class CheckingPage : ContentPage, INotifyPropertyChanged
                     //// $"Next phase: Authorization\n\n" +
                     $"Order: {_soHeader.Reference}", "OK");
 
-                // TEMP (2026-05-21): Was PushAsync(Dashboard) which left CheckingPage on
-                // the navigation stack; back button then re-entered a cleared session.
-                //// var dashboardPage = App.Services.GetRequiredService<Dashboard>();
-                //// await Navigation.PushAsync(dashboardPage);
-                await Navigation.PopToRootAsync();
+                // Return to the SO entry screen (CheckingMain) rather than the dashboard,
+                // so the user can immediately enter the next SO number to check.
+                // CheckingMain.OnAppearing clears the previous session/UI on arrival.
+                // Stack: CheckingMain -> CheckingDocumentsPage -> CheckingPage, so "../.." pops both.
+                await Shell.Current.GoToAsync("../..");
             }
-            else
-            {
-                await DisplayAlert("Error", "Failed to complete checking. Please try again.", "OK");
-            }
+            // On failure, SendToApiForCompletionAsync already surfaced the specific
+            // reason; leave the SO un-completed so the user can retry.
         }
         catch (Exception ex)
         {
@@ -738,13 +736,62 @@ public partial class CheckingPage : ContentPage, INotifyPropertyChanged
     {
         try
         {
-            // TODO: Implement API call when needed
-            // var result = await ApiService.SubmitCompletedSoAsync(soNumber, soLines);
-            // return result.IsSuccess;
-            return true;
+            // Build the delivery note lines from the checked SO lines. The server keys
+            // each line back to its SalesOrderLines row by SoLLineNo (captured at load).
+            var lines = soLines.Select(l => new DelNoteLine
+            {
+                LineNo = l.SoLLineNo,
+                ItemCode = l.ItemCode,
+                ItemDesc = l.ItemDesc,
+                ItemBarcode = l.ItemBarcode,
+                OrderedQty = l.OrderedQty,
+                CheckedQty = l.CheckedQty,
+                CheckedBy = l.CheckedBy,
+                CheckStartDateTime = l.CheckStartDateTime,
+                CheckCompleteDateTime = l.CheckCompleteDateTime
+            }).ToList();
+
+            // Build the audit header. Every line is guaranteed Checked at this point;
+            // a discrepancy is any line where the checked qty differs from ordered.
+            var header = new DelNoteHeader
+            {
+                CreatedBy = GetCurrentUserName(),
+                CreateStartTime = soLines.Min(l => l.CheckStartDateTime),
+                CreateEndTime = DateTime.Now,
+                DeviceName = AppConfig.DeviceName,
+                TotalLines = soLines.Count,
+                CheckedLines = soLines.Count(l => l.CheckedQty > 0),
+                DiscrepancyLines = soLines.Count(l => l.CheckedQty != l.OrderedQty)
+            };
+
+            // Outbound warehouse for the delivery note comes from the app's saved
+            // default picking warehouse (set on the Settings page).
+            string warehouseCode = Preferences.Get("DefaultPickingWarehouseCode", "");
+
+            IDelNoteService delNoteService = new OmniDelNoteService();
+            var result = await delNoteService.SendAsync(
+                soNumber,
+                null,            // customerBranchCode → server default ("HO")
+                warehouseCode,
+                null,            // status → server default ("Outstanding")
+                lines,
+                header);
+
+            if (result.Success)
+            {
+                System.Diagnostics.Debug.WriteLine($"Customer delivery note created: {result.ReferenceNumber}");
+                return true;
+            }
+
+            System.Diagnostics.Debug.WriteLine($"CustomerDeliveryNote API Error: {result.ErrorMessage}");
+            await DisplayAlert("Delivery Note Failed",
+                $"Could not create the delivery note for {soNumber}:\n\n{result.ErrorMessage}", "OK");
+            return false;
         }
-        catch
+        catch (Exception ex)
         {
+            System.Diagnostics.Debug.WriteLine($"SendToApiForCompletionAsync Error: {ex.Message}");
+            await DisplayAlert("Error", $"Failed to send delivery note: {ex.Message}", "OK");
             return false;
         }
     }

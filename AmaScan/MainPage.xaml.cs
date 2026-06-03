@@ -16,6 +16,49 @@ namespace AmaScan
             InitializeComponent();
             _userSession = App.Services.GetRequiredService<UserSession>();
             BindingContext = this;
+
+            // Fire-and-forget update check — runs after the page is rendered
+            Dispatcher.Dispatch(async () => await CheckForAppUpdateAsync());
+        }
+
+        private async Task CheckForAppUpdateAsync()
+        {
+            var update = await UpdateService.CheckForUpdateAsync();
+
+            if (update is null)
+                return;
+
+            bool download = await DisplayAlert(
+                "Update Available",
+                $"Version {update.Version} is available. Would you like to download and install it now?",
+                "Update",
+                "Later");
+
+            if (!download)
+                return;
+
+            try
+            {
+                updateProgressBar.Progress = 0;
+                updateProgressLabel.Text = "Downloading update…";
+                updateProgressContainer.IsVisible = true;
+
+                var progress = new Progress<double>(fraction =>
+                {
+                    updateProgressBar.Progress = fraction;
+                    updateProgressLabel.Text = $"Downloading update… {fraction:P0}";
+                });
+
+                await UpdateService.DownloadAndInstallAsync(update, progress);
+            }
+            catch (Exception ex)
+            {
+                await DisplayAlert("Update Failed", $"Could not download the update: {ex.Message}", "OK");
+            }
+            finally
+            {
+                updateProgressContainer.IsVisible = false;
+            }
         }
 
         private async void OnLogin_Clicked(object sender, EventArgs e)

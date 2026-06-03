@@ -695,6 +695,7 @@ namespace AmaScan.Classes
             }
 
             // Update source data
+            existingLine.SoLLineNo = freshLine.SoLLineNo;
             existingLine.ItemDesc = freshLine.ItemDesc;
             existingLine.PackBarcode = freshLine.PackBarcode;
             existingLine.PackSize = freshLine.PackSize;
@@ -708,6 +709,7 @@ namespace AmaScan.Classes
             return new SoLine
             {
                 DocNum = orderNo,
+                SoLLineNo = freshLine.SoLLineNo,
                 CustomerAccount = freshLine.CustomerAccount,
                 CustomerName = freshLine.CustomerName,
                 ItemCode = freshLine.ItemCode,

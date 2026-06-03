@@ -22,7 +22,19 @@
            HeightRequest="30"
            WidthRequest="30"
            HorizontalOptions="Center" />
-            
+
+            <VerticalStackLayout x:Name="updateProgressContainer"
+                                 IsVisible="False"
+                                 Spacing="5">
+                <Label x:Name="updateProgressLabel"
+                       Text="Downloading update…"
+                       FontSize="14"
+                       HorizontalOptions="Center" />
+                <ProgressBar x:Name="updateProgressBar"
+                             Progress="0"
+                             ProgressColor="#007AFF" />
+            </VerticalStackLayout>
+
             <Label Text="AmaScan Login"
                FontSize="18"
                HorizontalOptions="Center" />

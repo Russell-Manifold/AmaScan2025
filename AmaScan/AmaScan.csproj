@@ -17,6 +17,10 @@
 		<ApplicationId>com.companyname.amascan</ApplicationId>
 
 		<!-- Versions -->
+		<!-- AUTOMATIC versioning: every RELEASE build below stamps an ever-increasing version
+		     derived from the build time, so the in-app auto-update always fires and Android always
+		     accepts the upgrade. Nothing to bump by hand. These static values are only used for
+		     Debug builds. -->
 		<ApplicationDisplayVersion>1.0</ApplicationDisplayVersion>
 		<ApplicationVersion>1</ApplicationVersion>
 
@@ -39,6 +43,30 @@
 	<PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|android'">
 	  <RunAOTCompilation>False</RunAOTCompilation>
 	</PropertyGroup>
+
+	<!-- Automatic version stamping for every Release build (date/time based, always increasing). -->
+	<PropertyGroup Condition="'$(Configuration)'=='Release'">
+	  <!-- e.g. 2026.0602.0823.16 — monotonic to the second; valid 4-part version the in-app check compares. -->
+	  <ApplicationDisplayVersion>$([System.DateTime]::Now.ToString("yyyy.MMdd.HHmm.ss"))</ApplicationDisplayVersion>
+	  <!-- Android versionCode = whole seconds since 2024-01-01 UTC. Always increases; stays under the
+	       2,100,000,000 ceiling until ~2090. -->
+	  <ApplicationVersion>$([System.Convert]::ToInt32($([System.Math]::Floor($([System.DateTime]::UtcNow.Subtract($([System.DateTime]::Parse("2024-01-01"))).TotalSeconds)))))</ApplicationVersion>
+	</PropertyGroup>
+
+	<!-- After every Release build, write version.json next to the APK. Its contents always match
+	     the APK just produced (same version, same filename), so you just copy BOTH files from the
+	     output folder to the server's scannerapk folder — nothing to edit by hand. -->
+	<Target Name="WriteUpdateVersionJson" AfterTargets="Build" Condition="'$(Configuration)'=='Release'">
+	  <ItemGroup>
+	    <_AmaScanSignedApk Include="$(OutputPath)*-Signed.apk" />
+	  </ItemGroup>
+	  <WriteLinesToFile File="$(OutputPath)version.json"
+	                    Lines="{ &quot;version&quot;: &quot;$(ApplicationDisplayVersion)&quot;, &quot;apkFileName&quot;: &quot;%(_AmaScanSignedApk.Filename)%(_AmaScanSignedApk.Extension)&quot; }"
+	                    Overwrite="true"
+	                    Encoding="us-ascii" />
+	  <Message Importance="high"
+	           Text="version.json written: version=$(ApplicationDisplayVersion), apk=%(_AmaScanSignedApk.Filename)%(_AmaScanSignedApk.Extension) -> $(OutputPath)version.json" />
+	</Target>
 
 	<ItemGroup>
 		<!-- App Icon -->

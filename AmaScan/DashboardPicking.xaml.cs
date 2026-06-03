@@ -25,14 +25,12 @@ public partial class DashboardPicking : ContentPage
 
     private async void OnPage3Clicked(object sender, EventArgs e)
     {
-        var pickingMain = App.Services.GetRequiredService<PickingMain>();
-        await Navigation.PushAsync(pickingMain);
+        await DisplayAlert("Picking", "Feature Temporarily Disabled", "OK");
     }
 
     private async void OnPage4Clicked(object sender, EventArgs e)
     {
-        var packingMain = App.Services.GetRequiredService<PackingMain>();
-        await Navigation.PushAsync(packingMain);
+        await DisplayAlert("Packing", "Feature Temporarily Disabled", "OK");
     }
 
     private async void OnPage5Clicked(object sender, EventArgs e)
@@ -52,6 +50,8 @@ public partial class DashboardPicking : ContentPage
         bool confirm = await DisplayAlert("Log Out", "Are you sure you want to log out?", "Yes", "No");
         if (!confirm) return;
         _userSession.CurrentUser = null;
-        await Navigation.PopToRootAsync();
+        // Reset the Shell navigation stack back to the login page. PopToRootAsync did
+        // nothing here because DashboardPicking is the root of the current Shell stack.
+        await Shell.Current.GoToAsync("//MainPage");
     }
 }

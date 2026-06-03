@@ -83,9 +83,16 @@ public partial class CheckingDocumentsPage : ContentPage, INotifyPropertyChanged
             // Load all SO lines for the current SO
             var allLines = await App.Db.GetSoLinesByOrderNoAsync(_soHeader.Reference);
 
+            // Unchecked lines first (top), completed lines last (bottom);
+            // keep a stable order within each group by line number.
+            var orderedLines = allLines
+                .OrderBy(l => l.Checked)
+                .ThenBy(l => l.SoLLineNo)
+                .ToList();
+
             // Clear and reload the collection with all items
             _soLines.Clear();
-            foreach (var line in allLines)
+            foreach (var line in orderedLines)
             {
                 _soLines.Add(line);
             }

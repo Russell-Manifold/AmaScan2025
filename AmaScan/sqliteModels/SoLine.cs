@@ -11,6 +11,10 @@ namespace AmaScan.sqliteModels
 
         public int SalesOrderHeaderId { get; set; }
 
+        // Omni sales order line number (from GetSalesOrder); used to key the
+        // customer delivery note payload back to the server's SalesOrderLines.
+        public int SoLLineNo { get; set; }
+
         [Indexed(Name = "idx_so_line", Order = 1)]
         public string? DocNum { get; set; }
 
@@ -149,6 +153,7 @@ namespace AmaScan.sqliteModels
                     _checked = value;
                     OnPropertyChanged(nameof(Checked));
                     OnPropertyChanged(nameof(StatusColor));
+                    OnPropertyChanged(nameof(CheckRowColor));
                 }
             }
         }
@@ -260,6 +265,11 @@ namespace AmaScan.sqliteModels
                 return HasDiscrepancy && PickedQty > 0;
             }
         }
+
+        // Row colour for the Checking Items list: pale green once the line is
+        // checked (complete), plain white while it still needs checking.
+        [Ignore]
+        public string CheckRowColor => Checked ? "#C8E6C9" : "White";
 
         [Ignore]
         public string StatusColor

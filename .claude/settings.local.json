@@ -8,7 +8,11 @@
       "Bash(git reset *)",
       "Bash(git checkout *)",
       "Bash(git commit *)",
-      "Bash(Select-String -Pattern \"error|warning|Build succeeded\" -CaseSensitive)"
+      "Bash(Select-String -Pattern \"error|warning|Build succeeded\" -CaseSensitive)",
+      "Read(//f/Manifold/**)",
+      "Read(//f/Manifold/AmaScanV2/**)",
+      "PowerShell(dotnet msbuild *)",
+      "PowerShell(dotnet build *)"
     ]
   }
 }

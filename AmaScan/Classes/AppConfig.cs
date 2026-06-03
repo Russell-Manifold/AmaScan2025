@@ -2,7 +2,7 @@
 {
     public static class AppConfig
     {
-        private const string OffSiteApiUrl = "http://192.168.0.104:8052/api/";
+        private const string OffSiteApiUrl = "http://192.168.0.106:8052/api/";
         private const string OnSiteApiUrl = "http://175.25.97.2:8079/api/";
         private const string ApiModeKey = "OnSite";
         private const string CustomApiUrlKey = "CustomApiUrl"; // NEW

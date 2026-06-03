@@ -69,16 +69,39 @@ public partial class CheckingMain : ContentPage
 
         try
         {
-            // Run heavy operations on background thread
-            var result = await Task.Run(async () =>
+            // Run heavy operations on background thread. Capture status + body so we can
+            // distinguish success, not-found, and the ambiguous "multiple matches" case.
+            var fetch = await Task.Run(async () =>
             {
-                // Fetch from API
                 string url = $"{AppConfig.ApiBaseUrl}GetSalesOrder/{Uri.EscapeDataString($"IO{soNumber}")}";
-                var response = await _httpClient.GetFromJsonAsync<SalesOrderResponse>(url);
-                return response;
+                var response = await _httpClient.GetAsync(url);
+                string body = await response.Content.ReadAsStringAsync();
+                return (IsSuccess: response.IsSuccessStatusCode, Status: response.StatusCode, Body: body);
             });
 
-            _currentSoResponse = result;
+            // The trailing digits matched more than one order (server returns 409).
+            if (fetch.Status == System.Net.HttpStatusCode.Conflict)
+            {
+                await MainThread.InvokeOnMainThreadAsync(async () =>
+                {
+                    await DisplayAlert("Multiple Orders Found",
+                        "More than one sales order matches those digits.\n\n" +
+                        "Please enter more digits to identify the exact order.", "OK");
+                });
+                return;
+            }
+
+            if (!fetch.IsSuccess)
+            {
+                await MainThread.InvokeOnMainThreadAsync(async () =>
+                {
+                    await DisplayAlert("Not Found", $"SO {soNumber} not found on server.", "OK");
+                });
+                return;
+            }
+
+            _currentSoResponse = System.Text.Json.JsonSerializer.Deserialize<SalesOrderResponse>(
+                fetch.Body, new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
 
             if (_currentSoResponse == null || _currentSoResponse.Lines == null || !_currentSoResponse.Lines.Any())
             {
@@ -226,6 +249,7 @@ public partial class CheckingMain : ContentPage
         var soLines = response.Lines.Select(line => new SoLine
         {
             DocNum = soNumber,
+            SoLLineNo = line.SoLLineNo,
             CustomerAccount = line.CustomerAccount,
             CustomerName = line.CustomerName,
             ItemCode = line.ItemCode,
@@ -264,6 +288,8 @@ public partial class CheckingMain : ContentPage
         bool confirm = await DisplayAlert("Log Out", "Are you sure you want to log out?", "Yes", "No");
         if (!confirm) return;
         App.Services.GetRequiredService<UserSession>().CurrentUser = null;
-        await Navigation.PopToRootAsync();
+        // Reset the Shell navigation stack back to the login page. PopToRootAsync did
+        // nothing here because CheckingMain is the root of the current Shell stack.
+        await Shell.Current.GoToAsync("//MainPage");
     }
 }

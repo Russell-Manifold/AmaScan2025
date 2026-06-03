@@ -29,8 +29,8 @@
                               SelectionChanged="OnSoLineSelected">
                     <CollectionView.ItemTemplate>
                         <DataTemplate>
-                            <Frame Padding="10" Margin="0,5" 
-                                   BackgroundColor="{Binding StatusColor}"
+                            <Frame Padding="10" Margin="0,5"
+                                   BackgroundColor="{Binding CheckRowColor}"
                                    BorderColor="LightGray">
                                 <Frame.GestureRecognizers>
                                     <TapGestureRecognizer Tapped="OnItemTapped" 
