@@ -17,7 +17,6 @@ namespace AmaScan.Classes
             string poNumber,
             string supplierAccountCode,
             string branchCode,
-            string rejectWarehouseCode,
             List<GrvLine> lines,
             GrvHeader header)
         {
@@ -37,7 +36,6 @@ namespace AmaScan.Classes
                     poNumber,
                     supplierAccountCode,
                     branchCode = branchCode ?? "HO",
-                    rejectWarehouseCode,
                     header = header == null ? null : new
                     {
                         receiver = header.Receiver,
@@ -59,7 +57,8 @@ namespace AmaScan.Classes
                         costPricePer = l.CostPricePer,
                         vatCode = l.VatCode ?? "1",
                         vatRate = l.VatRate,
-                        warehouseId = l.WarehouseId
+                        acceptWarehouseId = l.AcceptWarehouseId,
+                        rejectWarehouseId = l.RejectWarehouseId
                     })
                 };
 

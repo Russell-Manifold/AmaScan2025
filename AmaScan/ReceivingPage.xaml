@@ -73,15 +73,14 @@
                     </HorizontalStackLayout>
                 </Grid>
 
-                <!-- Reject warehouse (shown only in reject mode) -->
-                <Label x:Name="lblRejStore" Text="Reject to Warehouse:"
-                       FontSize="13" TextColor="Gray" IsVisible="False"/>
-                <Picker x:Name="RejStorePicker"
-                        Title="Select Reject Warehouse"
-                        ItemsSource="{Binding WarehouseList}"
+                <!-- Destination store for the current scan (accept or reject) -->
+                <Label x:Name="lblStore" Text="Receive to Warehouse:"
+                       FontSize="13" TextColor="Gray"/>
+                <Picker x:Name="StorePicker"
+                        Title="Select Warehouse"
                         ItemDisplayBinding="{Binding Description}"
                         SelectedItem="{Binding SelectedWarehouse}"
-                        IsVisible="False" Margin="0,2,0,8"/>
+                        Margin="0,2,0,8"/>
 
                 <!-- Save button -->
                 <Button x:Name="SaveButton"

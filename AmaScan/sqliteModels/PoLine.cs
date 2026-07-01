@@ -65,6 +65,11 @@ namespace AmaScan.sqliteModels
 
         [Indexed(Name = "idx_po_line", Order = 4)]
         public string? WhID { get; set; }
+
+        // Destination stores captured at scan time — per line, per bucket.
+        // AcceptWhID = where the accepted qty goes, RejectWhID = where the rejected qty goes.
+        public string? AcceptWhID { get; set; }
+        public string? RejectWhID { get; set; }
         public string? GRNum { get; set; }
 
         private string? _receivedString;

@@ -306,12 +306,28 @@ namespace AmaScan
                     return;
                 }
 
+                // Capture the destination store for this scan, onto this line.
+                var storeCode = SelectedWarehouse?.Code;
+                if (string.IsNullOrWhiteSpace(storeCode))
+                {
+                    await DisplayAlert("Warehouse Required",
+                        _isAcceptMode ? "Select a warehouse to receive into." : "Select a reject warehouse.",
+                        "OK");
+                    return;
+                }
+
                 decimal thisTotQty = thisQty * stockItem.pack.GetValueOrDefault(1);
 
                 if (_isAcceptMode)
+                {
                     matchingLine.ScanAcceptQty += thisTotQty;
+                    matchingLine.AcceptWhID = storeCode;
+                }
                 else
+                {
                     matchingLine.ScanRejectQty += thisTotQty;
+                    matchingLine.RejectWhID = storeCode;
+                }
 
                 var modeLabel = _isAcceptMode ? "A" : "R";
                 matchingLine.ReceivedString = string.IsNullOrWhiteSpace(matchingLine.ReceivedString)
@@ -484,8 +500,8 @@ namespace AmaScan
         {
             try
             {
-                // Map PoLines to GrvLines — warehouse is always the device's default receiving warehouse
-                string defaultWh = (Preferences.Get("DefaultReceivingWarehouseCode", "") ?? "").PadLeft(3, '0');
+                // Map PoLines to GrvLines — each line carries its own destination stores,
+                // captured per scan (accept and reject can go to different warehouses).
                 var grvLines = poLines
                     .Where(l => l.ScanAcceptQty > 0 || l.ScanRejectQty > 0)
                     .Select(l => new GrvLine
@@ -498,7 +514,8 @@ namespace AmaScan
                         CostPricePer = l.CostPricePer,
                         VatCode = l.VatCode,
                         VatRate = l.VatRate,
-                        WarehouseId = defaultWh
+                        AcceptWarehouseId = NormalizeWh(l.AcceptWhID),
+                        RejectWarehouseId = NormalizeWh(l.RejectWhID)
                     })
                     .ToList();
 
@@ -508,15 +525,15 @@ namespace AmaScan
                     return false;
                 }
 
-                // Determine reject warehouse
-                string rejectWarehouseCode = "";
-                if (RejStorePicker.IsVisible && SelectedWarehouse != null)
+                // Every scanned quantity must have a destination store — fail loudly, don't guess.
+                var missing = grvLines.FirstOrDefault(l =>
+                    (l.ScanAcceptQty > 0 && string.IsNullOrWhiteSpace(l.AcceptWarehouseId)) ||
+                    (l.ScanRejectQty > 0 && string.IsNullOrWhiteSpace(l.RejectWarehouseId)));
+                if (missing != null)
                 {
-                    rejectWarehouseCode = SelectedWarehouse.Code;
-                }
-                else if (poLines.Any(l => l.ScanRejectQty > 0))
-                {
-                    rejectWarehouseCode = Preferences.Get("RejectWarehouse1Code", "");
+                    await DisplayAlert("Warehouse Missing",
+                        $"Line {missing.ItemCode} has a quantity with no destination warehouse. Please re-scan it.", "OK");
+                    return false;
                 }
 
                 // Build receiving audit header
@@ -539,7 +556,6 @@ namespace AmaScan
                     poNumber,
                     _poHeader?.AcctCode ?? "",
                     _poHeader?.BranchCode ?? "HO",
-                    rejectWarehouseCode,
                     grvLines,
                     header);
 
@@ -605,9 +621,10 @@ namespace AmaScan
                 AcceptRejectSwitch.IsToggled = false;
                 SaveButton.BackgroundColor = Colors.Green;
                 SaveButton.Text = "Save as Accepted";
-                RejStorePicker.IsVisible = false;
-                lblRejStore.IsVisible = false;
-                SetDefaultReceivingWarehouse();
+                // Accept always uses the device's default receiving store — no picker needed.
+                LoadAcceptWarehouses();
+                StorePicker.IsVisible = false;
+                lblStore.IsVisible = false;
             }
             else
             {
@@ -616,9 +633,11 @@ namespace AmaScan
                 AcceptRejectSwitch.IsToggled = true;
                 SaveButton.BackgroundColor = Colors.Red;
                 SaveButton.Text = "Save as Rejected";
+                lblStore.Text = "Reject to Warehouse:";
+                // Only reject lets the operator choose which reject store.
                 LoadRejectWarehouses();
-                RejStorePicker.IsVisible = true;
-                lblRejStore.IsVisible = true;
+                StorePicker.IsVisible = true;
+                lblStore.IsVisible = true;
             }
         }
 
@@ -627,17 +646,19 @@ namespace AmaScan
             OnSaveProgressClicked(sender, e);
         }
 
-        private void SetDefaultReceivingWarehouse()
+        // Warehouse codes are stored/compared as 3-char zero-padded (matches PO line import).
+        private static string NormalizeWh(string code) =>
+            string.IsNullOrWhiteSpace(code) ? code : code.PadLeft(3, '0');
+
+        private void LoadAcceptWarehouses()
         {
+            // Accepted stock always goes to the device's default receiving store (no picker).
+            // Set it explicitly so accept can never inherit a leftover reject selection;
+            // if it isn't configured, leave it null so the save-time check forces it to be fixed.
+            StorePicker.ItemsSource = WarehouseList;
+
             string defaultReceivingCode = Preferences.Get("DefaultReceivingWarehouseCode", "");
-            if (!string.IsNullOrEmpty(defaultReceivingCode))
-            {
-                var defaultWarehouse = WarehouseList.FirstOrDefault(w => w.Code == defaultReceivingCode);
-                if (defaultWarehouse != null)
-                {
-                    SelectedWarehouse = defaultWarehouse;
-                }
-            }
+            StorePicker.SelectedItem = WarehouseList.FirstOrDefault(w => w.Code == defaultReceivingCode);
         }
 
         private void LoadRejectWarehouses()
@@ -651,8 +672,8 @@ namespace AmaScan
             // Set the reject warehouse list to only show the 2 configured reject warehouses
             if (rejectWarehouses.Any())
             {
-                RejStorePicker.ItemsSource = rejectWarehouses;
-                RejStorePicker.SelectedItem = rejectWarehouses.First();
+                StorePicker.ItemsSource = rejectWarehouses;
+                StorePicker.SelectedItem = rejectWarehouses.First();
             }
         }
 

@@ -10,6 +10,7 @@
         public decimal CostPricePer { get; set; }
         public string VatCode { get; set; }
         public decimal VatRate { get; set; }
-        public string WarehouseId { get; set; }
+        public string AcceptWarehouseId { get; set; }
+        public string RejectWarehouseId { get; set; }
     }
 }
