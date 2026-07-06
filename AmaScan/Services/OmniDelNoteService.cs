@@ -36,7 +36,10 @@ namespace AmaScan.Classes
                 {
                     reference,
                     customerBranchCode = customerBranchCode ?? "HO",
-                    warehouseCode = string.IsNullOrWhiteSpace(warehouseCode) ? "1" : warehouseCode,
+                    // Send the device "Main Store" as-is. Do NOT substitute a hardcoded default:
+                    // the server stores whatever we send and later builds the Omni delivery note
+                    // from it, so a wrong guess here would push an invalid warehouse to Omni.
+                    warehouseCode = string.IsNullOrWhiteSpace(warehouseCode) ? "" : warehouseCode,
                     status = string.IsNullOrWhiteSpace(status) ? "Outstanding" : status,
                     header = header == null ? null : new
                     {

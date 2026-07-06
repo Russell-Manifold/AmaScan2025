@@ -446,6 +446,9 @@ public partial class CheckingPage : ContentPage, INotifyPropertyChanged
             // No timestamps set; restore proper Pick/Pack handling when those phases return.
             lineInCollection.Picked = true;
             lineInCollection.Packed = true;
+            // Mirror the (short) checked qty into picked/packed so the qty-derived flags read complete.
+            lineInCollection.PickedQty = lineInCollection.CheckedQty;
+            lineInCollection.PackedQty = lineInCollection.CheckedQty;
             if (string.IsNullOrEmpty(lineInCollection.CheckedBy))
                 lineInCollection.CheckedBy = GetCurrentUserName();
             if (lineInCollection.CheckStartDateTime == null)
@@ -624,6 +627,11 @@ public partial class CheckingPage : ContentPage, INotifyPropertyChanged
         {
             lineInCollection.Picked = true;
             lineInCollection.Packed = true;
+            // Picking/packing are paused, so mirror the checked qty into picked/packed. The
+            // qty-derived Picked/Packed flags (DatabaseHelper) and the server both need these
+            // non-zero, or the order reads as un-picked/un-packed downstream.
+            lineInCollection.PickedQty = lineInCollection.CheckedQty;
+            lineInCollection.PackedQty = lineInCollection.CheckedQty;
         }
 
         // Ensure CheckedBy is set when completing the line
@@ -765,8 +773,19 @@ public partial class CheckingPage : ContentPage, INotifyPropertyChanged
             };
 
             // Outbound warehouse for the delivery note comes from the app's saved
-            // default picking warehouse (set on the Settings page).
+            // default picking warehouse ("Main Store", set on the Settings page). It is
+            // stored on the order at checking and used later by the web authorize step to
+            // build the Omni delivery note — so it must be set, or the order can't be
+            // authorized. Block completion here rather than letting it fail downstream.
             string warehouseCode = Preferences.Get("DefaultPickingWarehouseCode", "");
+            if (string.IsNullOrWhiteSpace(warehouseCode))
+            {
+                await DisplayAlert("Main Store Not Set",
+                    "This device has no Main Store (default picking warehouse) configured.\n\n" +
+                    "Set it in Settings before completing checking, so the order can be authorized.",
+                    "OK");
+                return false;
+            }
 
             IDelNoteService delNoteService = new OmniDelNoteService();
             var result = await delNoteService.SendAsync(
