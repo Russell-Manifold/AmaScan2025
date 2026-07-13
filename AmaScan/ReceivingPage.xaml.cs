@@ -235,16 +235,8 @@ namespace AmaScan
                 DescriptionLabel.TextColor = Colors.Black;
                 DescriptionLabel.FontAttributes = FontAttributes.Bold;
 
-                var packSize = stockItem.pack.GetValueOrDefault(1);
-                if (packSize > 1)
-                {
-                    PackInfoLabel.IsVisible = true;
-                    PackInfoLabel.Text = $"Pack size: {packSize} � enter number of packs (total = qty � {packSize})";
-                }
-                else
-                {
-                    PackInfoLabel.IsVisible = false;
-                }
+                // Every barcode represents a single unit — pack size is never applied to scans.
+                PackInfoLabel.IsVisible = false;
 
                 QuantityEntry?.Focus();
             }
@@ -316,7 +308,8 @@ namespace AmaScan
                     return;
                 }
 
-                decimal thisTotQty = thisQty * stockItem.pack.GetValueOrDefault(1);
+                // Every barcode represents a single unit — the entered qty IS the received qty.
+                decimal thisTotQty = thisQty;
 
                 if (_isAcceptMode)
                 {

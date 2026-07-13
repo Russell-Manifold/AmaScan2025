@@ -19,7 +19,6 @@ public partial class StockCountPage : ContentPage, INotifyPropertyChanged
     private string _stockCodeQuery;
     private string _currentUser;
     private CountPhase _currentPhase;
-    private bool _isPackMode = true; // Default to pack mode
     private CancellationTokenSource _updateCancellationTokenSource = new();
 
     public event PropertyChangedEventHandler PropertyChanged;
@@ -89,10 +88,7 @@ public partial class StockCountPage : ContentPage, INotifyPropertyChanged
     {
         ManualInputSwitch.IsToggled = false;
         BarcodeEntry.IsReadOnly = true;
-        
-        // Initialize scan mode buttons (Pack is default)
-        UpdateScanModeButtons(true);
-        
+
         // Show start counting button initially, hide input section
         StockCountInputSection.IsVisible = false;
         StartCountingButton.IsVisible = true;
@@ -450,21 +446,6 @@ public partial class StockCountPage : ContentPage, INotifyPropertyChanged
         BarcodeEntry?.Focus();
     }
 
-    private void UpdateScanModeButtons(bool isPackMode)
-    {
-        _isPackMode = isPackMode;
-        var selectedColor = Color.FromHex("#007AFF");
-        var unselectedColor = Colors.LightGray;
-        
-        SingleButton.BackgroundColor = isPackMode ? unselectedColor : selectedColor;
-        PackButton.BackgroundColor = isPackMode ? selectedColor : unselectedColor;
-        SingleButton.TextColor = isPackMode ? Colors.Black : Colors.White;
-        PackButton.TextColor = isPackMode ? Colors.White : Colors.Black;
-    }
-
-    private void OnSingleClicked(object sender, EventArgs e) => UpdateScanModeButtons(false);
-    private void OnPackClicked(object sender, EventArgs e) => UpdateScanModeButtons(true);
-
     private void QuantityEntry_TextChanged(object sender, TextChangedEventArgs e)
     {
         if (string.IsNullOrEmpty(e.NewTextValue)) return;
@@ -539,27 +520,11 @@ public partial class StockCountPage : ContentPage, INotifyPropertyChanged
                 
                 if (stockItem != null && stockItem.stock_code == _currentItem.StockCode)
                 {
-                    // Check if it's a pack barcode
-                    // If barcode_lmmp exists and matches the scanned barcode, it's a pack barcode
-                    // If barcode_lmmp is the same as bar_code, then scanning bar_code should be treated as pack barcode
-                    bool isPackBarcode = !string.IsNullOrWhiteSpace(stockItem.barcode_lmmp) && 
-                        (stockItem.barcode_lmmp.Equals(scannedBarcode, StringComparison.OrdinalIgnoreCase) ||
-                         (stockItem.bar_code?.Equals(scannedBarcode, StringComparison.OrdinalIgnoreCase) == true && 
-                          stockItem.barcode_lmmp.Equals(stockItem.bar_code, StringComparison.OrdinalIgnoreCase)));
-                    
-                    // If barcodes are the same (ambiguous), use the scan mode setting
-                    if (stockItem.bar_code?.Equals(stockItem.barcode_lmmp, StringComparison.OrdinalIgnoreCase) == true)
-                    {
-                        isPackBarcode = _isPackMode;
-                    }
-                    
                     // Get quantity from entry field
                     decimal quantity = decimal.TryParse(QuantityEntry.Text, out decimal qty) ? qty : 1;
-                    
-                    // Calculate total to add - multiply by pack size for pack barcodes
-                    decimal quantityToAdd = isPackBarcode ? 
-                        quantity * stockItem.pack.GetValueOrDefault(1) : 
-                        quantity;
+
+                    // Every barcode represents a single unit — pack size is never applied to scans.
+                    decimal quantityToAdd = quantity;
                     
                     // Add to the current phase count
                     switch (_currentPhase)

@@ -53,29 +53,7 @@
                             HorizontalOptions="End" />
                 </Grid>
                 
-                <Grid ColumnDefinitions="*,Auto" Padding="10,5">
-                    <Label Grid.Column="0" Text="Scan Mode" 
-                           VerticalOptions="Center" 
-                           HorizontalOptions="Start" />
-                    <HorizontalStackLayout Grid.Column="1" Spacing="5" HorizontalOptions="End">
-                        <Button x:Name="SingleButton" 
-                                Text="Single" 
-                                BackgroundColor="LightGray"
-                                TextColor="Black"
-                                Padding="10,5"
-                                FontSize="14"
-                                Clicked="OnSingleClicked" />
-                        <Button x:Name="PackButton" 
-                                Text="Pack" 
-                                BackgroundColor="#007AFF"
-                                TextColor="White"
-                                Padding="10,5"
-                                FontSize="14"
-                                Clicked="OnPackClicked" />
-                    </HorizontalStackLayout>
-                </Grid>
-                
-                <Button x:Name="SaveButton" 
+                <Button x:Name="SaveButton"
                         Margin="5,10"
                         Text="Save Count" 
                         BackgroundColor="Green"
