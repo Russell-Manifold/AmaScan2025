@@ -85,7 +85,7 @@ namespace AmaScan.sqliteModels
                 }
             }
         }
-        public string CodeAndBarcode => $"Code: {ItemCode}; Barcode: {ItemBarcode}";
+        public string CodeAndBarcode => $"Code: {ItemCode}; {ItemBarcode}";
         public decimal OutstandingQty => OrderedQty - (ScanAcceptQty + ScanRejectQty);
 
         public string StatusColor

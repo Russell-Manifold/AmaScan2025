@@ -12,6 +12,7 @@ public partial class ReceivingMain : ContentPage
     private readonly HttpClient _httpClient = new();
     private PurchaseOrderResponse _currentPoResponse;
     private PoHeader _poHeader;
+    private bool _isLoadingPo;
 
     public ReceivingMain()
 	{
@@ -119,13 +120,16 @@ public partial class ReceivingMain : ContentPage
                 PackBarcode = line.PackBarcode,
                 PackSize = line.PackSize,
                 no_of_packs = line.NoOfPacks,
-                OrderedQty = (int)line.OrderedQty,
+                // No int casts here — PoLine stores these as decimal. Truncating produced a smaller
+                // "fresh" ordered qty, which the merge then read as a quantity DECREASE and wiped the
+                // line's scan progress.
+                OrderedQty = line.OrderedQty,
                 CostPrice = line.CostPrice,
                 CostPricePer = line.CostPricePer,
                 VatCode = line.VatCode,
                 VatRate = line.VatRate,
-                ScanAcceptQty = (int)line.ScanAcceptQty,
-                ScanRejectQty = (int)line.ScanRejectQty,
+                ScanAcceptQty = line.ScanAcceptQty,
+                ScanRejectQty = line.ScanRejectQty,
                 BinLocation = line.BinLocation,
                 WhID = line.WhID
             }).ToList();
@@ -243,6 +247,11 @@ public partial class ReceivingMain : ContentPage
 
     private async void OnLoadPoClicked(object sender, EventArgs e)
     {
+        // Guard against a second tap landing while the first save is still running — that raced past
+        // the "already loaded" check and wrote the lines twice.
+        if (_isLoadingPo) return;
+        _isLoadingPo = true;
+
         try
         {
             if (_currentPoResponse == null)
@@ -274,6 +283,10 @@ public partial class ReceivingMain : ContentPage
         {
             await DisplayAlert("Error", $"Failed to load PO: {ex.Message}", "OK");
         }
+        finally
+        {
+            _isLoadingPo = false;
+        }
     }
 
     public async Task SaveToLocalDatabaseAsync(PurchaseOrderResponse response)
@@ -281,51 +294,13 @@ public partial class ReceivingMain : ContentPage
         if (response == null || response.Lines == null || !response.Lines.Any())
             throw new ArgumentException("Invalid purchase order data.");
 
-        //var existing = await databaseHelper.GetPoHeaderByOrderNoAsync(response.OrderNo);
-        //if (existing != null)
-        //{
-        //    throw new InvalidOperationException($"PO {response.OrderNo} is already loaded on this device.");
-        //}
-
-        // Save the PoHeader with the relevant fields
-        var poHeader = new PoHeader
-        {
-            OrderNo = response.OrderNo,
-            DueDate = response.DueDate,
-            Status = response.Status,
-            SupplierName = response.SupplierName,
-            AcctCode = response.SupplierCode,
-            BranchCode = response.BranchCode ?? "HO",
-            JsonData = JsonSerializer.Serialize(response),
-            iscompleted = false
-        };
-
-        // Insert or update the PoHeader
-        await App.Db.InsertAsync(poHeader);
-
-        // Batch build and insert all lines in a single transaction
-        var poLines = response.Lines.Select(line => new PoLine
-        {
-            OrderNo = line.DocNum,
-            LineNo = line.LineNo,
-            ItemCode = line.ItemCode,
-            ItemDesc = line.ItemDesc,
-            ItemBarcode = line.ItemBarcode,
-            PackBarcode = line.PackBarcode,
-            PackSize = line.PackSize,
-            NoOfPacks = line.no_of_packs,
-            OrderedQty = line.OrderedQty,
-            CostPrice = line.CostPrice,
-            CostPricePer = line.CostPricePer,
-            VatCode = line.VatCode,
-            VatRate = line.VatRate,
-            ReceivedQty = 0,
-            BinLocation = line.BinLocation,
-            WhID = !string.IsNullOrWhiteSpace(line.WhID) ? line.WhID.PadLeft(3, '0') : line.WhID,
-            GRNum = null
-        }).ToList();
-
-        await App.Db.InsertAllAsync(poLines);
+        // Go through the merge rather than inserting blind. A straight Insert/InsertAll duplicated
+        // every line if this ran twice for the same PO (double-tap, or a stale "already loaded"
+        // check), because nothing in the schema prevents a second identical row. The merge is
+        // insert-or-update keyed on the PO, so loading the same PO again is now harmless.
+        // It also stores lines under response.OrderNo — the same key the header and every lookup
+        // use — instead of line.DocNum.
+        await App.Db.MergePoDataAsync(response);
     }
 
     private async void OnLogoutClicked(object sender, EventArgs e)

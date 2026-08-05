@@ -43,6 +43,8 @@ namespace AmaScan.Classes
                         receiveEndTime = header.ReceiveEndTime,
                         authorised = header.Authorised,
                         deviceName = header.DeviceName,
+                        deliveryNoteNumber = header.DeliveryNoteNumber,
+                        supplierInvoiceNumber = header.SupplierInvoiceNumber,
                         totalLines = header.TotalLines,
                         scannedLines = header.ScannedLines,
                         discrepancyLines = header.DiscrepancyLines
@@ -78,13 +80,20 @@ namespace AmaScan.Classes
                     try
                     {
                         using var doc = JsonDocument.Parse(responseBody);
+                        // The server returns "invoiceNumber" when the company is configured to raise a
+                        // Supplier Invoice and "referenceNumber" for a Supplier Delivery Note. Reading
+                        // only one left the GRV number blank (and unsaved) for invoice companies.
                         if (doc.RootElement.TryGetProperty("referenceNumber", out var refProp))
                             referenceNumber = refProp.GetString();
+                        else if (doc.RootElement.TryGetProperty("invoiceNumber", out var invProp))
+                            referenceNumber = invProp.GetString();
                     }
                     catch
                     {
                         referenceNumber = responseBody.Trim();
                     }
+
+                    referenceNumber = referenceNumber?.Trim() ?? "";
 
                     // "D" prefix indicates a delivery note
                     if (referenceNumber.StartsWith("D"))

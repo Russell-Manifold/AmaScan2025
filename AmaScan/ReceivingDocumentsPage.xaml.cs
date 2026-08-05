@@ -174,7 +174,7 @@ public partial class ReceivingDocumentsPage : ContentPage, INotifyPropertyChange
             // single marshal to the UI thread
             await MainThread.InvokeOnMainThreadAsync(() =>
             {
-                // prepend the “Select Warehouse” item
+                // prepend the ï¿½Select Warehouseï¿½ item
                 WarehouseList = new ObservableCollection<Warehouse>(
                     new[] { new Warehouse { Code = "", Description = "Select Warehouse" } }
                     .Concat(warehouses));
@@ -297,8 +297,11 @@ public partial class ReceivingDocumentsPage : ContentPage, INotifyPropertyChange
                 _poHeader.Status        = "Loaded";
 
                 await App.Db.UpdatePoHeaderAsync(_poHeader, token);
+                // Escaped form is for the navigation URL only. DeleteAllExceptPoAsync compares against
+                // the stored OrderNo, so it must get the RAW value â€” an escaped one would not match
+                // its own row and would delete the PO that was just opened.
                 string poNumber = Uri.EscapeDataString(_poHeader.OrderNo);
-                await App.Db.DeleteAllExceptPoAsync(poNumber, token);
+                await App.Db.DeleteAllExceptPoAsync(_poHeader.OrderNo, token);
 
                 token.ThrowIfCancellationRequested();
 

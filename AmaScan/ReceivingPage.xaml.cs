@@ -370,7 +370,12 @@ namespace AmaScan
 
         private async void OnRestartClicked(object sender, EventArgs e)
         {
-            bool confirm = await DisplayAlert("Restart", "Clear all received/rejected quantities?", "Yes", "No");
+            // Explicitly says ALL — there is now a per-line Reset on each row, so the two must not be
+            // confused with each other.
+            bool confirm = await DisplayAlert("Reset ALL Lines",
+                $"Clear the received and rejected quantities on all {PoLines.Count} line(s) of this PO?\n\n" +
+                "To reset a single line, use the Reset button on that line instead.",
+                "Reset All", "Cancel");
             if (confirm)
             {
                 foreach (var line in PoLines)
@@ -539,6 +544,8 @@ namespace AmaScan
                     ReceiveEndTime = DateTime.Now,
                     Authorised = _poHeader?.Authorised,
                     DeviceName = _poHeader?.DeviceName ?? AppConfig.DeviceName,
+                    DeliveryNoteNumber = _poHeader?.DNnumber,
+                    SupplierInvoiceNumber = _poHeader?.SuppInvNumber,
                     TotalLines = poLines.Count,
                     ScannedLines = scannedLines,
                     DiscrepancyLines = discrepancyLines

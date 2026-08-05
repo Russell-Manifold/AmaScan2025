@@ -37,7 +37,7 @@
                                     <Label Text="{Binding ItemDesc}" FontAttributes="Bold" Grid.Row="0" Grid.ColumnSpan="2" />
                                     <Label Text="{Binding ItemCode}" Grid.Row="1" Grid.Column="0" />
                                     <Label Text="{Binding OrderedQty, StringFormat='Qty: {0}'}" Grid.Row="1" Grid.Column="1"  FontAttributes="Bold" />
-                                    <Label Text="{Binding ItemBarcode, StringFormat='Barcode: {0}'}" Grid.Row="2" Grid.ColumnSpan="2" />
+                                    <Label Text="{Binding ItemBarcode}" Grid.Row="2" Grid.ColumnSpan="2" />
                                     <Label Text="{Binding PackSize, StringFormat='Pack Size: {0}'}" Grid.Row="3" Grid.Column="0" />
                                     <Label Text="{Binding no_of_packs, StringFormat='Pack Qty: {0}'}" Grid.Row="3" Grid.Column="1" />
                                     <Label Text="{Binding PackBarcode, StringFormat='Pack {0}'}" Grid.Row="4" Grid.ColumnSpan="2" />

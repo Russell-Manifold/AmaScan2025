@@ -233,6 +233,14 @@ namespace AmaScan.Classes
                 conn.Execute("DELETE FROM PoLine WHERE OrderNo = ?", poNumber);
                 conn.Execute("DELETE FROM PoHeader WHERE OrderNo = ?", poNumber);
             }).ConfigureAwait(false);
+
+            // Drop the cached header too, otherwise a deleted PO still reads back as "already loaded"
+            // until the cache expires — which skips the reload and leaves the device with no lines.
+            if (!string.IsNullOrWhiteSpace(poNumber))
+            {
+                _poHeaderCache.TryRemove(poNumber, out _);
+                _cacheTimestamps.TryRemove($"poheader_{poNumber}", out _);
+            }
         }
 
         public async Task DeleteAllExceptPoAsync(string poNumber, CancellationToken cancellationToken = default)
@@ -253,6 +261,8 @@ namespace AmaScan.Classes
             if (freshData?.Lines == null || !freshData.Lines.Any())
                 throw new ArgumentException("Invalid purchase order data for merge.");
 
+            bool hasQuantityDecreases = false;
+
             await _dbConnection.RunInTransactionAsync(conn =>
             {
                 var existingHeader = conn.Table<PoHeader>()
@@ -262,18 +272,34 @@ namespace AmaScan.Classes
                     .Where(l => l.OrderNo == freshData.OrderNo)
                     .ToList();
 
-                var existingLinesDict = existingLines.ToDictionary(l => $"{l.ItemCode}_{l.ItemBarcode}", l => l);
-                var freshLinesDict = freshData.Lines.ToDictionary(l => $"{l.ItemCode}_{l.ItemBarcode}", l => l);
-
+                // Each fresh line is mapped to a DISTINCT stored row: by LineNo first, falling back to
+                // ItemCode + ItemBarcode among rows not yet consumed. A PO can legitimately carry the
+                // same item on more than one line, so the old ToDictionary on ItemCode_ItemBarcode
+                // threw "same key" — and that exception was being swallowed by the caller, leaving the
+                // PO silently un-merged.
                 var linesToUpdate = new List<PoLine>();
                 var linesToInsert = new List<PoLine>();
-                bool hasQuantityDecreases = false;
+                var consumed = new HashSet<int>();
 
                 foreach (var freshLine in freshData.Lines)
                 {
-                    var key = $"{freshLine.ItemCode}_{freshLine.ItemBarcode}";
-                    if (existingLinesDict.TryGetValue(key, out var existingLine))
+                    // Match on the ITEM first: it survives Omni renumbering the PO's lines, whereas
+                    // LineNo does not — matching LineNo first could rewrite one row onto a different
+                    // item and orphan (then delete) the row holding the scanned quantities. The
+                    // consumed set still keeps a PO that repeats an item pointing at distinct rows.
+                    // LineNo is the fallback, for when the item/barcode on a line was changed.
+                    var existingLine =
+                        existingLines.FirstOrDefault(l => !consumed.Contains(l.Id) &&
+                                                          l.ItemCode == freshLine.ItemCode &&
+                                                          l.ItemBarcode == freshLine.ItemBarcode)
+                        ?? (freshLine.LineNo != 0
+                            ? existingLines.FirstOrDefault(l => !consumed.Contains(l.Id) && l.LineNo == freshLine.LineNo)
+                            : null);
+
+                    if (existingLine != null)
                     {
+                        consumed.Add(existingLine.Id);
+
                         if (freshLine.OrderedQty < existingLine.OrderedQty)
                             hasQuantityDecreases = true;
 
@@ -286,7 +312,13 @@ namespace AmaScan.Classes
                     }
                 }
 
-                var linesToDelete = existingLines.Where(l => !freshLinesDict.ContainsKey($"{l.ItemCode}_{l.ItemBarcode}")).ToList();
+                // Anything not claimed by a fresh line is no longer on the PO — but only remove it if
+                // nothing has been scanned against it. A line holding received quantities is never
+                // silently binned; it is left for a human to deal with.
+                var linesToDelete = existingLines
+                    .Where(l => !consumed.Contains(l.Id) &&
+                                l.ScanAcceptQty == 0 && l.ScanRejectQty == 0 && l.ReceivedQty == 0)
+                    .ToList();
 
                 foreach (var line in linesToDelete)
                     conn.Delete(line);
@@ -323,6 +355,16 @@ namespace AmaScan.Classes
                 }
             }).ConfigureAwait(false);
 
+            // A reduced ordered qty clears that line's scanned quantities, so say so rather than
+            // letting the receiver's work disappear silently (mirrors MergeSoDataAsync).
+            if (hasQuantityDecreases)
+            {
+                await MainThread.InvokeOnMainThreadAsync(async () =>
+                    await Application.Current.MainPage.DisplayAlert("Quantities Reduced",
+                        "Some ordered quantities were reduced on this PO. Those lines have been cleared and must be re-scanned.",
+                        "OK"));
+            }
+
             if (!string.IsNullOrWhiteSpace(freshData.OrderNo))
             {
                 _poHeaderCache.TryRemove(freshData.OrderNo, out _);
@@ -353,6 +395,11 @@ namespace AmaScan.Classes
             existingLine.PackSize = freshLine.PackSize;
             existingLine.NoOfPacks = freshLine.no_of_packs;
             existingLine.OrderedQty = freshLine.OrderedQty;
+            // Costs/VAT are Omni-owned and price the GRV, so refresh them like every other field.
+            existingLine.CostPrice = freshLine.CostPrice;
+            existingLine.CostPricePer = freshLine.CostPricePer;
+            existingLine.VatCode = freshLine.VatCode;
+            existingLine.VatRate = freshLine.VatRate;
             existingLine.BinLocation = freshLine.BinLocation;
             existingLine.WhID = !string.IsNullOrWhiteSpace(freshLine.WhID) ? freshLine.WhID.PadLeft(3, '0') : freshLine.WhID;
         }
@@ -373,6 +420,11 @@ namespace AmaScan.Classes
                 PackSize = freshLine.PackSize,
                 NoOfPacks = freshLine.no_of_packs,
                 OrderedQty = freshLine.OrderedQty,
+                // Costs/VAT must come across too — the GRV posted to Omni is priced from these.
+                CostPrice = freshLine.CostPrice,
+                CostPricePer = freshLine.CostPricePer,
+                VatCode = freshLine.VatCode,
+                VatRate = freshLine.VatRate,
                 ReceivedQty = 0,
                 ScanAcceptQty = 0,
                 ScanRejectQty = 0,

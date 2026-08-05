@@ -35,7 +35,7 @@
                                 <VerticalStackLayout>
                                     <Label Text="{Binding ItemDesc}" FontAttributes="Bold" />
                                     <Label Text="{Binding ItemCode, StringFormat='Item Code: {0}'}" />
-                                    <Label Text="{Binding ItemBarcode, StringFormat='Barcode: {0}'}" />
+                                    <Label Text="{Binding ItemBarcode}" />
                                     <Label Text="{Binding PackSize, StringFormat='Pack Size: {0}'}"/>
                                     <Label Text="{Binding OrderedQty, StringFormat='Ordered Qty: {0}'}" />
                                     <Label Text="{Binding DiscrepancyStatus}" 

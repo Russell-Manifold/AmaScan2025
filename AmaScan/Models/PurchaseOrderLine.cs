@@ -25,8 +25,10 @@ namespace Data.Model
         public decimal CostPricePer { get; set; }
         public string? VatCode { get; set; }
         public decimal VatRate { get; set; }
-        public int ScanAcceptQty { get; set; }
-        public int ScanRejectQty { get; set; }
+        // decimal, matching PoLine in the local DB. These were int, so rebuilding a PO for display
+        // truncated the stored quantities.
+        public decimal ScanAcceptQty { get; set; }
+        public decimal ScanRejectQty { get; set; }
         public decimal Balance { get; set; }
         public string? Complete { get; set; }
         public int PalletNum { get; set; }

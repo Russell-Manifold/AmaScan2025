@@ -104,7 +104,9 @@
                                     </SwipeItems>
                                 </SwipeView.RightItems>
                                 <Frame Padding="8" Margin="0,3" BorderColor="LightGray" BackgroundColor="{Binding StatusColor}">
-                                    <Grid ColumnDefinitions="*,*" RowDefinitions="Auto,Auto,Auto,Auto,Auto">
+                                    <!-- 3rd column holds a visible per-line Reset. The swipe-to-reset
+                                         still works; this just makes it discoverable. -->
+                                    <Grid ColumnDefinitions="*,*,Auto" RowDefinitions="Auto,Auto,Auto,Auto,Auto">
                                         <Label Text="{Binding CodeAndBarcode}" FontAttributes="Bold" FontSize="13"
                                                Grid.Column="0" Grid.Row="0" Grid.ColumnSpan="2"/>
                                         <Label Text="{Binding ItemDesc}" FontSize="12" TextColor="Gray"
@@ -119,6 +121,17 @@
                                                Grid.Column="1" Grid.Row="3"/>
                                         <Label Text="{Binding ReceivedString, StringFormat='Received: {0}'}" FontSize="11"
                                                TextColor="Gray" Grid.Column="0" Grid.Row="4" Grid.ColumnSpan="2"/>
+
+                                        <Button Text="R" ToolTipProperties.Text="Reset this line"
+                                                Grid.Column="2" Grid.Row="0"
+                                                VerticalOptions="Start" HorizontalOptions="End"
+                                                Margin="6,0,0,0" Padding="0"
+                                                WidthRequest="34" HeightRequest="34" CornerRadius="17"
+                                                FontSize="14" FontAttributes="Bold"
+                                                BackgroundColor="Transparent" TextColor="OrangeRed"
+                                                BorderColor="OrangeRed" BorderWidth="2"
+                                                Command="{Binding BindingContext.ResetPoLineCommand, Source={x:Reference PageRoot}}"
+                                                CommandParameter="{Binding}" />
                                     </Grid>
                                 </Frame>
                             </SwipeView>
