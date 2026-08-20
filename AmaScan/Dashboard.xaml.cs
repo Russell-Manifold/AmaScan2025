@@ -12,8 +12,12 @@ public partial class Dashboard : ContentPage
     public bool CanCheck => _userSession.CurrentUser?.CanCheck == true;
     public bool CanAuth => _userSession.CurrentUser?.CanAuthPicking == true;
 
-    // New property to show picking workflow access if user has any picking-related permissions
-    public bool CanAccessPickingWorkflow => CanPick || CanPack || CanCheck || CanAuth;
+    // Show the Picking/Packing tile only if the user would actually find something behind it.
+    // This must mirror what DashboardPicking can display, i.e. role AND company workflow:
+    // a role with only CanPick, under a Check-only workflow, previously saw this tile and then
+    // landed on an empty screen. CanAuth is excluded because that tile is currently commented out.
+    public bool CanAccessPickingWorkflow =>
+        (CanPick && WorkflowConfig.UsePicking) || (CanPack && WorkflowConfig.UsePacking) || CanCheck;
 
     public string UserName => _userSession.CurrentUser?.UserName ?? "Guest";
     public string RoleName => _userSession.CurrentUser?.RoleName ?? "No Role Assigned";

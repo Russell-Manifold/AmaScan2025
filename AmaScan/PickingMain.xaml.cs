@@ -354,6 +354,11 @@ public partial class PickingMain : ContentPage
             AreaDescription = response.AreaDescription,
             DueDate = response.DueDate,
             OrderStatus = response.OrderStatus,
+            // Carry the server's stage flags. Without these the local header reads un-picked and
+            // un-packed on a device that has just downloaded the order, so the reset paths think
+            // there is nothing to undo on the server.
+            Picked = response.Picked,
+            Packed = response.Packed,
             Picker = response.Picker,
             Sequence = response.Sequence.HasValue ? (double?)response.Sequence.Value : null,
             JsonData = System.Text.Json.JsonSerializer.Serialize(response)
@@ -362,27 +367,10 @@ public partial class PickingMain : ContentPage
         // Insert or update the SoHeader
         await App.Db.InsertAsync(soHeader);
 
-        // Batch insert lines
-        var soLines = response.Lines.Select(line => new SoLine
-        {
-            DocNum = soNumber,
-            CustomerAccount = line.CustomerAccount,
-            CustomerName = line.CustomerName,
-            ItemCode = line.ItemCode,
-            ItemDesc = line.ItemDesc,
-            ItemBarcode = line.ItemBarcode,
-            PackSize = line.PackSize,
-            PackBarcode = line.PackBarcode,
-            NoOfPacks = line.NoOfPacks,
-            OrderedQty = line.OrderedQty,
-            PickedQty = 0,
-            CheckedQty = 0,
-            AuthorizedQty = 0,
-            Bin = line.Bin,
-            Picked = false,
-            Checked = false,
-            Authorized = false
-        }).ToList();
+        // Batch insert lines. Shared with the Packing/Checking pages via CreateNewSoLine, which
+        // also sets SoLLineNo — this hand-built version omitted it, so lines saved here could only
+        // be matched back to the server by ItemCode.
+        var soLines = response.Lines.Select(line => App.Db.CreateNewSoLine(soNumber, line)).ToList();
 
         // Insert each line individually
         foreach (var line in soLines)

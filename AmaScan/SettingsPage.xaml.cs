@@ -189,5 +189,70 @@ public partial class SettingsPage : ContentPage
         OnUpdateStockClicked(sender, EventArgs.Empty);
         ConfirmationLabel.Text = "Database Successfully eset";
     }
+
+    // Runs the same check the login screen runs, but reports the outcome either way — including
+    // the reason when no update is offered, which is otherwise invisible.
+    private async void OnCheckUpdateClicked(object sender, EventArgs e)
+    {
+        UpdateStatusLabel.TextColor = Colors.Gray;
+        UpdateStatusLabel.Text = "Checking…";
+
+        var update = await UpdateService.CheckForUpdateAsync();
+
+        string installed = AppInfo.VersionString;
+        string canInstall = UpdateService.CanInstallPackages()
+            ? "Install permission: granted"
+            : "Install permission: NOT granted — updates cannot install on this device";
+
+        if (update != null)
+        {
+            UpdateStatusLabel.TextColor = Colors.Green;
+            UpdateStatusLabel.Text = $"Update available: {update.Version} (installed {installed})\n{canInstall}";
+
+            bool install = await DisplayAlert(
+                "Update Available",
+                $"Version {update.Version} is available (you have {installed}).\n\nInstall it now?",
+                "Update Now",
+                "Later");
+
+            if (!install)
+                return;
+
+            if (!UpdateService.CanInstallPackages())
+            {
+                bool openSettings = await DisplayAlert(
+                    "Allow Updates",
+                    "To install updates, this device needs to allow AmaScan to install apps.\n\n" +
+                    "Tap Open Settings, switch on \"Allow from this source\", then press back and try again.",
+                    "Open Settings",
+                    "Cancel");
+
+                if (openSettings)
+                    UpdateService.OpenInstallPermissionSettings();
+
+                return;
+            }
+
+            try
+            {
+                var progress = new Progress<double>(fraction =>
+                    UpdateStatusLabel.Text = $"Downloading update… {fraction:P0}");
+
+                await UpdateService.DownloadAndInstallAsync(update, progress);
+                UpdateStatusLabel.Text = "Download complete — follow the prompts to install.";
+            }
+            catch (Exception ex)
+            {
+                UpdateStatusLabel.TextColor = Colors.OrangeRed;
+                UpdateStatusLabel.Text = $"Could not download the update: {ex.Message}";
+            }
+
+            return;
+        }
+
+        UpdateStatusLabel.TextColor = string.IsNullOrWhiteSpace(UpdateService.LastCheckError)
+            ? Colors.Gray : Colors.OrangeRed;
+        UpdateStatusLabel.Text = $"{UpdateService.LastCheckError}\nInstalled: {installed}\n{canInstall}";
+    }
 }
 

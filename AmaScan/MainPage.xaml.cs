@@ -37,6 +37,23 @@ namespace AmaScan
             if (!download)
                 return;
 
+            // Android 8+ blocks the installer unless this device has allowed AmaScan to install apps.
+            // Without this prompt the download completes and then nothing happens, with no explanation.
+            if (!UpdateService.CanInstallPackages())
+            {
+                bool openSettings = await DisplayAlert(
+                    "Allow Updates",
+                    "To install updates, this device needs to allow AmaScan to install apps.\n\n" +
+                    "Tap Open Settings, switch on \"Allow from this source\", then press back and try again.",
+                    "Open Settings",
+                    "Cancel");
+
+                if (openSettings)
+                    UpdateService.OpenInstallPermissionSettings();
+
+                return;
+            }
+
             try
             {
                 updateProgressBar.Progress = 0;
@@ -84,6 +101,12 @@ namespace AmaScan
                 {
                     await DbReset.ResetAsync();
                     _userSession.CurrentUser = user;
+
+                    // Refresh the company's fulfilment workflow (pick/pack/check) while we still
+                    // have the connection that just authenticated. On failure the last known
+                    // value stays in place — see WorkflowConfig.
+                    await WorkflowConfig.RefreshAsync();
+
                     await DisplayAlert("", $"Welcome {user.UserName} ({user.RoleName})", "OK");
                     var dashboard = App.Services.GetRequiredService<Dashboard>();
                     await Navigation.PushAsync(dashboard);

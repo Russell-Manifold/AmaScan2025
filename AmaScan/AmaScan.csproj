@@ -56,10 +56,18 @@
 	<!-- After every Release build, write version.json next to the APK. Its contents always match
 	     the APK just produced (same version, same filename), so you just copy BOTH files from the
 	     output folder to the server's scannerapk folder — nothing to edit by hand. -->
-	<Target Name="WriteUpdateVersionJson" AfterTargets="Build" Condition="'$(Configuration)'=='Release'">
+	<!-- Runs after SignAndroidPackage, NOT after Build: the signed APK does not exist yet at the end
+	     of Build, so the glob came back empty and version.json was written with an empty apkFileName
+	     ("apkFileName": ""), which left the scanner with nothing to download. -->
+	<Target Name="WriteUpdateVersionJson" AfterTargets="SignAndroidPackage" Condition="'$(Configuration)'=='Release'">
 	  <ItemGroup>
 	    <_AmaScanSignedApk Include="$(OutputPath)*-Signed.apk" />
 	  </ItemGroup>
+
+	  <!-- Fail the build rather than publish a version.json the scanners can't act on. -->
+	  <Error Condition="'@(_AmaScanSignedApk)'==''"
+	         Text="Could not find a *-Signed.apk in $(OutputPath) — version.json would have no apkFileName. Check the Android signing step ran." />
+
 	  <WriteLinesToFile File="$(OutputPath)version.json"
 	                    Lines="{ &quot;version&quot;: &quot;$(ApplicationDisplayVersion)&quot;, &quot;apkFileName&quot;: &quot;%(_AmaScanSignedApk.Filename)%(_AmaScanSignedApk.Extension)&quot; }"
 	                    Overwrite="true"

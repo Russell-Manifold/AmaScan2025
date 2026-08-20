@@ -115,6 +115,31 @@ public partial class CheckingPage : ContentPage, INotifyPropertyChanged
 
     private string GetCurrentUserName() => _userSession.CurrentUser?.UserName ?? "Unknown User";
 
+    // ONE definition of the basis, shared with DatabaseHelper.UpdateWorkflowStatus.
+    private static decimal CheckBasisQty(SoLine line) => WorkflowConfig.CheckBasisQty(line);
+
+    private static string CheckBasisName =>
+        WorkflowConfig.UsePacking ? "packed" : WorkflowConfig.UsePicking ? "picked" : "ordered";
+
+    /// <summary>
+    /// Checking owns Picked/Packed ONLY when it is the only stage. When picking or packing runs,
+    /// the LAST of those stages stamps both flags for itself (PickingPage/PackingPage and
+    /// UpdateSalesOrderStageController), so touching them here would overwrite the real captured
+    /// quantities with the checked ones. With no prior stage at all the columns would stay at zero
+    /// and the order would read as un-picked/un-packed downstream — including the fixed
+    /// authorization filter — so that is the one case we mirror.
+    /// </summary>
+    private static void MirrorSkippedStages(SoLine line)
+    {
+        if (WorkflowConfig.UsePicking || WorkflowConfig.UsePacking)
+            return;
+
+        line.Picked = true;
+        line.PickedQty = line.CheckedQty;
+        line.Packed = true;
+        line.PackedQty = line.CheckedQty;
+    }
+
     #region UI Management
     private void StartCheckingForSelectedLine(SoLine selectedLine, bool showInput = true)
     {
@@ -145,10 +170,7 @@ public partial class CheckingPage : ContentPage, INotifyPropertyChanged
     {
         if (SelectedLine == null) return;
 
-        // TEMP (2026-05-21): Picking/packing workflow paused — compare against OrderedQty
-        // instead of PickedQty so checking works without a prior pick/pack.
-        //// bool isFullyChecked = SelectedLine.CheckedQty >= SelectedLine.PickedQty;
-        bool isFullyChecked = SelectedLine.CheckedQty >= SelectedLine.OrderedQty;
+        bool isFullyChecked = SelectedLine.CheckedQty >= CheckBasisQty(SelectedLine);
 
         // Line is "done" when Checked is true — either fully checked (qty match)
         // or explicitly marked short via OnMarkShortClicked.
@@ -321,10 +343,7 @@ public partial class CheckingPage : ContentPage, INotifyPropertyChanged
 
             if (!SelectedLine.Checked)
             {
-                // TEMP (2026-05-21): Picking/packing workflow paused — outstanding qty based
-                // on OrderedQty rather than CheckingOutstandingQty (which assumes PackedQty).
-                //// var currentLineOutstanding = SelectedLine.CheckingOutstandingQty;
-                var currentLineOutstanding = SelectedLine.OrderedQty - SelectedLine.CheckedQty;
+                var currentLineOutstanding = CheckBasisQty(SelectedLine) - SelectedLine.CheckedQty;
                 await DisplayAlert("Incomplete",
                     $"The selected item must be checked before completing.\n\n" +
                     $"{currentLineOutstanding} items still need checking", "OK");
@@ -420,18 +439,19 @@ public partial class CheckingPage : ContentPage, INotifyPropertyChanged
                 return;
             }
 
-            decimal shortQty = SelectedLine.OrderedQty - SelectedLine.CheckedQty;
+            decimal basisQty = CheckBasisQty(SelectedLine);
+            decimal shortQty = basisQty - SelectedLine.CheckedQty;
             if (shortQty <= 0)
             {
                 await DisplayAlert("Nothing to Short",
-                    "Checked quantity already meets the ordered quantity. Use Complete instead.", "OK");
+                    $"Checked quantity already meets the {CheckBasisName} quantity. Use Complete instead.", "OK");
                 return;
             }
 
             bool confirmed = await DisplayAlert("Mark Short?",
                 $"{SelectedLine.ItemDesc}\n\n" +
                 $"Checked: {SelectedLine.CheckedQty}\n" +
-                $"Ordered: {SelectedLine.OrderedQty}\n" +
+                $"{char.ToUpper(CheckBasisName[0])}{CheckBasisName.Substring(1)}: {basisQty}\n" +
                 $"Short by: {shortQty}\n\n" +
                 "This will close out the line with the shortfall. The remainder will be reconciled at the next stage.",
                 "Mark Short", "Cancel");
@@ -441,14 +461,7 @@ public partial class CheckingPage : ContentPage, INotifyPropertyChanged
 
             lineInCollection.Checked = true;
             lineInCollection.CheckCompleteDateTime = DateTime.Now;
-            // TEMP (2026-05-21): Picking/packing workflow paused — flip Picked/Packed flags
-            // so downstream views show the line as if it went through the full workflow.
-            // No timestamps set; restore proper Pick/Pack handling when those phases return.
-            lineInCollection.Picked = true;
-            lineInCollection.Packed = true;
-            // Mirror the (short) checked qty into picked/packed so the qty-derived flags read complete.
-            lineInCollection.PickedQty = lineInCollection.CheckedQty;
-            lineInCollection.PackedQty = lineInCollection.CheckedQty;
+            MirrorSkippedStages(lineInCollection);
             if (string.IsNullOrEmpty(lineInCollection.CheckedBy))
                 lineInCollection.CheckedBy = GetCurrentUserName();
             if (lineInCollection.CheckStartDateTime == null)
@@ -568,39 +581,22 @@ public partial class CheckingPage : ContentPage, INotifyPropertyChanged
             return;
         }
 
-        // TEMP (2026-05-21): Picking/packing workflow paused — cap on OrderedQty.
-        // Restore the PickedQty/PackedQty comparisons when picking/packing returns.
-        //// if (lineInCollection.CheckedQty >= lineInCollection.PickedQty)
-        //// {
-        ////     await DisplayAlert("Already Checked",
-        ////         $"{lineInCollection.ItemDesc} has already been fully checked ({lineInCollection.CheckedQty}/{lineInCollection.PickedQty}).\n\n" +
-        ////         "No further checking allowed.", "OK");
-        ////     return;
-        //// }
-        ////
-        //// if ((lineInCollection.CheckedQty + quantity) > lineInCollection.PickedQty)
-        //// {
-        ////     await DisplayAlert("Over-Checking Not Allowed",
-        ////         $"Cannot check {quantity} more items. This would exceed the packed quantity of {lineInCollection.PackedQty}.\n\n" +
-        ////         $"Already checked: {lineInCollection.CheckedQty}\n" +
-        ////         $"Remaining: {lineInCollection.PickedQty - lineInCollection.CheckedQty}", "OK");
-        ////     return;
-        //// }
+        decimal basisQty = CheckBasisQty(lineInCollection);
 
-        if (lineInCollection.CheckedQty >= lineInCollection.OrderedQty)
+        if (lineInCollection.CheckedQty >= basisQty)
         {
             await DisplayAlert("Already Checked",
-                $"{lineInCollection.ItemDesc} has already been fully checked ({lineInCollection.CheckedQty}/{lineInCollection.OrderedQty}).\n\n" +
+                $"{lineInCollection.ItemDesc} has already been fully checked ({lineInCollection.CheckedQty}/{basisQty}).\n\n" +
                 "No further checking allowed.", "OK");
             return;
         }
 
-        if ((lineInCollection.CheckedQty + quantity) > lineInCollection.OrderedQty)
+        if ((lineInCollection.CheckedQty + quantity) > basisQty)
         {
             await DisplayAlert("Over-Checking Not Allowed",
-                $"Cannot check {quantity} more items. This would exceed the ordered quantity of {lineInCollection.OrderedQty}.\n\n" +
+                $"Cannot check {quantity} more items. This would exceed the {CheckBasisName} quantity of {basisQty}.\n\n" +
                 $"Already checked: {lineInCollection.CheckedQty}\n" +
-                $"Remaining: {lineInCollection.OrderedQty - lineInCollection.CheckedQty}", "OK");
+                $"Remaining: {basisQty - lineInCollection.CheckedQty}", "OK");
             return;
         }
 
@@ -611,27 +607,16 @@ public partial class CheckingPage : ContentPage, INotifyPropertyChanged
     {
         lineInCollection.CheckedQty += quantity;
 
-        // TEMP (2026-05-21): Picking/packing workflow paused — completion based on OrderedQty.
-        //// lineInCollection.CheckCompleteDateTime = lineInCollection.CheckedQty == lineInCollection.PickedQty ? DateTime.Now : null;
-        //// // Set Checked flag when quantities match exactly
-        //// lineInCollection.Checked = lineInCollection.CheckedQty == lineInCollection.PickedQty;
-        lineInCollection.CheckCompleteDateTime = lineInCollection.CheckedQty == lineInCollection.OrderedQty ? DateTime.Now : null;
+        decimal basisQty = CheckBasisQty(lineInCollection);
+
+        lineInCollection.CheckCompleteDateTime = lineInCollection.CheckedQty == basisQty ? DateTime.Now : null;
 
         // Set Checked flag when quantities match exactly
-        lineInCollection.Checked = lineInCollection.CheckedQty == lineInCollection.OrderedQty;
+        lineInCollection.Checked = lineInCollection.CheckedQty == basisQty;
 
-        // TEMP (2026-05-21): Picking/packing workflow paused — flip Picked/Packed flags
-        // so downstream views show the line as if it went through the full workflow.
-        // No timestamps set; restore proper Pick/Pack handling when those phases return.
         if (lineInCollection.Checked)
         {
-            lineInCollection.Picked = true;
-            lineInCollection.Packed = true;
-            // Picking/packing are paused, so mirror the checked qty into picked/packed. The
-            // qty-derived Picked/Packed flags (DatabaseHelper) and the server both need these
-            // non-zero, or the order reads as un-picked/un-packed downstream.
-            lineInCollection.PickedQty = lineInCollection.CheckedQty;
-            lineInCollection.PackedQty = lineInCollection.CheckedQty;
+            MirrorSkippedStages(lineInCollection);
         }
 
         // Ensure CheckedBy is set when completing the line
@@ -667,12 +652,8 @@ public partial class CheckingPage : ContentPage, INotifyPropertyChanged
 
         if (lineInCollection.Checked)
         {
-            // TEMP (2026-05-21): Picking/packing workflow paused — show OrderedQty in alert.
-            //// await DisplayAlert("Checking Complete",
-            ////     $"{lineInCollection.ItemDesc} has been fully checked ({lineInCollection.CheckedQty}/{lineInCollection.PickedQty})\n\n" +
-            ////     "Checking complete, needs authorization", "OK");
             await DisplayAlert("Checking Complete",
-                $"{lineInCollection.ItemDesc} has been fully checked ({lineInCollection.CheckedQty}/{lineInCollection.OrderedQty})", "OK");
+                $"{lineInCollection.ItemDesc} has been fully checked ({lineInCollection.CheckedQty}/{basisQty})", "OK");
         }
     }
 

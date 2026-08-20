@@ -1,0 +1,537 @@
+{
+  ".claude/settings.local.json": {
+    "mtime": 1780382073.1212132,
+    "ast_hash": "c04ffb25ed7178a2b9f91e40b7c1474a",
+    "semantic_hash": "c04ffb25ed7178a2b9f91e40b7c1474a"
+  },
+  "AmaScan.sln": {
+    "mtime": 1746768455.5047472,
+    "ast_hash": "7fee666bd638d1a3969c724c4f12d3b4",
+    "semantic_hash": "7fee666bd638d1a3969c724c4f12d3b4"
+  },
+  "AmaScan/AmaScan.csproj": {
+    "mtime": 1780382048.8308632,
+    "ast_hash": "eff15f1124ea0fab496d96ea927e8286",
+    "semantic_hash": "eff15f1124ea0fab496d96ea927e8286"
+  },
+  "AmaScan/App.xaml": {
+    "mtime": 1750792451.5447223,
+    "ast_hash": "2e2ab195ab7527716f0eadc64c46f7e2",
+    "semantic_hash": "2e2ab195ab7527716f0eadc64c46f7e2"
+  },
+  "AmaScan/App.xaml.cs": {
+    "mtime": 1778250051.0151684,
+    "ast_hash": "7b8fcc071776fca40fbda7a41ad95d1d",
+    "semantic_hash": "7b8fcc071776fca40fbda7a41ad95d1d"
+  },
+  "AmaScan/AppShell.xaml": {
+    "mtime": 1754482398.7314138,
+    "ast_hash": "c1c6e26fbace37ae7fd84297e4d8d4e4",
+    "semantic_hash": "c1c6e26fbace37ae7fd84297e4d8d4e4"
+  },
+  "AmaScan/AppShell.xaml.cs": {
+    "mtime": 1754485083.6711078,
+    "ast_hash": "7b558ab1842efcc7a5318ae7aee95ed1",
+    "semantic_hash": "7b558ab1842efcc7a5318ae7aee95ed1"
+  },
+  "AmaScan/AuthorizationDocumentsPage.xaml": {
+    "mtime": 1754465153.3074875,
+    "ast_hash": "fbcd425bf5dc72caee7b7fd257220eaf",
+    "semantic_hash": "fbcd425bf5dc72caee7b7fd257220eaf"
+  },
+  "AmaScan/AuthorizationDocumentsPage.xaml.cs": {
+    "mtime": 1754566601.987889,
+    "ast_hash": "fbc7cdc65f1751dc7321c10d93949978",
+    "semantic_hash": "fbc7cdc65f1751dc7321c10d93949978"
+  },
+  "AmaScan/AuthorizationMain.xaml": {
+    "mtime": 1754465153.731681,
+    "ast_hash": "139bce73254881314b2863b29733c695",
+    "semantic_hash": "139bce73254881314b2863b29733c695"
+  },
+  "AmaScan/AuthorizationMain.xaml.cs": {
+    "mtime": 1754566658.4086018,
+    "ast_hash": "c9bbbd9474a5cf95e36ccd84a9c2bc84",
+    "semantic_hash": "c9bbbd9474a5cf95e36ccd84a9c2bc84"
+  },
+  "AmaScan/AuthorizationPage.xaml": {
+    "mtime": 1754465153.7064662,
+    "ast_hash": "788679e34eb6bd0bb997ead76b1e6040",
+    "semantic_hash": "788679e34eb6bd0bb997ead76b1e6040"
+  },
+  "AmaScan/AuthorizationPage.xaml.cs": {
+    "mtime": 1754566766.9521601,
+    "ast_hash": "600f724545cc3dac653fc0ea6a819296",
+    "semantic_hash": "600f724545cc3dac653fc0ea6a819296"
+  },
+  "AmaScan/CheckingDocumentsPage.xaml": {
+    "mtime": 1785832597.518294,
+    "ast_hash": "68124fe785b7e352ba3e2d964fd5a0af",
+    "semantic_hash": "68124fe785b7e352ba3e2d964fd5a0af"
+  },
+  "AmaScan/CheckingDocumentsPage.xaml.cs": {
+    "mtime": 1780324423.460949,
+    "ast_hash": "890b6cf2e26712b9da01f53856a7015e",
+    "semantic_hash": "890b6cf2e26712b9da01f53856a7015e"
+  },
+  "AmaScan/CheckingMain.xaml": {
+    "mtime": 1785832608.1870337,
+    "ast_hash": "6b8c4cf22e9a932f3ed75c45df2dad6d",
+    "semantic_hash": "6b8c4cf22e9a932f3ed75c45df2dad6d"
+  },
+  "AmaScan/CheckingMain.xaml.cs": {
+    "mtime": 1780325854.880888,
+    "ast_hash": "5c4f241873eb78c658bf3a15fa3d7faf",
+    "semantic_hash": "5c4f241873eb78c658bf3a15fa3d7faf"
+  },
+  "AmaScan/CheckingPage.xaml": {
+    "mtime": 1785832603.1506343,
+    "ast_hash": "7dd995d5e12e974fcae7202e26e7b021",
+    "semantic_hash": "7dd995d5e12e974fcae7202e26e7b021"
+  },
+  "AmaScan/CheckingPage.xaml.cs": {
+    "mtime": 1785829178.11283,
+    "ast_hash": "a5ed3fc791fc3d299b5767a7f0b8c8e2",
+    "semantic_hash": "a5ed3fc791fc3d299b5767a7f0b8c8e2"
+  },
+  "AmaScan/Classes/AppConfig.cs": {
+    "mtime": 1780378584.4462645,
+    "ast_hash": "be2e8e5c80ffeb8277f8935d5f3847ed",
+    "semantic_hash": "be2e8e5c80ffeb8277f8935d5f3847ed"
+  },
+  "AmaScan/Classes/DatabaseHelper.cs": {
+    "mtime": 1785835092.206071,
+    "ast_hash": "a23d878be3f4995cc15cd98b93a3c889",
+    "semantic_hash": "a23d878be3f4995cc15cd98b93a3c889"
+  },
+  "AmaScan/Classes/DbReset.cs": {
+    "mtime": 1755860509.9247866,
+    "ast_hash": "6cd128b69d2a8cddf4cf8667e5cf671f",
+    "semantic_hash": "6cd128b69d2a8cddf4cf8667e5cf671f"
+  },
+  "AmaScan/Classes/PickingWorkflowSession.cs": {
+    "mtime": 1754485843.1134603,
+    "ast_hash": "e6d88c37ad69bd8d17a612cf96301ee9",
+    "semantic_hash": "e6d88c37ad69bd8d17a612cf96301ee9"
+  },
+  "AmaScan/Classes/SQLiteExtensions.cs": {
+    "mtime": 1755323629.156753,
+    "ast_hash": "727cce4b8e29fe80a7594b4faaf6f065",
+    "semantic_hash": "727cce4b8e29fe80a7594b4faaf6f065"
+  },
+  "AmaScan/Classes/SoMergeHelper.cs": {
+    "mtime": 1776685287.3433406,
+    "ast_hash": "f6bf9c0e04e424ff63823b3958288f07",
+    "semantic_hash": "f6bf9c0e04e424ff63823b3958288f07"
+  },
+  "AmaScan/Classes/UpdateService.cs": {
+    "mtime": 1780389273.1352878,
+    "ast_hash": "228472ccb81796bf4129a4aa0b423b59",
+    "semantic_hash": "228472ccb81796bf4129a4aa0b423b59"
+  },
+  "AmaScan/Classes/UserSession.cs": {
+    "mtime": 1747235997.2290213,
+    "ast_hash": "fac206ebcc4079c0f315bc5e6f368dc5",
+    "semantic_hash": "fac206ebcc4079c0f315bc5e6f368dc5"
+  },
+  "AmaScan/Constants.cs": {
+    "mtime": 1754485111.850549,
+    "ast_hash": "3bb11e8e24c204ebfc2469657b4cc6d5",
+    "semantic_hash": "3bb11e8e24c204ebfc2469657b4cc6d5"
+  },
+  "AmaScan/Controls/NoKeyboardEntry.cs": {
+    "mtime": 1746715257.1289856,
+    "ast_hash": "7cf2cd8d705535243719b5887cdc1077",
+    "semantic_hash": "7cf2cd8d705535243719b5887cdc1077"
+  },
+  "AmaScan/Dashboard.xaml": {
+    "mtime": 1777041832.0327818,
+    "ast_hash": "e28aa498e3df052865dfc1b5af565bf8",
+    "semantic_hash": "e28aa498e3df052865dfc1b5af565bf8"
+  },
+  "AmaScan/Dashboard.xaml.cs": {
+    "mtime": 1777041878.2406864,
+    "ast_hash": "0ba220d868faf2b7d8f2142ff6dc455f",
+    "semantic_hash": "0ba220d868faf2b7d8f2142ff6dc455f"
+  },
+  "AmaScan/DashboardPicking.xaml": {
+    "mtime": 1779386248.1419861,
+    "ast_hash": "4a2cfd351ccd33e5b0493e67c985eb9e",
+    "semantic_hash": "4a2cfd351ccd33e5b0493e67c985eb9e"
+  },
+  "AmaScan/DashboardPicking.xaml.cs": {
+    "mtime": 1780326010.0706134,
+    "ast_hash": "c1d62f8811319d34ccb8118dec6be8ce",
+    "semantic_hash": "c1d62f8811319d34ccb8118dec6be8ce"
+  },
+  "AmaScan/Data/AmaScanDatabase.cs": {
+    "mtime": 1755493459.346696,
+    "ast_hash": "6a52b22067606c16b2db996fa5d65ae2",
+    "semantic_hash": "6a52b22067606c16b2db996fa5d65ae2"
+  },
+  "AmaScan/EntryHandlerMapper.cs": {
+    "mtime": 1754485112.162844,
+    "ast_hash": "864186aa13405a38a270094f2d2ebe7b",
+    "semantic_hash": "864186aa13405a38a270094f2d2ebe7b"
+  },
+  "AmaScan/MainPage.xaml": {
+    "mtime": 1780379631.4121473,
+    "ast_hash": "45655b3185f88e5a73fa7c3ef826e105",
+    "semantic_hash": "45655b3185f88e5a73fa7c3ef826e105"
+  },
+  "AmaScan/MainPage.xaml.cs": {
+    "mtime": 1780379638.26674,
+    "ast_hash": "5aa8aa78ffdbe80e144aca025d762d7a",
+    "semantic_hash": "5aa8aa78ffdbe80e144aca025d762d7a"
+  },
+  "AmaScan/MauiProgram.cs": {
+    "mtime": 1755866121.1131177,
+    "ast_hash": "efcae19df242456fa81a672d0de62a12",
+    "semantic_hash": "efcae19df242456fa81a672d0de62a12"
+  },
+  "AmaScan/Models/DelNoteHeader.cs": {
+    "mtime": 1780320574.262607,
+    "ast_hash": "8146c90de7d9480d0e2cc562e0b58699",
+    "semantic_hash": "8146c90de7d9480d0e2cc562e0b58699"
+  },
+  "AmaScan/Models/DelNoteLine.cs": {
+    "mtime": 1780320569.081488,
+    "ast_hash": "2f5153ae14362791b6bc8687e491317d",
+    "semantic_hash": "2f5153ae14362791b6bc8687e491317d"
+  },
+  "AmaScan/Models/DelNoteResult.cs": {
+    "mtime": 1780320564.3732188,
+    "ast_hash": "7fd980bcc795cbf66a5dd67a5eb5d20d",
+    "semantic_hash": "7fd980bcc795cbf66a5dd67a5eb5d20d"
+  },
+  "AmaScan/Models/DeviceConfig.cs": {
+    "mtime": 1754485050.10744,
+    "ast_hash": "308c5799b3b77767024b5abf2618e4e4",
+    "semantic_hash": "308c5799b3b77767024b5abf2618e4e4"
+  },
+  "AmaScan/Models/GrvHeader.cs": {
+    "mtime": 1785832967.1273532,
+    "ast_hash": "789b9135d3baf0c6158bd5b903353e45",
+    "semantic_hash": "789b9135d3baf0c6158bd5b903353e45"
+  },
+  "AmaScan/Models/GrvLine.cs": {
+    "mtime": 1782113073.872107,
+    "ast_hash": "771b9eaef868b7aab66d376b98e0a6b3",
+    "semantic_hash": "771b9eaef868b7aab66d376b98e0a6b3"
+  },
+  "AmaScan/Models/GrvResult.cs": {
+    "mtime": 1778495426.737666,
+    "ast_hash": "42ba82df636138f99f0e5e07172d8edb",
+    "semantic_hash": "42ba82df636138f99f0e5e07172d8edb"
+  },
+  "AmaScan/Models/IDelNoteService.cs": {
+    "mtime": 1780320578.6623032,
+    "ast_hash": "583245ab2961424b369ae385f0da9f68",
+    "semantic_hash": "583245ab2961424b369ae385f0da9f68"
+  },
+  "AmaScan/Models/IGrvService.cs": {
+    "mtime": 1782113080.3818252,
+    "ast_hash": "574560ff3e03bb9ab60f083c325a584c",
+    "semantic_hash": "574560ff3e03bb9ab60f083c325a584c"
+  },
+  "AmaScan/Models/LoginRequest.cs": {
+    "mtime": 1747230069.040991,
+    "ast_hash": "f03c87dde11f43b9e3240b8683117b50",
+    "semantic_hash": "f03c87dde11f43b9e3240b8683117b50"
+  },
+  "AmaScan/Models/PurchaseOrderLine.cs": {
+    "mtime": 1785833520.3425167,
+    "ast_hash": "3b52b2a2b8ba27ba66b10ed1ac129748",
+    "semantic_hash": "3b52b2a2b8ba27ba66b10ed1ac129748"
+  },
+  "AmaScan/Models/PurchaseOrderResponse.cs": {
+    "mtime": 1778226203.524166,
+    "ast_hash": "24cc49677a47b1c2319c352a917ee4e8",
+    "semantic_hash": "24cc49677a47b1c2319c352a917ee4e8"
+  },
+  "AmaScan/Models/ReturnLine.cs": {
+    "mtime": 1752657860.729168,
+    "ast_hash": "60a8b5242cbb0784c8da77070391acb4",
+    "semantic_hash": "60a8b5242cbb0784c8da77070391acb4"
+  },
+  "AmaScan/Models/SalesHeaderUpdateRequest.cs": {
+    "mtime": 1775115299.2035723,
+    "ast_hash": "2dbc7434202863e6e6ac378d8a7cfe42",
+    "semantic_hash": "2dbc7434202863e6e6ac378d8a7cfe42"
+  },
+  "AmaScan/Models/SalesOrderLine.cs": {
+    "mtime": 1780321041.128493,
+    "ast_hash": "7b80dca8a10d8bb35e6352b245bcf62c",
+    "semantic_hash": "7b80dca8a10d8bb35e6352b245bcf62c"
+  },
+  "AmaScan/Models/SalesOrderResponse.cs": {
+    "mtime": 1754485050.5135844,
+    "ast_hash": "a276ff01b5e328628c7c273a793c3ca1",
+    "semantic_hash": "a276ff01b5e328628c7c273a793c3ca1"
+  },
+  "AmaScan/Models/StockCountSession.cs": {
+    "mtime": 1754485050.88511,
+    "ast_hash": "14524744f7022b481bbca32ffe81d00f",
+    "semantic_hash": "14524744f7022b481bbca32ffe81d00f"
+  },
+  "AmaScan/Models/TransferHeader.cs": {
+    "mtime": 1754485050.8861094,
+    "ast_hash": "71a410e185f2fb386faea1771e383a47",
+    "semantic_hash": "71a410e185f2fb386faea1771e383a47"
+  },
+  "AmaScan/Models/TransferItem.cs": {
+    "mtime": 1754485050.9391656,
+    "ast_hash": "d30d53eeb6d91851895fcfba12aac873",
+    "semantic_hash": "d30d53eeb6d91851895fcfba12aac873"
+  },
+  "AmaScan/Models/TransferLineViewModel.cs": {
+    "mtime": 1755873578.6434903,
+    "ast_hash": "d3ae4ffc9146d964eed35dfe83365347",
+    "semantic_hash": "d3ae4ffc9146d964eed35dfe83365347"
+  },
+  "AmaScan/Models/User.cs": {
+    "mtime": 1750737745.0040886,
+    "ast_hash": "ad09aa37d1121f062d928333d25d7da1",
+    "semantic_hash": "ad09aa37d1121f062d928333d25d7da1"
+  },
+  "AmaScan/Models/WHtrfResponse.cs": {
+    "mtime": 1755869495.7585266,
+    "ast_hash": "ab04d88c6aff212780bcca0b4f532695",
+    "semantic_hash": "ab04d88c6aff212780bcca0b4f532695"
+  },
+  "AmaScan/PackingDocumentsPage.xaml": {
+    "mtime": 1754465201.4491634,
+    "ast_hash": "7719bd2405f61030314cdc34213c8dd3",
+    "semantic_hash": "7719bd2405f61030314cdc34213c8dd3"
+  },
+  "AmaScan/PackingDocumentsPage.xaml.cs": {
+    "mtime": 1757076222.3718455,
+    "ast_hash": "6a82c622770b9383ae735af490810404",
+    "semantic_hash": "6a82c622770b9383ae735af490810404"
+  },
+  "AmaScan/PackingMain.xaml": {
+    "mtime": 1777041871.4954865,
+    "ast_hash": "43056132a72a6022632b581cc2bc6553",
+    "semantic_hash": "43056132a72a6022632b581cc2bc6553"
+  },
+  "AmaScan/PackingMain.xaml.cs": {
+    "mtime": 1777041921.3238387,
+    "ast_hash": "f93611b31b600973e1dd9a15a121c234",
+    "semantic_hash": "f93611b31b600973e1dd9a15a121c234"
+  },
+  "AmaScan/PackingPage.xaml": {
+    "mtime": 1754465153.5412354,
+    "ast_hash": "f71eb246cad778fb4b2dda6353f1f484",
+    "semantic_hash": "f71eb246cad778fb4b2dda6353f1f484"
+  },
+  "AmaScan/PackingPage.xaml.cs": {
+    "mtime": 1754567073.4965105,
+    "ast_hash": "4139e400fb6308cf091b96695b103f68",
+    "semantic_hash": "4139e400fb6308cf091b96695b103f68"
+  },
+  "AmaScan/PickingDocumentsPage.xaml": {
+    "mtime": 1776688586.3108957,
+    "ast_hash": "51ee7aa57f7c4d223f85001c1d2ce0a0",
+    "semantic_hash": "51ee7aa57f7c4d223f85001c1d2ce0a0"
+  },
+  "AmaScan/PickingDocumentsPage.xaml.cs": {
+    "mtime": 1754567137.3061295,
+    "ast_hash": "ebf55bd873b0cb125c3fe9268d776a74",
+    "semantic_hash": "ebf55bd873b0cb125c3fe9268d776a74"
+  },
+  "AmaScan/PickingMain.xaml": {
+    "mtime": 1777041848.2028744,
+    "ast_hash": "79c0da298e63c30b38aaf2abb368b65b",
+    "semantic_hash": "79c0da298e63c30b38aaf2abb368b65b"
+  },
+  "AmaScan/PickingMain.xaml.cs": {
+    "mtime": 1777041892.585552,
+    "ast_hash": "7840d52631c17ccf6ae9fe3822cfa15f",
+    "semantic_hash": "7840d52631c17ccf6ae9fe3822cfa15f"
+  },
+  "AmaScan/PickingPage.xaml": {
+    "mtime": 1776689050.583088,
+    "ast_hash": "0675b89af99d4169f23cdfab54618ad5",
+    "semantic_hash": "0675b89af99d4169f23cdfab54618ad5"
+  },
+  "AmaScan/PickingPage.xaml.cs": {
+    "mtime": 1776691806.034198,
+    "ast_hash": "02ca50dc74c6dc00d942caff5a858d1e",
+    "semantic_hash": "02ca50dc74c6dc00d942caff5a858d1e"
+  },
+  "AmaScan/Platforms/Android/MainActivity.cs": {
+    "mtime": 1754485851.1598086,
+    "ast_hash": "94fe7be004bef584a5da8ab00baaca18",
+    "semantic_hash": "94fe7be004bef584a5da8ab00baaca18"
+  },
+  "AmaScan/Platforms/Android/MainApplication.cs": {
+    "mtime": 1744701818.9773135,
+    "ast_hash": "b4144562248ebe8d840840cc8a3f44ca",
+    "semantic_hash": "b4144562248ebe8d840840cc8a3f44ca"
+  },
+  "AmaScan/Properties/launchSettings.json": {
+    "mtime": 1744701811.79631,
+    "ast_hash": "836220c8be2d5322ad68c2a5c7538c2f",
+    "semantic_hash": "836220c8be2d5322ad68c2a5c7538c2f"
+  },
+  "AmaScan/ReceivingDocumentsPage.xaml": {
+    "mtime": 1754485113.954138,
+    "ast_hash": "d0ae59add70e767e859eaa8c0d7651c1",
+    "semantic_hash": "d0ae59add70e767e859eaa8c0d7651c1"
+  },
+  "AmaScan/ReceivingDocumentsPage.xaml.cs": {
+    "mtime": 1785835108.8622465,
+    "ast_hash": "13acdae5a397be88f29fc3b588a6e48f",
+    "semantic_hash": "13acdae5a397be88f29fc3b588a6e48f"
+  },
+  "AmaScan/ReceivingMain.xaml": {
+    "mtime": 1785832613.5391686,
+    "ast_hash": "bc60513d9fc81bc99a6f66ca858eebc3",
+    "semantic_hash": "bc60513d9fc81bc99a6f66ca858eebc3"
+  },
+  "AmaScan/ReceivingMain.xaml.cs": {
+    "mtime": 1785833533.2922676,
+    "ast_hash": "9450047c1c73e9d916b2530c5e76a83a",
+    "semantic_hash": "9450047c1c73e9d916b2530c5e76a83a"
+  },
+  "AmaScan/ReceivingPage.xaml": {
+    "mtime": 1785832262.6135936,
+    "ast_hash": "b6f48e1d2168ada9f876222b212bb27d",
+    "semantic_hash": "b6f48e1d2168ada9f876222b212bb27d"
+  },
+  "AmaScan/ReceivingPage.xaml.cs": {
+    "mtime": 1785832973.4620476,
+    "ast_hash": "fcc27b512a74727f1b930c9862b7bd0a",
+    "semantic_hash": "fcc27b512a74727f1b930c9862b7bd0a"
+  },
+  "AmaScan/Resources/Styles/Colors.xaml": {
+    "mtime": 1744701811.907308,
+    "ast_hash": "421d6084d35bc1209d75b23cc1942c64",
+    "semantic_hash": "421d6084d35bc1209d75b23cc1942c64"
+  },
+  "AmaScan/Resources/Styles/Styles.xaml": {
+    "mtime": 1750781670.6472216,
+    "ast_hash": "8d28b814aa433a5a9d21e9f8052874b9",
+    "semantic_hash": "8d28b814aa433a5a9d21e9f8052874b9"
+  },
+  "AmaScan/ReturnsPage.xaml": {
+    "mtime": 1777041141.5059001,
+    "ast_hash": "a569f70573382101f48342aaa90f3d1c",
+    "semantic_hash": "a569f70573382101f48342aaa90f3d1c"
+  },
+  "AmaScan/ReturnsPage.xaml.cs": {
+    "mtime": 1778504017.3385904,
+    "ast_hash": "2f8ebedeaf011a7ce9e7b0df0864ca66",
+    "semantic_hash": "2f8ebedeaf011a7ce9e7b0df0864ca66"
+  },
+  "AmaScan/Services/OmniDelNoteService.cs": {
+    "mtime": 1782997388.9022527,
+    "ast_hash": "8d7461e6a2bf94be53f94b17fd5bcb83",
+    "semantic_hash": "8d7461e6a2bf94be53f94b17fd5bcb83"
+  },
+  "AmaScan/Services/OmniGrvService.cs": {
+    "mtime": 1785835101.7528384,
+    "ast_hash": "781c4036873a38432fc9de97c6aaf9d8",
+    "semantic_hash": "781c4036873a38432fc9de97c6aaf9d8"
+  },
+  "AmaScan/SettingsPage.xaml": {
+    "mtime": 1776678424.627922,
+    "ast_hash": "b32f7cc2a79b6b7723ad60f118baede3",
+    "semantic_hash": "b32f7cc2a79b6b7723ad60f118baede3"
+  },
+  "AmaScan/SettingsPage.xaml.cs": {
+    "mtime": 1779284914.3319163,
+    "ast_hash": "b133852e08a6f6a9b249107c4d3531f1",
+    "semantic_hash": "b133852e08a6f6a9b249107c4d3531f1"
+  },
+  "AmaScan/StockCountMain.xaml": {
+    "mtime": 1757432781.360965,
+    "ast_hash": "317cf3b5fac23508844448ebc6deadd5",
+    "semantic_hash": "317cf3b5fac23508844448ebc6deadd5"
+  },
+  "AmaScan/StockCountMain.xaml.cs": {
+    "mtime": 1757432471.3187063,
+    "ast_hash": "b8eceb04825a1510442554dbd1125d47",
+    "semantic_hash": "b8eceb04825a1510442554dbd1125d47"
+  },
+  "AmaScan/StockCountPage.xaml": {
+    "mtime": 1783949504.4573114,
+    "ast_hash": "81eda9c662c840cbef92aba3f7cbce1c",
+    "semantic_hash": "81eda9c662c840cbef92aba3f7cbce1c"
+  },
+  "AmaScan/StockCountPage.xaml.cs": {
+    "mtime": 1783949522.646397,
+    "ast_hash": "798e5e9f7ab8c7dee598a015b0b2347f",
+    "semantic_hash": "798e5e9f7ab8c7dee598a015b0b2347f"
+  },
+  "AmaScan/StockCountSearchPage.xaml": {
+    "mtime": 1757433779.4667912,
+    "ast_hash": "5a5618ac6be2808d31a5e65e3ef70bd2",
+    "semantic_hash": "5a5618ac6be2808d31a5e65e3ef70bd2"
+  },
+  "AmaScan/StockCountSearchPage.xaml.cs": {
+    "mtime": 1757444808.9068525,
+    "ast_hash": "76b1e426e552de8271d12e56051072c3",
+    "semantic_hash": "76b1e426e552de8271d12e56051072c3"
+  },
+  "AmaScan/TransferDetailPage.xaml": {
+    "mtime": 1756104328.7712102,
+    "ast_hash": "edb11b065ac55efbbe9569c620a86ba9",
+    "semantic_hash": "edb11b065ac55efbbe9569c620a86ba9"
+  },
+  "AmaScan/TransferDetailPage.xaml.cs": {
+    "mtime": 1756109139.7137778,
+    "ast_hash": "0aede29825a490fa051aa50fb777ff6f",
+    "semantic_hash": "0aede29825a490fa051aa50fb777ff6f"
+  },
+  "AmaScan/TransferMainPage.xaml": {
+    "mtime": 1777041860.0890203,
+    "ast_hash": "28fca5f125079c3dbeed08b65f1a44a1",
+    "semantic_hash": "28fca5f125079c3dbeed08b65f1a44a1"
+  },
+  "AmaScan/TransferMainPage.xaml.cs": {
+    "mtime": 1777041908.3206854,
+    "ast_hash": "3e21c1ee00c46b6cf6d2c78b4b30665a",
+    "semantic_hash": "3e21c1ee00c46b6cf6d2c78b4b30665a"
+  },
+  "AmaScan/sqliteModels/IIdentifiable.cs": {
+    "mtime": 1754485855.3122904,
+    "ast_hash": "c6ee0943d8cdf91339ff5814cda24190",
+    "semantic_hash": "c6ee0943d8cdf91339ff5814cda24190"
+  },
+  "AmaScan/sqliteModels/PoHeader.cs": {
+    "mtime": 1778249972.9209037,
+    "ast_hash": "6dc1128fdb076a9132a82fd4b090fab6",
+    "semantic_hash": "6dc1128fdb076a9132a82fd4b090fab6"
+  },
+  "AmaScan/sqliteModels/PoLine.cs": {
+    "mtime": 1785835115.7969694,
+    "ast_hash": "b8eda500020cdbb548b5ea10a83be632",
+    "semantic_hash": "b8eda500020cdbb548b5ea10a83be632"
+  },
+  "AmaScan/sqliteModels/SoHeader.cs": {
+    "mtime": 1755493477.5029397,
+    "ast_hash": "da347b488940f82bc3fa74941d5320fb",
+    "semantic_hash": "da347b488940f82bc3fa74941d5320fb"
+  },
+  "AmaScan/sqliteModels/SoLine.cs": {
+    "mtime": 1780324408.475248,
+    "ast_hash": "5ea254002c6ed2ee457fdc3f9f1374b9",
+    "semantic_hash": "5ea254002c6ed2ee457fdc3f9f1374b9"
+  },
+  "AmaScan/sqliteModels/StockCountItem.cs": {
+    "mtime": 1757443247.95142,
+    "ast_hash": "94a9195f2efbea46c768ccbec8da3fe2",
+    "semantic_hash": "94a9195f2efbea46c768ccbec8da3fe2"
+  },
+  "AmaScan/sqliteModels/StockItem.cs": {
+    "mtime": 1755493489.3623188,
+    "ast_hash": "056e4551e92c8d9888638fdd41f676ce",
+    "semantic_hash": "056e4551e92c8d9888638fdd41f676ce"
+  },
+  "AmaScan/sqliteModels/Warehouse.cs": {
+    "mtime": 1754543134.2378912,
+    "ast_hash": "4aadb569917ee1add8d33e73d2f05cb2",
+    "semantic_hash": "4aadb569917ee1add8d33e73d2f05cb2"
+  }
+}

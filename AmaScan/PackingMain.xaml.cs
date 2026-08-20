@@ -85,6 +85,20 @@ public partial class PackingMain : ContentPage
                 return;
             }
 
+            // Don't load an order whose previous stage isn't finished — tell the user why instead
+            // of letting them start packing against a zero picked quantity.
+            string blocked = WorkflowGate.BlockPacking(_currentSoResponse);
+            if (blocked != null)
+            {
+                _currentSoResponse = null;
+                await MainThread.InvokeOnMainThreadAsync(async () =>
+                {
+                    await DisplayAlert(blocked,
+                        $"SO {soNumber} cannot be packed yet.\n\n{blocked} for this order.", "OK");
+                });
+                return;
+            }
+
             // Use merge helper for normal operation with proper threading
             await SoMergeHelper.HandleSoFetchAndMergeAsync(soNumber, _currentSoResponse, customerLabel, dueDateLabel, soHeaderFrame, soLinesView, LoadSOButton, "Packing");
         }
@@ -229,35 +243,21 @@ public partial class PackingMain : ContentPage
             AreaDescription = response.AreaDescription,
             DueDate = response.DueDate,
             OrderStatus = response.OrderStatus,
+            // Carry the server's stage flags. Without these the local header reads un-picked and
+            // un-packed on a device that has just downloaded the order, so the reset paths think
+            // there is nothing to undo on the server.
+            Picked = response.Picked,
+            Packed = response.Packed,
             JsonData = System.Text.Json.JsonSerializer.Serialize(response)
         };
 
         // Insert or update the SoHeader
         await App.Db.InsertAsync(soHeader);
 
-        // Batch create lines for better performance
-        var soLines = response.Lines.Select(line => new SoLine
-        {
-            DocNum = soNumber,
-            CustomerAccount = line.CustomerAccount,
-            CustomerName = line.CustomerName,
-            ItemCode = line.ItemCode,
-            ItemDesc = line.ItemDesc,
-            ItemBarcode = line.ItemBarcode,
-            PackSize = line.PackSize,
-            PackBarcode = line.PackBarcode,
-            NoOfPacks = line.NoOfPacks,
-            OrderedQty = line.OrderedQty,
-            PickedQty = 0,
-            PackedQty = 0,
-            CheckedQty = 0,
-            AuthorizedQty = 0,
-            Bin = line.Bin,
-            Picked = false,
-            Packed = false,
-            Checked = false,
-            Authorized = false
-        }).ToList();
+        // Batch create lines for better performance. CreateNewSoLine carries the server's pick
+        // progress across — this used to hardcode PickedQty = 0, so a packer on a device that had
+        // not done the picking itself had nothing to pack against.
+        var soLines = response.Lines.Select(line => App.Db.CreateNewSoLine(soNumber, line)).ToList();
 
         // Batch insert lines for better performance
         await Task.Run(async () =>

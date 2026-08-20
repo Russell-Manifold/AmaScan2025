@@ -746,6 +746,28 @@ namespace AmaScan.Classes
                 existingLine.AuthCompleteDateTime = null;
             }
 
+            // Adopt the server's pick/pack progress ONLY where this device has none of its own.
+            // Another device may have completed the previous stage, and without this the local zero
+            // would stand and the next stage would have nothing to measure against. The local value
+            // wins whenever it is non-zero, so an in-progress (or offline) scan is never clobbered.
+            if (existingLine.PickedQty == 0 && freshLine.PickedQty > 0)
+            {
+                existingLine.PickedQty = freshLine.PickedQty;
+                existingLine.PickedBy = freshLine.PickedBy;
+                existingLine.PickStartDateTime = NullIfUnset(freshLine.PickStartDateTime);
+                existingLine.PickCompleteDateTime = NullIfUnset(freshLine.PickCompleteDateTime);
+                existingLine.Picked = freshLine.PickedQty >= freshLine.OrderedQty;
+            }
+
+            if (existingLine.PackedQty == 0 && freshLine.PackedQty > 0)
+            {
+                existingLine.PackedQty = freshLine.PackedQty;
+                existingLine.PackedBy = freshLine.PackedBy;
+                existingLine.PackStartDateTime = NullIfUnset(freshLine.PackStartDateTime);
+                existingLine.PackCompleteDateTime = NullIfUnset(freshLine.PackCompleteDateTime);
+                existingLine.Packed = freshLine.PackedQty >= freshLine.OrderedQty;
+            }
+
             // Update source data
             existingLine.SoLLineNo = freshLine.SoLLineNo;
             existingLine.ItemDesc = freshLine.ItemDesc;
@@ -756,9 +778,23 @@ namespace AmaScan.Classes
             existingLine.Bin = freshLine.Bin;
         }
 
-        private SoLine CreateNewSoLine(string orderNo, SalesOrderLine freshLine)
+        /// <summary>
+        /// The API's SalesOrderLine dates are non-nullable DateTime and its reader returns
+        /// DateTime.MinValue for a NULL column, so an un-picked line arrives as 0001-01-01 rather
+        /// than null. Left as-is that would defeat every "if (date == null) set it now" guard AND
+        /// blow up on write, because SQL Server's datetime starts at 1753-01-01.
+        /// </summary>
+        private static DateTime? NullIfUnset(DateTime? value) =>
+            value == null || value.Value == DateTime.MinValue || value.Value.Year < 1753 ? null : value;
+
+        /// <summary>
+        /// Builds a local SoLine from a server line. Public so the Picking/Packing/Checking "Main"
+        /// pages share this ONE definition when they first save an order — they each used to build
+        /// the line by hand with the workflow quantities hardcoded to 0.
+        /// </summary>
+        public SoLine CreateNewSoLine(string orderNo, SalesOrderLine freshLine)
         {
-            return new SoLine
+            var line = new SoLine
             {
                 DocNum = orderNo,
                 SoLLineNo = freshLine.SoLLineNo,
@@ -771,17 +807,43 @@ namespace AmaScan.Classes
                 PackBarcode = freshLine.PackBarcode,
                 NoOfPacks = freshLine.NoOfPacks,
                 OrderedQty = freshLine.OrderedQty,
-                PickedQty = 0,
-                PackedQty = 0,
+
+                // Carry the server's PICK/PACK progress across instead of zeroing it. Another
+                // device may already have done those stages; wiping them here is what made a
+                // checker on a second device see PickedQty = 0 and be unable to check anything.
+                PickedQty = freshLine.PickedQty,
+                PackedQty = freshLine.PackedQty,
+                PickedBy = freshLine.PickedBy,
+                PackedBy = freshLine.PackedBy,
+                PickStartDateTime = NullIfUnset(freshLine.PickStartDateTime),
+                PickCompleteDateTime = NullIfUnset(freshLine.PickCompleteDateTime),
+                PackStartDateTime = NullIfUnset(freshLine.PackStartDateTime),
+                PackCompleteDateTime = NullIfUnset(freshLine.PackCompleteDateTime),
+                // Checking/authorisation are deliberately still zeroed. Checking is the last stage
+                // and nothing downstream reads these off a fresh download, so leaving them alone
+                // keeps the live Check-only flow behaving exactly as it does today.
                 CheckedQty = 0,
                 AuthorizedQty = 0,
                 Bin = freshLine.Bin,
-                Picked = false,
-                Packed = false,
                 Checked = false,
                 Authorized = false
             };
+
+            // Derive Picked/Packed with the SAME rule the merge uses, rather than a second
+            // hand-written comparison that could disagree with it.
+            line.Picked = line.PickedQty >= line.OrderedQty;
+            line.Packed = StageComplete(line.PackedQty, WorkflowConfig.PackBasisQty(line), line.OrderedQty);
+
+            return line;
         }
+        /// <summary>
+        /// Is a stage finished? A zero basis means the PREVIOUS stage handed over nothing, so this
+        /// stage cannot be complete — except on a zero-quantity line, which is trivially done.
+        /// Without that distinction "0 >= 0" would mark every un-picked line as packed.
+        /// </summary>
+        private static bool StageComplete(decimal stageQty, decimal basisQty, decimal orderedQty) =>
+            basisQty > 0 ? stageQty >= basisQty : orderedQty == 0;
+
         private bool UpdateWorkflowStatus(List<SoLine> lines, SoHeader header)
         {
             bool headerChanged = false;
@@ -791,9 +853,13 @@ namespace AmaScan.Classes
 
             foreach (var line in lines)
             {
+                // Each stage is measured against what the PREVIOUS stage handed over, using the
+                // same WorkflowConfig helpers the Packing/Checking pages use. This block used to
+                // compare every stage to OrderedQty, so a merge could mark a line packed/checked
+                // that those pages still showed as outstanding.
                 line.Picked = line.PickedQty >= line.OrderedQty;
-                line.Packed = line.PackedQty >= line.OrderedQty;
-                line.Checked = line.CheckedQty >= line.OrderedQty;
+                line.Packed = StageComplete(line.PackedQty, WorkflowConfig.PackBasisQty(line), line.OrderedQty);
+                line.Checked = StageComplete(line.CheckedQty, WorkflowConfig.CheckBasisQty(line), line.OrderedQty);
                 line.Authorized = line.AuthorizedQty >= line.OrderedQty;
 
                 if (!line.Picked) hasIncompletePicking = true;

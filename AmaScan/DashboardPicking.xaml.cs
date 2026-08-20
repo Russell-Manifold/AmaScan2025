@@ -12,6 +12,13 @@ public partial class DashboardPicking : ContentPage
     public bool CanPack => _userSession.CurrentUser?.CanPack == true;
     public bool CanCheck => _userSession.CurrentUser?.CanCheck == true;
     public bool CanAuth => _userSession.CurrentUser?.CanAuthPicking == true;
+
+    // Two separate gates: the company decides whether a stage runs at all (WorkflowConfig,
+    // set on the web Company Config page), the role decides who is allowed to run it.
+    public bool ShowPicking => CanPick && WorkflowConfig.UsePicking;
+    public bool ShowPacking => CanPack && WorkflowConfig.UsePacking;
+    public string WorkflowDescription => $"Workflow: {WorkflowConfig.Describe()}";
+
     public string UserName => _userSession.CurrentUser?.UserName ?? "Guest";
     public string RoleName => _userSession.CurrentUser?.RoleName ?? "No Role Assigned";
     public string UseNRole => $"User: {UserName} ({RoleName})";
@@ -25,12 +32,14 @@ public partial class DashboardPicking : ContentPage
 
     private async void OnPage3Clicked(object sender, EventArgs e)
     {
-        await DisplayAlert("Picking", "Feature Temporarily Disabled", "OK");
+        var pickingMain = App.Services.GetRequiredService<PickingMain>();
+        await Navigation.PushAsync(pickingMain);
     }
 
     private async void OnPage4Clicked(object sender, EventArgs e)
     {
-        await DisplayAlert("Packing", "Feature Temporarily Disabled", "OK");
+        var packingMain = App.Services.GetRequiredService<PackingMain>();
+        await Navigation.PushAsync(packingMain);
     }
 
     private async void OnPage5Clicked(object sender, EventArgs e)

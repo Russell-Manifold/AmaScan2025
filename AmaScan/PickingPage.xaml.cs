@@ -200,7 +200,16 @@ public partial class PickingPage : ContentPage, INotifyPropertyChanged
         // Set the header-level user for picking
         await App.Db.SetPhaseUserAsync(_soHeader.Reference, currentUserName, "picking");
         _soHeader.PickStarted = true;
-        bool success = await SendToApiForCompletionAsync(_soHeader);
+
+        // Claim the order on the server. Don't block picking if this fails — the picker can work
+        // offline and completion posts the real numbers — but say so, rather than failing silently
+        // and leaving the order looking unclaimed to everyone else.
+        if (!await SendPickStartedToApiAsync(_soHeader))
+        {
+            await DisplayAlert("Not Claimed On Server",
+                $"Could not mark {_soHeader.Reference} as started.\n\n" +
+                "You can carry on picking, but another picker may still see this order as free.", "OK");
+        }
 
         // Set the line-level flag
         if (SelectedLine != null)
@@ -368,28 +377,39 @@ public partial class PickingPage : ContentPage, INotifyPropertyChanged
         try
         {
             var soLines = await App.Db.GetSoLinesByOrderNoAsync(_soHeader.Reference);
-            bool success = await SendToApiForCompletionAsync(_soHeader);
 
-            if (success)
+            // Send the per-line picked quantities, not just "done" — the next stage may run on a
+            // different device, which downloads the order from the server and would otherwise see
+            // PickedQty = 0. This call also stamps the header flags (Picked, plus Packed when
+            // packing is switched off) per the workflow matrix.
+            var stageResult = await StageSyncService.SendAsync(
+                _soHeader.Reference, StageSyncService.StagePicking, soLines);
+
+            if (!stageResult.Success)
             {
-                // Set header flags to indicate picking is complete
-                _soHeader.Picked = true;
-                await App.Db.UpdateSoHeaderAsync(_soHeader);
-
-                PickingWorkflowSession.Clear();
-                await DisplayAlert("Picking Phase Complete",
-                    $"Picking successfully completed for entire SO!\n\n" +
-                    $"Next phase: Packing\n\n" +
-                    $"Order: {_soHeader.Reference}", "OK");
-
-                // Navigate directly to picking dashboard
-                var dashboardPicking = App.Services.GetRequiredService<DashboardPicking>();
-                await Navigation.PushAsync(dashboardPicking);
+                await DisplayAlert("Picking Not Saved",
+                    $"Could not save the picked quantities for {_soHeader.Reference}:\n\n{stageResult.ErrorMessage}\n\n" +
+                    "The order has been left un-picked so you can retry.", "OK");
+                return;
             }
-            else
-            {
-                await DisplayAlert("Error", "Failed to complete picking. Please try again.", "OK");
-            }
+
+            // Set header flags to indicate picking is complete
+            _soHeader.Picked = true;
+            if (!WorkflowConfig.UsePacking) _soHeader.Packed = true;
+            await App.Db.UpdateSoHeaderAsync(_soHeader);
+
+            PickingWorkflowSession.Clear();
+            await DisplayAlert("Picking Phase Complete",
+                $"Picking successfully completed for entire SO!\n\n" +
+                $"Next phase: {(WorkflowConfig.UsePacking ? "Packing" : "Checking")}\n\n" +
+                $"Order: {_soHeader.Reference}", "OK");
+
+            // Pop back to PickingMain so the next SO can be entered. Do NOT push a fresh dashboard
+            // here: PickingMain is a DI SINGLETON that is still sitting in this Shell stack, so
+            // navigating into picking again from a pushed dashboard would put the very same page
+            // instance into the stack twice. Checking already does it this way.
+            // Stack: PickingMain -> PickingDocumentsPage -> PickingPage, so "../.." pops both.
+            await Shell.Current.GoToAsync("../..");
         }
         catch (Exception ex)
         {
@@ -511,6 +531,19 @@ public partial class PickingPage : ContentPage, INotifyPropertyChanged
             lineInCollection.PickStartDateTime = DateTime.Now;
         }
 
+        // With no packing stage, picking is the last stage before checking and owns BOTH flags —
+        // otherwise the pack columns stay at zero and checking has nothing to measure against.
+        // Must run after PickedBy/PickStartDateTime are set above, since it copies them.
+        // The server applies the same rule in UpdateSalesOrderStageController.
+        if (!WorkflowConfig.UsePacking)
+        {
+            lineInCollection.Packed = lineInCollection.Picked;
+            lineInCollection.PackedQty = lineInCollection.PickedQty;
+            lineInCollection.PackedBy = lineInCollection.PickedBy;
+            lineInCollection.PackStartDateTime = lineInCollection.PickStartDateTime;
+            lineInCollection.PackCompleteDateTime = lineInCollection.PickCompleteDateTime;
+        }
+
         await App.Db.UpdateSoLineAsync(lineInCollection);
 
         // Check if all lines are picked and update header accordingly
@@ -575,6 +608,12 @@ public partial class PickingPage : ContentPage, INotifyPropertyChanged
 
     private async Task ResetSelectedLine()
     {
+        // Capture BEFORE clearing. _soHeader.Picked alone is not enough: on a device that has just
+        // downloaded the order fresh, SaveToLocalDatabaseAsync builds the header without the flag,
+        // so it reads false even though the server has the order fully picked. The line's own
+        // Picked bit does come across from the server, so it is the reliable signal.
+        bool wasPickedOnServer = _soHeader.Picked || SelectedLine.Picked;
+
         // Reset the selected line (only picking-related fields)
         SelectedLine.PickedQty = 0;
         SelectedLine.Picked = false;
@@ -595,7 +634,39 @@ public partial class PickingPage : ContentPage, INotifyPropertyChanged
             lineInCollection.PickedBy = null;
         }
 
+        // With no packing stage, picking mirrors itself into the pack columns — so a reset has to
+        // clear those too. Otherwise the line keeps PackedQty/Packed from before the reset and
+        // still reads as packed, which then feeds the checking stage a stale basis quantity.
+        if (!WorkflowConfig.UsePacking)
+        {
+            foreach (var target in new[] { SelectedLine, lineInCollection })
+            {
+                if (target == null) continue;
+                target.PackedQty = 0;
+                target.Packed = false;
+                target.PackStarted = false;
+                target.PackedBy = null;
+                target.PackStartDateTime = null;
+                target.PackCompleteDateTime = null;
+            }
+        }
+
         await App.Db.UpdateSoLineAsync(SelectedLine);
+
+        // If picking had already been COMPLETED and posted, this reset has to be undone on the
+        // server too. Otherwise the header keeps Picked = 1, a checker on another device sails
+        // through WorkflowGate and checks against the stale quantity this reset just cleared.
+        // Under Pick→Check picking also owns Packed, so clear that as well.
+        if (wasPickedOnServer)
+        {
+            if (!await SendPickResetToApiAsync(_soHeader))
+            {
+                await DisplayAlert("Reset Not Sent",
+                    $"{_soHeader.Reference} was reset on this device, but the server still has it as " +
+                    "fully picked.\n\nRe-pick and complete the order to clear this, or the checker " +
+                    "may work off the old quantities.", "OK");
+            }
+        }
 
         // Check if all lines are still picked after reset, and update header accordingly
         bool allLinesPicked = await App.Db.AreAllLinesPickedAsync(_soHeader.Reference);
@@ -619,20 +690,43 @@ public partial class PickingPage : ContentPage, INotifyPropertyChanged
         await DisplayAlert("Reset Complete", $"Successfully reset {SelectedLine.ItemDesc}", "OK");
     }
 
-    private async Task<bool> SendToApiForCompletionAsync(SoHeader soHeader)
+    /// <summary>
+    /// Clears the server's completed-picking flags after a line was reset here, so the order stops
+    /// satisfying the authorization filter and the next stage's gate blocks it again. Sends Packed
+    /// as well when picking owns that flag (no packing stage).
+    /// </summary>
+    private Task<bool> SendPickResetToApiAsync(SoHeader soHeader) =>
+        PostHeaderAsync(new SalesHeaderUpdateRequest
+        {
+            Reference = soHeader.Reference,
+            Picked = false,
+            Packed = WorkflowConfig.UsePacking ? (bool?)null : false
+        });
+
+    /// <summary>
+    /// Tells the server picking has STARTED and claims the order for this picker.
+    ///
+    /// It deliberately does NOT send Picked. It used to send Picked = soHeader.Picked, and after a
+    /// login the local header is rebuilt from scratch as false — so simply re-opening an order that
+    /// was already picked wrote Picked = 0 back over it and dropped it out of Authorize Release.
+    /// Completion flags belong to api/UpdateSalesOrderStage and to the reset path above.
+    ///
+    /// It also does not send Packer: the web picking-slip page assigns one, and the server only
+    /// writes that column when a value is supplied.
+    /// </summary>
+    private Task<bool> SendPickStartedToApiAsync(SoHeader soHeader) =>
+        PostHeaderAsync(new SalesHeaderUpdateRequest
+        {
+            Reference = soHeader.Reference,
+            Picker = soHeader.Picker,
+            PickStarted = true
+        });
+
+    private async Task<bool> PostHeaderAsync(SalesHeaderUpdateRequest payload)
     {
         try
         {
-            var client = new HttpClient();
-
-            // Create the request payload matching SalesOrderUpdateRequest model
-            var payload = new SalesHeaderUpdateRequest
-            {
-                Reference = soHeader.Reference,
-                Picker = soHeader.Picker,
-                PickStarted = soHeader.PickStarted,
-                Picked = soHeader.Picked
-            };
+            using var client = new HttpClient();
 
             string json = JsonConvert.SerializeObject(payload);
             var content = new StringContent(json, Encoding.UTF8, "application/json");
@@ -653,7 +747,7 @@ public partial class PickingPage : ContentPage, INotifyPropertyChanged
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"SendToApiForCompletionAsync Error: {ex.Message}");
+            System.Diagnostics.Debug.WriteLine($"SendPickStartedToApiAsync Error: {ex.Message}");
             return false;
         }
     }

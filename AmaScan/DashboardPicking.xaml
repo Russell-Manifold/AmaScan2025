@@ -18,10 +18,15 @@
         </Grid.RowDefinitions>
 
         <StackLayout Grid.Row="0" Padding="10">
-            <Label x:Name="UserNameLabel" 
-               Text="{Binding UseNRole}" 
-               FontSize="12" 
-               HorizontalOptions="Start" 
+            <Label x:Name="UserNameLabel"
+               Text="{Binding UseNRole}"
+               FontSize="12"
+               HorizontalOptions="Start"
+               VerticalOptions="Center" />
+            <Label x:Name="WorkflowLabel"
+               Text="{Binding WorkflowDescription}"
+               FontSize="12"
+               HorizontalOptions="Start"
                VerticalOptions="Center" />
          </StackLayout>
         <ScrollView Grid.Row="1" Padding="10">
@@ -45,25 +50,25 @@
            HorizontalOptions="Center"
            VerticalOptions="Center"/>-->
 
-                <!-- 🔘 Image Button 3 - Picking -->
-                <ImageButton x:Name="BtnPicking" Source="receivestck.png" IsVisible="{Binding CanPick}"
+                <!-- 🔘 Image Button 3 - Picking (company workflow + role) -->
+                <ImageButton x:Name="BtnPicking" Source="receivestck.png" IsVisible="{Binding ShowPicking}"
                          WidthRequest="50"
                          HeightRequest="50"
                          Clicked="OnPage3Clicked"/>
                 <Label Text="Picking"
                        HorizontalOptions="Center"
                        VerticalOptions="Center"
-                       IsVisible="{Binding CanPick}"/>
+                       IsVisible="{Binding ShowPicking}"/>
 
-                <!-- 🔘 Image Button 4 - Packing -->
-                <ImageButton x:Name="BtnPacking" Source="receivestck.png" IsVisible="{Binding CanPack}"
+                <!-- 🔘 Image Button 4 - Packing (company workflow + role) -->
+                <ImageButton x:Name="BtnPacking" Source="receivestck.png" IsVisible="{Binding ShowPacking}"
                          WidthRequest="50"
                          HeightRequest="50"
                          Clicked="OnPage4Clicked"/>
                 <Label Text="Packing"
                        HorizontalOptions="Center"
                        VerticalOptions="Center"
-                       IsVisible="{Binding CanPack}"/>
+                       IsVisible="{Binding ShowPacking}"/>
 
                 <!-- 🔘 Image Button 5 - Checking -->
                 <ImageButton x:Name="BtnChecking" Source="receivestck.png" IsVisible="{Binding CanCheck}"

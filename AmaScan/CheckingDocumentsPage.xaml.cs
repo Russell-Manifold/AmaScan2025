@@ -147,16 +147,24 @@ public partial class CheckingDocumentsPage : ContentPage, INotifyPropertyChanged
                 }
             }
 
-            // TEMP (2026-05-21): Picking/packing workflow paused — checking may proceed
-            // for an unpicked/unpacked SO. Restore this gate when picking/packing returns.
-            //// Check if the item has been packed
-            //if (!soLine.Packed)
-            //{
-            //    await DisplayAlert("Checking Unavailable",
-            //        $"{soLine.ItemDesc} has not been packed yet.\n\n" +
-            //        "Checking is unavailable until packing is completed.", "OK");
-            //    return;
-            //}
+            // The stage immediately before checking must be complete for this line. Which stage
+            // that is depends on the company's workflow (WorkflowConfig): packing if it runs,
+            // otherwise picking, otherwise nothing — Check-only lets checking start straight away.
+            if (WorkflowConfig.UsePacking && !soLine.Packed)
+            {
+                await DisplayAlert("Checking Unavailable",
+                    $"{soLine.ItemDesc} has not been packed yet.\n\n" +
+                    "Checking is unavailable until packing is completed.", "OK");
+                return;
+            }
+
+            if (!WorkflowConfig.UsePacking && WorkflowConfig.UsePicking && !soLine.Picked)
+            {
+                await DisplayAlert("Checking Unavailable",
+                    $"{soLine.ItemDesc} has not been picked yet.\n\n" +
+                    "Checking is unavailable until picking is completed.", "OK");
+                return;
+            }
 
             // TEMP (2026-05-21): Authorization phase moved out of this app for the current
             // milestone. Restore this gate if/when authorization returns.

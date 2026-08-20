@@ -159,8 +159,9 @@ public partial class PackingDocumentsPage : ContentPage, INotifyPropertyChanged
                 }
             }
 
-            // Check if the item has been picked
-            if (!soLine.Picked)
+            // Check if the item has been picked. Only a gate when the company runs a picking
+            // stage — under Pack→Check packing is the first stage and has nothing to wait for.
+            if (WorkflowConfig.UsePicking && !soLine.Picked)
             {
                 await DisplayAlert("Packing Unavailable",
                     $"{soLine.ItemDesc} has not been picked yet.\n\n" +

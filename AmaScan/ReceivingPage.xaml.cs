@@ -458,7 +458,7 @@ namespace AmaScan
             try
             {
                 var client = AppConfig.GetHttpClient();
-                var payload = new { Username = username, Password = password };
+                var payload = new { Username = username.Trim(), Password = password };
                 string json = JsonConvert.SerializeObject(payload);
                 var content = new StringContent(json, Encoding.UTF8, "application/json");
 

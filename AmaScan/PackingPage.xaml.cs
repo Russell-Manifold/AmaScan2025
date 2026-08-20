@@ -1,4 +1,5 @@
 using AmaScan.sqliteModels;
+using AmaScan.Models;
 using AmaScan.Classes;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
@@ -139,6 +140,13 @@ public partial class PackingPage : ContentPage, INotifyPropertyChanged
 
     private string GetCurrentUserName() => _userSession.CurrentUser?.UserName ?? "Unknown User";
 
+    // ONE definition of the basis, shared with DatabaseHelper.UpdateWorkflowStatus — they used to
+    // disagree (that one measured packing against OrderedQty), which would silently mark a line
+    // packed on merge that this page still considered outstanding.
+    private static decimal PackBasisQty(SoLine line) => WorkflowConfig.PackBasisQty(line);
+
+    private static string PackBasisName => WorkflowConfig.UsePicking ? "picked" : "ordered";
+
     #region UI Management
     private void StartPackingForSelectedLine(SoLine selectedLine, bool showInput = true)
     {
@@ -169,7 +177,7 @@ public partial class PackingPage : ContentPage, INotifyPropertyChanged
     {
         if (SelectedLine == null) return;
 
-        bool isFullyPacked = SelectedLine.PackedQty >= SelectedLine.PickedQty;
+        bool isFullyPacked = SelectedLine.PackedQty >= PackBasisQty(SelectedLine);
 
         BarcodeEntry.IsEnabled = !isFullyPacked;
         QuantityEntry.IsEnabled = !isFullyPacked;
@@ -369,7 +377,7 @@ public partial class PackingPage : ContentPage, INotifyPropertyChanged
 
             if (!SelectedLine.Packed)
             {
-                var currentLineOutstanding = SelectedLine.PackingOutstandingQty;
+                var currentLineOutstanding = PackBasisQty(SelectedLine) - SelectedLine.PackedQty;
                 await DisplayAlert("Incomplete",
                     $"The selected item must be packed before completing.\n\n" +
                     $"{currentLineOutstanding} items still need packing", "OK");
@@ -423,27 +431,33 @@ public partial class PackingPage : ContentPage, INotifyPropertyChanged
         try
         {
             var soLines = await App.Db.GetSoLinesByOrderNoAsync(_soHeader.Reference);
-            bool success = await SendToApiForCompletionAsync(_soHeader.Reference, soLines);
+            var stageResult = await SendToApiForCompletionAsync(_soHeader.Reference, soLines);
 
-            if (success)
+            if (!stageResult.Success)
             {
-                // Set header flags to indicate packing is complete
-                _soHeader.Packed = true;
-                await App.Db.UpdateSoHeaderAsync(_soHeader);
-
-                PickingWorkflowSession.Clear();
-                await DisplayAlert("Packing Phase Complete",
-                    $"Packing successfully completed for entire SO!\n\n" +
-                    $"Next phase: Checking\n\n" +
-                    $"Order: {_soHeader.Reference}", "OK");
-
-                var dashboard = App.Services.GetRequiredService<Dashboard>();
-                await Navigation.PushAsync(dashboard);
+                await DisplayAlert("Packing Not Saved",
+                    $"Could not save the packed quantities for {_soHeader.Reference}:\n\n{stageResult.ErrorMessage}\n\n" +
+                    "The order has been left un-packed so you can retry.", "OK");
+                return;
             }
-            else
-            {
-                await DisplayAlert("Error", "Failed to complete packing. Please try again.", "OK");
-            }
+
+            // Set header flags to indicate packing is complete. With no picking stage, packing is
+            // the last stage before checking and owns both flags.
+            _soHeader.Packed = true;
+            if (!WorkflowConfig.UsePicking) _soHeader.Picked = true;
+            await App.Db.UpdateSoHeaderAsync(_soHeader);
+
+            PickingWorkflowSession.Clear();
+            await DisplayAlert("Packing Phase Complete",
+                $"Packing successfully completed for entire SO!\n\n" +
+                $"Next phase: Checking\n\n" +
+                $"Order: {_soHeader.Reference}", "OK");
+
+            // Pop back to PackingMain so the next SO can be entered. Do NOT push a fresh dashboard
+            // here: PackingMain is a DI SINGLETON still sitting in this Shell stack, so navigating
+            // into packing again from a pushed dashboard would put the same page instance into the
+            // stack twice. Stack: PackingMain -> PackingDocumentsPage -> PackingPage.
+            await Shell.Current.GoToAsync("../..");
         }
         catch (Exception ex)
         {
@@ -526,20 +540,22 @@ public partial class PackingPage : ContentPage, INotifyPropertyChanged
             return;
         }
 
-        if (lineInCollection.PackedQty >= lineInCollection.PickedQty)
+        decimal basisQty = PackBasisQty(lineInCollection);
+
+        if (lineInCollection.PackedQty >= basisQty)
         {
             await DisplayAlert("Already Packed",
-                $"{lineInCollection.ItemDesc} has already been fully packed ({lineInCollection.PackedQty}/{lineInCollection.PickedQty}).\n\n" +
+                $"{lineInCollection.ItemDesc} has already been fully packed ({lineInCollection.PackedQty}/{basisQty}).\n\n" +
                 "No further packing allowed.", "OK");
             return;
         }
 
-        if ((lineInCollection.PackedQty + quantity) > lineInCollection.PickedQty)
+        if ((lineInCollection.PackedQty + quantity) > basisQty)
         {
             await DisplayAlert("Over-Packing Not Allowed",
-                $"Cannot pack {quantity} more items. This would exceed the picked quantity of {lineInCollection.PickedQty}.\n\n" +
+                $"Cannot pack {quantity} more items. This would exceed the {PackBasisName} quantity of {basisQty}.\n\n" +
                 $"Already packed: {lineInCollection.PackedQty}\n" +
-                $"Remaining: {lineInCollection.PickedQty - lineInCollection.PackedQty}", "OK");
+                $"Remaining: {basisQty - lineInCollection.PackedQty}", "OK");
             return;
         }
 
@@ -550,10 +566,12 @@ public partial class PackingPage : ContentPage, INotifyPropertyChanged
     {
         lineInCollection.PackedQty += quantity;
 
-        lineInCollection.PackCompleteDateTime = lineInCollection.PackedQty == lineInCollection.PickedQty ? DateTime.Now : null;
+        decimal basisQty = PackBasisQty(lineInCollection);
+
+        lineInCollection.PackCompleteDateTime = lineInCollection.PackedQty == basisQty ? DateTime.Now : null;
 
         // Set Packed flag when quantities match exactly
-        lineInCollection.Packed = lineInCollection.PackedQty == lineInCollection.PickedQty;
+        lineInCollection.Packed = lineInCollection.PackedQty == basisQty;
 
         // Ensure PackedBy is set when completing the line
         if (string.IsNullOrEmpty(lineInCollection.PackedBy))
@@ -565,6 +583,20 @@ public partial class PackingPage : ContentPage, INotifyPropertyChanged
         if (lineInCollection.PackStartDateTime == null)
         {
             lineInCollection.PackStartDateTime = DateTime.Now;
+        }
+
+        // With no picking stage, packing is the last stage before checking and owns BOTH flags —
+        // otherwise the pick columns stay at zero, which reads as "nothing picked" in the row
+        // colours, discrepancy checks and PackingOutstandingQty. Must run after PackedBy/
+        // PackStartDateTime are set above, since it copies them. Same rule server-side in
+        // UpdateSalesOrderStageController.
+        if (!WorkflowConfig.UsePicking)
+        {
+            lineInCollection.Picked = lineInCollection.Packed;
+            lineInCollection.PickedQty = lineInCollection.PackedQty;
+            lineInCollection.PickedBy = lineInCollection.PackedBy;
+            lineInCollection.PickStartDateTime = lineInCollection.PackStartDateTime;
+            lineInCollection.PickCompleteDateTime = lineInCollection.PackCompleteDateTime;
         }
 
         // Run database update on background thread
@@ -592,7 +624,7 @@ public partial class PackingPage : ContentPage, INotifyPropertyChanged
             await MainThread.InvokeOnMainThreadAsync(async () =>
             {
                 await DisplayAlert("Packing Complete",
-                    $"{lineInCollection.ItemDesc} has been fully packed ({lineInCollection.PackedQty}/{lineInCollection.PickedQty})\n\n" +
+                    $"{lineInCollection.ItemDesc} has been fully packed ({lineInCollection.PackedQty}/{basisQty})\n\n" +
                     "Packing complete, needs checking", "OK");
             });
         }
@@ -627,6 +659,10 @@ public partial class PackingPage : ContentPage, INotifyPropertyChanged
 
     private async Task ResetSelectedLine()
     {
+        // Capture BEFORE clearing. _soHeader.Packed alone is not enough on a device that has just
+        // downloaded the order — the line's own Packed bit is the reliable signal.
+        bool wasPackedOnServer = _soHeader.Packed || SelectedLine.Packed;
+
         // Reset the selected line
         SelectedLine.PackedQty = 0;
         SelectedLine.PackStarted = false;
@@ -647,11 +683,44 @@ public partial class PackingPage : ContentPage, INotifyPropertyChanged
             lineInCollection.Packed = false;
         }
 
+        // With no picking stage, packing mirrors itself into the pick columns — so a reset has to
+        // clear those too, or the line still reads as picked with a stale PickedQty.
+        if (!WorkflowConfig.UsePicking)
+        {
+            foreach (var target in new[] { SelectedLine, lineInCollection })
+            {
+                if (target == null) continue;
+                target.PickedQty = 0;
+                target.Picked = false;
+                target.PickStarted = false;
+                target.PickedBy = null;
+                target.PickStartDateTime = null;
+                target.PickCompleteDateTime = null;
+            }
+        }
+
         // Run database update on background thread
         await Task.Run(async () =>
         {
             await App.Db.UpdateSoLineAsync(SelectedLine);
         });
+
+        // If packing had already been COMPLETED and posted, undo it on the server too, or the
+        // header keeps Packed = 1 and a checker sails through WorkflowGate onto stale quantities.
+        // Under Pack→Check packing also owns Picked, so clear that as well.
+        if (wasPackedOnServer)
+        {
+            if (!await SendPackResetToApiAsync(_soHeader))
+            {
+                await MainThread.InvokeOnMainThreadAsync(async () =>
+                {
+                    await DisplayAlert("Reset Not Sent",
+                        $"{_soHeader.Reference} was reset on this device, but the server still has it " +
+                        "as fully packed.\n\nRe-pack and complete the order to clear this, or the " +
+                        "checker may work off the old quantities.", "OK");
+                });
+            }
+        }
 
         await MainThread.InvokeOnMainThreadAsync(() =>
         {
@@ -672,17 +741,50 @@ public partial class PackingPage : ContentPage, INotifyPropertyChanged
         });
     }
 
-    private async Task<bool> SendToApiForCompletionAsync(string soNumber, List<SoLine> soLines)
+    /// <summary>
+    /// Sends the per-line packed quantities to api/UpdateSalesOrderStage. Before this, packing
+    /// posted NOTHING (the method was a stub returning true), so the packed quantities never left
+    /// the device and the server's Packed flag was never set — an order could not reach
+    /// "Authorize Release". The server also stamps the header flags per the workflow matrix.
+    /// </summary>
+    private async Task<StageSyncService.StageSyncResult> SendToApiForCompletionAsync(string soNumber, List<SoLine> soLines)
+    {
+        return await StageSyncService.SendAsync(soNumber, StageSyncService.StagePacking, soLines);
+    }
+
+    /// <summary>
+    /// Clears the server's completed-packing flags after a line was reset here, so the order stops
+    /// satisfying the authorization filter and checking's gate blocks it again. Sends Picked too
+    /// when packing owns that flag (no picking stage). Mirrors PickingPage.SendPickResetToApiAsync.
+    /// </summary>
+    private async Task<bool> SendPackResetToApiAsync(SoHeader soHeader)
     {
         try
         {
-            // TODO: Implement API call when needed
-            // var result = await ApiService.SubmitCompletedSoAsync(soNumber, soLines);
-            // return result.IsSuccess;
-            return true;
+            using var client = new HttpClient();
+
+            var payload = new SalesHeaderUpdateRequest
+            {
+                Reference = soHeader.Reference,
+                Packed = false,
+                Picked = WorkflowConfig.UsePicking ? (bool?)null : false
+            };
+
+            string json = Newtonsoft.Json.JsonConvert.SerializeObject(payload);
+            var content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
+
+            var response = await client.PostAsync($"{AppConfig.ApiBaseUrl}UpdateSalesOrderHeader", content);
+
+            if (response.IsSuccessStatusCode)
+                return true;
+
+            System.Diagnostics.Debug.WriteLine(
+                $"SendPackResetToApiAsync failed: {response.StatusCode} - {await response.Content.ReadAsStringAsync()}");
+            return false;
         }
-        catch
+        catch (Exception ex)
         {
+            System.Diagnostics.Debug.WriteLine($"SendPackResetToApiAsync error: {ex.Message}");
             return false;
         }
     }
