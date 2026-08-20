@@ -15,9 +15,9 @@ namespace AmaScan.Models
         public WHtrfRequestLine Line { get; }
         public string StockDescription => Line.stock_description;
         public string StockCode => Line.stock_code;
+        public string BarCode => Line.bar_code;
         public int OutstandingQty => Convert.ToInt32(Line.outstanding_qty_to_deliver);
 
-        public string Barcode => "";
         public int ScannedQty
         {
             get => _scannedQty;

@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:controls="clr-namespace:AmaScan.Controls"
+             x:Class="AmaScan.AuthorizationPage"
+             Title="Authorization">
+
+    <ContentPage.ToolbarItems>
+        <ToolbarItem IconImageSource="save.png" Clicked="OnSave_Click" Order="Primary" Priority="1" />
+        <ToolbarItem x:Name="RestartToolbar" IconImageSource="resumeimg.png" Clicked="OnRestartClicked" Order="Primary" Priority="2" />
+        <ToolbarItem IconImageSource="ticksmallo.png" Clicked="OnCompleteClicked" Order="Primary" Priority="3" />
+        <ToolbarItem IconImageSource="double_tick.png" Clicked="OnCompleteHeaderClicked" Order="Primary" Priority="4" />
+    </ContentPage.ToolbarItems>
+
+    <Grid>
+        <!-- Main Content -->
+        <StackLayout Padding="10">
+            <StackLayout x:Name="AuthorizationInputSection" IsVisible="False" Spacing="10">
+                <Label Text="{Binding SoNumber, StringFormat='SO:{0}'}" 
+                       FontAttributes="Bold" 
+                       FontSize="Large" 
+                       HorizontalOptions="Center"/>
+
+                <Grid ColumnDefinitions="*,80" Padding="10" RowDefinitions="Auto,Auto">
+                    <Label Grid.Column="0" Text="Scan/Enter Barcode:" />
+                    <controls:NoKeyboardEntry x:Name="BarcodeEntry" 
+                                        Placeholder="Enter barcode" 
+                                        Completed="OnBarcodeEntered" 
+                                        MaxLength="15" 
+                                        Keyboard="Numeric" Grid.Row="1" Grid.Column="0" FontSize="18"/>
+
+                    <Label Grid.Column="1" Text="Qty:" HorizontalOptions="Center"  />
+                    <Entry x:Name="QuantityEntry" 
+                        Placeholder="Qty" 
+                       Keyboard="Numeric" 
+                       MaxLength="5" 
+                       TextChanged="QuantityEntry_TextChanged"
+                       Completed="QuantityEntry_Completed" Grid.Row="1" Grid.Column="1" MinimumWidthRequest="60" MaximumWidthRequest="60" HorizontalOptions="End"  />
+                </Grid>
+                
+                <Grid ColumnDefinitions="*,Auto" Padding="10">
+                    <Label Grid.Column="0" Text="Manual Input" 
+                           VerticalOptions="Center" 
+                           HorizontalOptions="Start" />
+                    <Switch Grid.Column="1" x:Name="ManualInputSwitch" 
+                            IsToggled="False"
+                            Toggled="OnManualInputToggled" 
+                            HorizontalOptions="End" />
+                </Grid>
+
+                <Button x:Name="SaveButton" 
+                        Text="Save" 
+                        BackgroundColor="Green"
+                        TextColor="White"
+                        Clicked="OnSaveProgressClicked" />
+
+                <Button x:Name="AuthorizeAllButton" 
+                        Text="Authorize All" 
+                        BackgroundColor="Blue"
+                        TextColor="White"
+                        Clicked="OnAuthorizeAllClicked" />
+            </StackLayout>
+
+            <Button x:Name="StartAuthorizationButton" 
+                    Text="Start Authorization" 
+                    Clicked="OnStartAuthorizationClicked" />
+
+            <!-- Selected Item Display -->
+            <Frame x:Name="SelectedItemFrame" 
+                   Padding="10" 
+                   Margin="10" 
+                   BackgroundColor="{Binding StatusColor}"
+                   BorderColor="LightGray"
+                   IsVisible="False">
+                <StackLayout>
+                    <Label Text="{Binding ItemDesc}" FontAttributes="Bold" />
+                    <Label Text="{Binding ItemCode, StringFormat='Code: {0}'}" />
+                    <Label Text="{Binding ItemBarcode, StringFormat='Barcode: {0}'}" />
+                    <Label Text="{Binding OrderedQty, StringFormat='Ordered: {0}'}" />
+                    <Label Text="{Binding CheckedQty, StringFormat='Checked: {0}'}" />
+                    <Label Text="{Binding AuthorizedQty, StringFormat='Authorized: {0}'}" />
+                    <Label Text="{Binding AuthorizationOutstandingQty, StringFormat='Outstanding Authorization Qty: {0}'}" />
+                    <Label Text="{Binding DiscrepancyStatus}" 
+                       TextColor="Red"
+                       IsVisible="{Binding ShowDiscrepancyStatus}"/>
+                </StackLayout>
+            </Frame>
+
+            <!-- Reset All Button -->
+            <Button x:Name="ResetAllButton" 
+                    Text="RESET ALL PHASES" 
+                    BackgroundColor="Red"
+                    TextColor="White"
+                    FontAttributes="Bold"
+                    Margin="10"
+                    Clicked="OnResetAllClicked" />
+        </StackLayout>
+
+        <!-- Loading Indicator - Centered Overlay -->
+        <Grid x:Name="LoadingOverlay" 
+              IsVisible="False"
+              BackgroundColor="Black"
+              Opacity="0.5">
+            <ActivityIndicator x:Name="loadingIndicator" 
+                              IsRunning="False" 
+                              HorizontalOptions="Center" 
+                              VerticalOptions="Center"
+                              Color="White"
+                              Scale="1.5" />
+        </Grid>
+    </Grid>
+</ContentPage> 

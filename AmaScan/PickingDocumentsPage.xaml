@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             xmlns:local="clr-namespace:AmaScan"
+             x:Class="AmaScan.PickingDocumentsPage"
+             Title="Picking Items">
+    <Grid RowDefinitions="Auto,Auto,*" Padding="10">
+        <Frame Grid.Row="0" Padding="8" BackgroundColor="LightGray" Margin="0,0,0,8">
+            <VerticalStackLayout Spacing="2">
+                <Label Text="{Binding SoNumber, StringFormat='SO: {0}'}" FontSize="18" FontAttributes="Bold"/>
+                <Label Text="{Binding CustomerName}" FontSize="16"/>
+                <Label Text="{Binding DueDate, StringFormat='Due: {0:d}'}" FontSize="16"/>
+            </VerticalStackLayout>
+        </Frame>
+
+        <Label Grid.Row="1" Text="Click item to pick:" FontSize="14" FontAttributes="Bold" Margin="4,0,0,4"/>
+
+        <!-- SO Items List -->
+        <ScrollView Grid.Row="2">
+            <CollectionView ItemsSource="{Binding SoLines}"
+                            SelectionMode="Single"
+                            SelectionChanged="OnSoLineSelected">
+                <CollectionView.ItemTemplate>
+                    <DataTemplate>
+                        <Frame Padding="10" Margin="0,4"
+                               BackgroundColor="{Binding StatusColor}"
+                               BorderColor="LightGray">
+                            <Frame.GestureRecognizers>
+                                <TapGestureRecognizer Tapped="OnItemTapped" CommandParameter="{Binding}" />
+                            </Frame.GestureRecognizers>
+                            <VerticalStackLayout Spacing="4">
+                                <Label Text="{Binding ItemDesc}" FontAttributes="Bold" FontSize="15" HorizontalOptions="Fill"/>
+                                <Grid ColumnDefinitions="Auto,Auto" ColumnSpacing="16">
+                                    <Label Grid.Column="0" Text="{Binding ItemCode, StringFormat='Code: {0}'}" FontSize="16"/>
+                                    <Label Grid.Column="1" Text="{Binding ItemBarcode, StringFormat='Barcode: {0}'}" FontSize="16"/>
+                                </Grid>
+                                <Grid ColumnDefinitions="Auto,Auto" ColumnSpacing="16">
+                                    <Label Grid.Column="0" Text="{Binding OrderedQty, StringFormat='Ordered Qty: {0}'}" FontSize="16"/>
+                                    <Label Grid.Column="1" Text="{Binding PickedQty, StringFormat='Picked: {0}'}" FontAttributes="Bold" FontSize="16"/>
+                                </Grid>
+                                <Label Text="{Binding DiscrepancyStatus}"
+                                   TextColor="Red"
+                                   FontSize="16"
+                                   IsVisible="{Binding ShowDiscrepancyStatus}"/>    
+                            </VerticalStackLayout>
+                        </Frame>
+                    </DataTemplate>
+                </CollectionView.ItemTemplate>
+            </CollectionView>
+        </ScrollView>
+
+        <!-- Loading Indicator -->
+        <ActivityIndicator Grid.Row="2"
+                           IsRunning="{Binding IsLoading}"
+                           IsVisible="{Binding IsLoading}"
+                           HorizontalOptions="Center"
+                           VerticalOptions="Center"/>
+    </Grid>
+</ContentPage>

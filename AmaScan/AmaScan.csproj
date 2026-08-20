@@ -17,6 +17,10 @@
 		<ApplicationId>com.companyname.amascan</ApplicationId>
 
 		<!-- Versions -->
+		<!-- AUTOMATIC versioning: every RELEASE build below stamps an ever-increasing version
+		     derived from the build time, so the in-app auto-update always fires and Android always
+		     accepts the upgrade. Nothing to bump by hand. These static values are only used for
+		     Debug builds. -->
 		<ApplicationDisplayVersion>1.0</ApplicationDisplayVersion>
 		<ApplicationVersion>1</ApplicationVersion>
 
@@ -40,6 +44,38 @@
 	  <RunAOTCompilation>False</RunAOTCompilation>
 	</PropertyGroup>
 
+	<!-- Automatic version stamping for every Release build (date/time based, always increasing). -->
+	<PropertyGroup Condition="'$(Configuration)'=='Release'">
+	  <!-- e.g. 2026.0602.0823.16 — monotonic to the second; valid 4-part version the in-app check compares. -->
+	  <ApplicationDisplayVersion>$([System.DateTime]::Now.ToString("yyyy.MMdd.HHmm.ss"))</ApplicationDisplayVersion>
+	  <!-- Android versionCode = whole seconds since 2024-01-01 UTC. Always increases; stays under the
+	       2,100,000,000 ceiling until ~2090. -->
+	  <ApplicationVersion>$([System.Convert]::ToInt32($([System.Math]::Floor($([System.DateTime]::UtcNow.Subtract($([System.DateTime]::Parse("2024-01-01"))).TotalSeconds)))))</ApplicationVersion>
+	</PropertyGroup>
+
+	<!-- After every Release build, write version.json next to the APK. Its contents always match
+	     the APK just produced (same version, same filename), so you just copy BOTH files from the
+	     output folder to the server's scannerapk folder — nothing to edit by hand. -->
+	<!-- Runs after SignAndroidPackage, NOT after Build: the signed APK does not exist yet at the end
+	     of Build, so the glob came back empty and version.json was written with an empty apkFileName
+	     ("apkFileName": ""), which left the scanner with nothing to download. -->
+	<Target Name="WriteUpdateVersionJson" AfterTargets="SignAndroidPackage" Condition="'$(Configuration)'=='Release'">
+	  <ItemGroup>
+	    <_AmaScanSignedApk Include="$(OutputPath)*-Signed.apk" />
+	  </ItemGroup>
+
+	  <!-- Fail the build rather than publish a version.json the scanners can't act on. -->
+	  <Error Condition="'@(_AmaScanSignedApk)'==''"
+	         Text="Could not find a *-Signed.apk in $(OutputPath) — version.json would have no apkFileName. Check the Android signing step ran." />
+
+	  <WriteLinesToFile File="$(OutputPath)version.json"
+	                    Lines="{ &quot;version&quot;: &quot;$(ApplicationDisplayVersion)&quot;, &quot;apkFileName&quot;: &quot;%(_AmaScanSignedApk.Filename)%(_AmaScanSignedApk.Extension)&quot; }"
+	                    Overwrite="true"
+	                    Encoding="us-ascii" />
+	  <Message Importance="high"
+	           Text="version.json written: version=$(ApplicationDisplayVersion), apk=%(_AmaScanSignedApk.Filename)%(_AmaScanSignedApk.Extension) -> $(OutputPath)version.json" />
+	</Target>
+
 	<ItemGroup>
 		<!-- App Icon -->
 		<MauiIcon Include="Resources\AppIcon\appicon.svg" ForegroundFile="Resources\AppIcon\appiconfg.svg" Color="#512BD4" />
@@ -58,11 +94,21 @@
 	</ItemGroup>
 
 	<ItemGroup>
+	  <AndroidResource Remove="config\**" />
+	  <Compile Remove="config\**" />
+	  <EmbeddedResource Remove="config\**" />
+	  <MauiCss Remove="config\**" />
+	  <MauiXaml Remove="config\**" />
+	  <None Remove="config\**" />
+	</ItemGroup>
+
+	<ItemGroup>
 	  <AndroidResource Remove="Platforms\Android\Resources\drawable\splash.xml" />
 	  <AndroidResource Remove="Platforms\Android\Resources\values\styles.xml" />
 	</ItemGroup>
 
 	<ItemGroup>
+	  <None Remove="Classes\AppConfig.cs~RF20b0fa21.TMP" />
 	  <None Remove="Platforms\Android\Resources\xml\network_security_config.xml" />
 	  <None Remove="TransferDetailPage.xaml.cs~RFe107ba.TMP" />
 	</ItemGroup>
@@ -77,18 +123,58 @@
 	</ItemGroup>
 
 	<ItemGroup>
-	  <Folder Include="config\" />
-	  <Folder Include="Resources\Images\" />
-	</ItemGroup>
-
-	<ItemGroup>
 	  <AndroidResource Update="Platforms\Android\Resources\xml\network_security_config.xml">
 	    <CopyToOutputDirectory>Never</CopyToOutputDirectory>
 	  </AndroidResource>
 	</ItemGroup>
 
 	<ItemGroup>
+	  <Compile Update="DashboardPicking.xaml.cs">
+	    <DependentUpon>DashboardPicking.xaml</DependentUpon>
+	  </Compile>
+	</ItemGroup>
+
+	<ItemGroup>
+	  <MauiXaml Update="AuthorizationDocumentsPage.xaml">
+	    <Generator>MSBuild:Compile</Generator>
+	  </MauiXaml>
+	  <MauiXaml Update="AuthorizationMain.xaml">
+	    <Generator>MSBuild:Compile</Generator>
+	  </MauiXaml>
+	  <MauiXaml Update="AuthorizationPage.xaml">
+	    <Generator>MSBuild:Compile</Generator>
+	  </MauiXaml>
+	  <MauiXaml Update="CheckingDocumentsPage.xaml">
+	    <Generator>MSBuild:Compile</Generator>
+	  </MauiXaml>
+	  <MauiXaml Update="CheckingMain.xaml">
+	    <Generator>MSBuild:Compile</Generator>
+	  </MauiXaml>
+	  <MauiXaml Update="CheckingPage.xaml">
+	    <Generator>MSBuild:Compile</Generator>
+	  </MauiXaml>
+	  <MauiXaml Update="DashboardPicking.xaml">
+	    <Generator>MSBuild:Compile</Generator>
+	  </MauiXaml>
 	  <MauiXaml Update="Dashboard.xaml">
+	    <Generator>MSBuild:Compile</Generator>
+	  </MauiXaml>
+	  <MauiXaml Update="PackingDocumentsPage.xaml">
+	    <Generator>MSBuild:Compile</Generator>
+	  </MauiXaml>
+	  <MauiXaml Update="PackingMain.xaml">
+	    <Generator>MSBuild:Compile</Generator>
+	  </MauiXaml>
+	  <MauiXaml Update="PackingPage.xaml">
+	    <Generator>MSBuild:Compile</Generator>
+	  </MauiXaml>
+	  <MauiXaml Update="PickingDocumentsPage.xaml">
+	    <Generator>MSBuild:Compile</Generator>
+	  </MauiXaml>
+	  <MauiXaml Update="PickingMain.xaml">
+	    <Generator>MSBuild:Compile</Generator>
+	  </MauiXaml>
+	  <MauiXaml Update="PickingPage.xaml">
 	    <Generator>MSBuild:Compile</Generator>
 	  </MauiXaml>
 	  <MauiXaml Update="ReceivingDocumentsPage.xaml">
@@ -98,6 +184,9 @@
 	    <Generator>MSBuild:Compile</Generator>
 	  </MauiXaml>
 	  <MauiXaml Update="ReceivingPage.xaml">
+	    <Generator>MSBuild:Compile</Generator>
+	  </MauiXaml>
+	  <MauiXaml Update="ReturnsPage.xaml">
 	    <Generator>MSBuild:Compile</Generator>
 	  </MauiXaml>
 	  <MauiXaml Update="SettingsPage.xaml">

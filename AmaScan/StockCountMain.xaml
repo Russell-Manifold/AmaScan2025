@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="AmaScan.StockCountMain"
+             Title="Stock Count">
+
+    <Grid RowDefinitions="Auto,Auto,Auto,*" Padding="20">
+        <!-- Header -->
+        <Frame Grid.Row="0" Padding="10" BackgroundColor="LightGrey" Margin="0,0,0,10">
+            <VerticalStackLayout>
+                <Label Text="Load Stock Count Items To Scanner" FontSize="18" FontAttributes="Bold" HorizontalTextAlignment="Center"/>
+                <Label Text="Enter Stock-Take Reference" FontSize="12" HorizontalTextAlignment="Center"/>
+            </VerticalStackLayout>
+        </Frame>
+
+        <!-- Reference Entry -->
+        <Entry x:Name="ReferenceEntry"
+               Grid.Row="1"
+               Placeholder="Stock-Take reference"
+               MaxLength="20"
+               Completed="OnReferenceCompleted"
+               Margin="0,0,0,10"
+               HorizontalTextAlignment="Center"/>
+
+        <!-- Upload Button -->
+        <Button Grid.Row="2"
+                Text="Load"
+                Clicked="OnLoadClicked"
+                HorizontalOptions="Center"
+                WidthRequest="120"
+                Margin="0,0,0,20"/>
+
+        <!-- Loading Indicator -->
+        <ActivityIndicator Grid.Row="3"
+                          IsRunning="{Binding IsLoading}"
+                          IsVisible="{Binding IsLoading}"
+                          HorizontalOptions="Center"
+                          VerticalOptions="Start"
+                          Color="{StaticResource Primary}"/>
+    </Grid>
+</ContentPage>

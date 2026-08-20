@@ -1,52 +1,76 @@
 using AmaScan.Classes;
+using AmaScan.Data;
 
 namespace AmaScan;
-
 public partial class Dashboard : ContentPage
 {
     private readonly UserSession _userSession;
-
     public bool CanReceive => _userSession.CurrentUser?.CanReceive == true;
     public bool CanTransfer => _userSession.CurrentUser?.CanTransfer == true;
+    public bool CanPick => _userSession.CurrentUser?.CanPick == true;
+    public bool CanPack => _userSession.CurrentUser?.CanPack == true;
+    public bool CanCheck => _userSession.CurrentUser?.CanCheck == true;
+    public bool CanAuth => _userSession.CurrentUser?.CanAuthPicking == true;
+
+    // Show the Picking/Packing tile only if the user would actually find something behind it.
+    // This must mirror what DashboardPicking can display, i.e. role AND company workflow:
+    // a role with only CanPick, under a Check-only workflow, previously saw this tile and then
+    // landed on an empty screen. CanAuth is excluded because that tile is currently commented out.
+    public bool CanAccessPickingWorkflow =>
+        (CanPick && WorkflowConfig.UsePicking) || (CanPack && WorkflowConfig.UsePacking) || CanCheck;
 
     public string UserName => _userSession.CurrentUser?.UserName ?? "Guest";
     public string RoleName => _userSession.CurrentUser?.RoleName ?? "No Role Assigned";
     public string UseNRole => $"User: {UserName} ({RoleName})";
     public UserSession UserSession => _userSession;
-    public Dashboard(UserSession userSession)
+    public Dashboard()
     {
         InitializeComponent();
-        _userSession = userSession;
+        _userSession = App.Services.GetRequiredService<UserSession>();
         BindingContext = this;
     }
 
     private async void OnPage1Clicked(object sender, EventArgs e)
     {
-        var ReceivingMain = App.Services.GetRequiredService<ReceivingMain>();
-        await Navigation.PushAsync(ReceivingMain);
-        //await Shell.Current.GoToAsync(nameof(ReceivingMain));
+        var receivingMain = App.Services.GetRequiredService<ReceivingMain>();
+        await Navigation.PushAsync(receivingMain);
     }
 
     private async void OnPage2Clicked(object sender, EventArgs e)
     {
-        var TransferMain = App.Services.GetRequiredService<TransferMainPage>();
-        await Navigation.PushAsync(TransferMain);
+        var transferMainPage = App.Services.GetRequiredService<TransferMainPage>();
+        await Navigation.PushAsync(transferMainPage);
     }
 
     private async void OnSettingsClicked(object sender, EventArgs e)
     {
-        var SettingsPage = App.Services.GetRequiredService<SettingsPage>();
-        await Navigation.PushAsync(SettingsPage);
-        //await Shell.Current.GoToAsync(nameof(SettingsPage));
+        var settingsPage = App.Services.GetRequiredService<SettingsPage>();
+        await Navigation.PushAsync(settingsPage);
     }
 
     private async void OnPage3Clicked(object sender, EventArgs e)
     {
-       // await Navigation.PushAsync(new Page3());
+        var dashboardPicking = App.Services.GetRequiredService<DashboardPicking>();
+        await Navigation.PushAsync(dashboardPicking);
     }
 
     private async void OnPage4Clicked(object sender, EventArgs e)
     {
-        //await Navigation.PushAsync(new Page4());
+        var ReturnsPage = App.Services.GetRequiredService<ReturnsPage>();
+        await Navigation.PushAsync(ReturnsPage);
+    }
+
+    private async void OnStockCountClicked(object sender, EventArgs e)
+    {
+        var stockCountMain = App.Services.GetRequiredService<StockCountMain>();
+        await Navigation.PushAsync(stockCountMain);
+    }
+
+    private async void OnLogoutClicked(object sender, EventArgs e)
+    {
+        bool confirm = await DisplayAlert("Log Out", "Are you sure you want to log out?", "Yes", "No");
+        if (!confirm) return;
+        _userSession.CurrentUser = null;
+        await Navigation.PopToRootAsync();
     }
 }

@@ -8,26 +8,85 @@ namespace AmaScan
 {
     public partial class MainPage : ContentPage
     {
-        AmaScanDatabase database;
         private readonly HttpClient _httpClient;
         private readonly UserSession _userSession;
 
         public MainPage(AmaScanDatabase amaScanDatabase)
         {
             InitializeComponent();
-            database = amaScanDatabase;
             _userSession = App.Services.GetRequiredService<UserSession>();
             BindingContext = this;
+
+            // Fire-and-forget update check — runs after the page is rendered
+            Dispatcher.Dispatch(async () => await CheckForAppUpdateAsync());
+        }
+
+        private async Task CheckForAppUpdateAsync()
+        {
+            var update = await UpdateService.CheckForUpdateAsync();
+
+            if (update is null)
+                return;
+
+            bool download = await DisplayAlert(
+                "Update Available",
+                $"Version {update.Version} is available. Would you like to download and install it now?",
+                "Update",
+                "Later");
+
+            if (!download)
+                return;
+
+            // Android 8+ blocks the installer unless this device has allowed AmaScan to install apps.
+            // Without this prompt the download completes and then nothing happens, with no explanation.
+            if (!UpdateService.CanInstallPackages())
+            {
+                bool openSettings = await DisplayAlert(
+                    "Allow Updates",
+                    "To install updates, this device needs to allow AmaScan to install apps.\n\n" +
+                    "Tap Open Settings, switch on \"Allow from this source\", then press back and try again.",
+                    "Open Settings",
+                    "Cancel");
+
+                if (openSettings)
+                    UpdateService.OpenInstallPermissionSettings();
+
+                return;
+            }
+
+            try
+            {
+                updateProgressBar.Progress = 0;
+                updateProgressLabel.Text = "Downloading update…";
+                updateProgressContainer.IsVisible = true;
+
+                var progress = new Progress<double>(fraction =>
+                {
+                    updateProgressBar.Progress = fraction;
+                    updateProgressLabel.Text = $"Downloading update… {fraction:P0}";
+                });
+
+                await UpdateService.DownloadAndInstallAsync(update, progress);
+            }
+            catch (Exception ex)
+            {
+                await DisplayAlert("Update Failed", $"Could not download the update: {ex.Message}", "OK");
+            }
+            finally
+            {
+                updateProgressContainer.IsVisible = false;
+            }
         }
 
         private async void OnLogin_Clicked(object sender, EventArgs e)
         {
             loadingIndicator.IsVisible = true;
             loadingIndicator.IsRunning = true;
+            
             try
             {
                 var username = usernameEntry.Text?.Trim();
-                var password = passwordEntry.Text;
+                var password = passwordEntry.Text?.Trim();
 
                 if (string.IsNullOrWhiteSpace(username) || string.IsNullOrWhiteSpace(password))
                 {
@@ -35,17 +94,22 @@ namespace AmaScan
                     return;
                 }
 
-                var user = await LoginAsync(username, password);
-                loadingIndicator.IsVisible = false;
-                loadingIndicator.IsRunning = false;
-
+                // Run login on background thread to avoid blocking UI
+                var user = await Task.Run(async () => await LoginAsync(username, password));
+                
                 if (user != null)
                 {
+                    await DbReset.ResetAsync();
                     _userSession.CurrentUser = user;
-                    await DisplayAlert("", $"Welcome {user.UserName} ({user.RoleName})", "OK");
 
-                    var dashboardPage = App.Services.GetRequiredService<Dashboard>();
-                    await Navigation.PushAsync(dashboardPage);
+                    // Refresh the company's fulfilment workflow (pick/pack/check) while we still
+                    // have the connection that just authenticated. On failure the last known
+                    // value stays in place — see WorkflowConfig.
+                    await WorkflowConfig.RefreshAsync();
+
+                    await DisplayAlert("", $"Welcome {user.UserName} ({user.RoleName})", "OK");
+                    var dashboard = App.Services.GetRequiredService<Dashboard>();
+                    await Navigation.PushAsync(dashboard);
                 }
                 else
                 {
@@ -56,11 +120,16 @@ namespace AmaScan
             {
                 await DisplayAlert("Error", $"Exception: {ex.Message}", "OK");
             }
+            finally
+            {
+                loadingIndicator.IsVisible = false;
+                loadingIndicator.IsRunning = false;
+            }
         }
 
         public async Task<User?> LoginAsync(string username, string password)
         {
-            var client = new HttpClient();
+            var client = AppConfig.GetHttpClient();
 
             var loginPayload = new
             {
@@ -73,7 +142,7 @@ namespace AmaScan
 
             try
             {
-                var response = await client.PostAsync($"{AppConfig.ApiBaseUrl}/GetUser/GetUserAsync", content);
+                var response = await client.PostAsync("GetUser/GetUserAsync", content);
                 if (response.IsSuccessStatusCode)
                 {
                     string responseContent = await response.Content.ReadAsStringAsync();
@@ -91,6 +160,60 @@ namespace AmaScan
             {
                 Console.WriteLine($"Login error: {ex.Message}");
                 return null;
+            }
+        }
+
+        private async void OnSettingsClicked(object sender, EventArgs e)
+        {
+            var settingsPage = App.Services.GetRequiredService<SettingsPage>();
+            await Navigation.PushAsync(settingsPage);
+        }
+
+        private async void OnTestConnectionClicked(object sender, EventArgs e)
+        {
+            loadingIndicator.IsVisible = true;
+            loadingIndicator.IsRunning = true;
+
+//#if DEBUG
+//            System.Net.ServicePointManager.ServerCertificateValidationCallback +=
+//                (sender, cert, chain, sslPolicyErrors) => true;
+//#endif
+
+//            var client = new HttpClient
+//            {
+//                Timeout = TimeSpan.FromSeconds(10)
+//            };
+
+//            var resp = await client.GetAsync("http://192.168.0.100:8052/api/connection/check-connection");
+
+            try
+            {
+                // Run connection test on background thread
+                var result = await Task.Run(async () =>
+                {
+                    var client = new HttpClient();
+                    var response = await client.GetAsync($"{AppConfig.ApiBaseUrl}connection/check-connection");
+                    return new { response, content = await response.Content.ReadAsStringAsync() };
+                });
+
+                if (result.response.IsSuccessStatusCode)
+                {
+                    var user = JsonConvert.DeserializeObject<User>(result.content);
+                    await DisplayAlert("Connection Test", "Connection Successful.", "OK");
+                }
+                else
+                {
+                    await DisplayAlert("Connection Test", $"Connection failed: {result.response.StatusCode} - {result.content}", "OK");
+                }
+            }
+            catch (Exception ex)
+            {
+                await DisplayAlert("Connection Test", $"Connection failed: {ex.Message}", "OK");
+            }
+            finally
+            {
+                loadingIndicator.IsVisible = false;
+                loadingIndicator.IsRunning = false;
             }
         }
     }

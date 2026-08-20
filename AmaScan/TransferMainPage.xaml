@@ -3,6 +3,10 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              x:Class="AmaScan.TransferMainPage"
              Title="Incomplete Transfers">
+    <ContentPage.ToolbarItems>
+        <ToolbarItem IconImageSource="mainiconlogin.png" Text="Log Out" Clicked="OnLogoutClicked" Order="Primary" Priority="1" />
+    </ContentPage.ToolbarItems>
+
     <VerticalStackLayout Padding="10" Spacing="10">
         <ActivityIndicator x:Name="loadingIndicator"
                    IsRunning="False"

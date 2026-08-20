@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Text.Json;
 using AmaScan.Classes;
+using AmaScan.sqliteModels;
 using Data.Model;
 
 namespace AmaScan;
@@ -26,6 +27,9 @@ public partial class TransferMainPage : ContentPage
     {
         try
         {
+            var stockItems = await App.Db.GetAllStockItemsAsync();  // your helper
+            var barcodeDict = stockItems.ToDictionary(s => s.stock_code, s => s.bar_code ?? string.Empty);
+
             string url = $"{AppConfig.ApiBaseUrl}OutstandingTrfRequests";
             var response = await _httpClient.GetAsync(url);
             var json = await response.Content.ReadAsStringAsync();
@@ -61,7 +65,8 @@ public partial class TransferMainPage : ContentPage
                         {
                             stock_code = line.stock_code,
                             stock_description = line.stock_description,
-                            outstanding_qty_to_deliver = line.outstanding_qty_to_deliver
+                            outstanding_qty_to_deliver = line.outstanding_qty_to_deliver,
+                            bar_code = barcodeDict.TryGetValue(line.stock_code, out var bc) ? bc : string.Empty
                         }).ToList()
                     });
 
@@ -77,6 +82,14 @@ public partial class TransferMainPage : ContentPage
         {
             await DisplayAlert("Error", $"Failed to load transfers: {ex.Message}", "OK");
         }
+    }
+
+    private async void OnLogoutClicked(object sender, EventArgs e)
+    {
+        bool confirm = await DisplayAlert("Log Out", "Are you sure you want to log out?", "Yes", "No");
+        if (!confirm) return;
+        App.Services.GetRequiredService<UserSession>().CurrentUser = null;
+        await Navigation.PopToRootAsync();
     }
 
     private async void Frame_Tapped(object sender, EventArgs e)

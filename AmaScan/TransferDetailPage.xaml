@@ -46,8 +46,9 @@
                         <DataTemplate>
                             <Frame BorderColor="LightGray" Padding="10" Margin="2">
                                 <StackLayout Orientation="Vertical" Spacing="5">
-                                    <Label Text="{Binding StockDescription}" FontAttributes="Bold"/>
                                     <Label Text="{Binding StockCode}" TextColor="Gray"/>
+                                    <Label Text="{Binding StockDescription}" FontAttributes="Bold"/>
+                                    <Label Text="{Binding BarCode}" TextColor="Gray" FontAttributes="Bold"/>
 
                                     <Grid ColumnDefinitions="Auto,60,Auto,80" ColumnSpacing="10">
                                         <Label Text="Requested:" VerticalOptions="Center"/>

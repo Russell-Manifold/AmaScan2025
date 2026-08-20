@@ -6,45 +6,49 @@
 
     <ContentPage.ToolbarItems>
         <ToolbarItem x:Name="ResetPO"  IconImageSource="resumeimg.png" Clicked="Reset_Clicked"  Order="Primary" Priority="1" />
+        <ToolbarItem IconImageSource="mainiconlogin.png" Text="Log Out" Clicked="OnLogoutClicked" Order="Primary" Priority="2" />
     </ContentPage.ToolbarItems>
     
-    <Grid RowDefinitions="Auto,*,Auto" Padding="20">
+    <Grid RowDefinitions="Auto,*,Auto" Padding="5">
         <!-- Top Section -->
-    <VerticalStackLayout Grid.Row="0" Spacing="10">
-        <Label Text="Enter PO Number" FontSize="18" />
-        <Entry x:Name="poEntry" Placeholder="e.g., 000123" Keyboard="Numeric" />
-        <Button Text="Fetch PO" Clicked="OnFetchPOClicked" />
-        <ActivityIndicator x:Name="loadingIndicator" IsVisible="False" IsRunning="False" />
-        <Frame Padding="10" BackgroundColor="LightGray" IsVisible="False" x:Name="poHeaderFrame">
-            <VerticalStackLayout>
-                <Label x:Name="supplierLabel" FontAttributes="Bold" />
-                <Label x:Name="dueDateLabel" />
-            </VerticalStackLayout>
-        </Frame>
-    </VerticalStackLayout>
-
-    <!-- Scrollable PO Lines -->
-    <ScrollView Grid.Row="1">
-        <VerticalStackLayout>
-            <CollectionView x:Name="poLinesView" IsVisible="False">
-                <CollectionView.ItemTemplate>
-                    <DataTemplate>
-                        <Frame Padding="10" Margin="0,5">
-                            <VerticalStackLayout>
-                                <Label Text="{Binding ItemDesc}" FontAttributes="Bold" />
-                                <Label Text="{Binding ItemCode}" />
-                                <Label Text="{Binding ItemBarcode, StringFormat='Barcode: {0}'}" />
-                                <Label Text="{Binding PackSize, StringFormat='Pack Size: {0}'}" />
-                                    <Label Text="{Binding PackBarcode, StringFormat='Pack Barcode: {0}'}" />
-                                    <Label Text="{Binding no_of_packs, StringFormat='No Of Packs: {0}'}" />
-                                <Label Text="{Binding OrderedQty, StringFormat='Ordered Qty: {0}'}" />
-                            </VerticalStackLayout>
-                        </Frame>
-                    </DataTemplate>
-                </CollectionView.ItemTemplate>
-            </CollectionView>
+        <VerticalStackLayout Grid.Row="0" Spacing="4">
+            <Label Text="Enter PO Number" FontSize="18" />
+            <Grid ColumnDefinitions="*,Auto">
+                <Entry x:Name="poEntry" Placeholder="e.g., 000123" Keyboard="Numeric" Grid.Column="0" />
+                <Button Text="Fetch PO" Clicked="OnFetchPOClicked" Grid.Column="1" FontSize="Small" />
+            </Grid>
+            <ActivityIndicator x:Name="loadingIndicator" IsVisible="False" IsRunning="False" />
+            <Frame Padding="10" BackgroundColor="LightGray" IsVisible="False" x:Name="poHeaderFrame">
+                <VerticalStackLayout>
+                    <Label x:Name="supplierLabel" FontAttributes="Bold" />
+                    <Label x:Name="dueDateLabel" />
+                </VerticalStackLayout>
+            </Frame>
         </VerticalStackLayout>
-    </ScrollView>
+
+        <!-- Scrollable PO Lines -->
+        <ScrollView Grid.Row="1">
+            <VerticalStackLayout>
+                <CollectionView x:Name="poLinesView" IsVisible="False">
+                    <CollectionView.ItemTemplate>
+                        <DataTemplate>
+                            <Frame Padding="10" Margin="0,5">
+                                <Grid RowDefinitions="Auto,Auto,Auto,Auto,Auto" ColumnDefinitions="*,Auto">
+                                    <Label Text="{Binding ItemDesc}" FontAttributes="Bold" Grid.Row="0" Grid.ColumnSpan="2" />
+                                    <Label Text="{Binding ItemCode}" Grid.Row="1" Grid.Column="0" />
+                                    <Label Text="{Binding OrderedQty, StringFormat='Qty: {0}'}" Grid.Row="1" Grid.Column="1"  FontAttributes="Bold" />
+                                    <Label Text="{Binding ItemBarcode}" Grid.Row="2" Grid.ColumnSpan="2" />
+                                    <Label Text="{Binding PackSize, StringFormat='Pack Size: {0}'}" Grid.Row="3" Grid.Column="0" />
+                                    <Label Text="{Binding no_of_packs, StringFormat='Pack Qty: {0}'}" Grid.Row="3" Grid.Column="1" />
+                                    <Label Text="{Binding PackBarcode, StringFormat='Pack {0}'}" Grid.Row="4" Grid.ColumnSpan="2" />
+                                    
+                                </Grid>
+                            </Frame>
+                        </DataTemplate>
+                    </CollectionView.ItemTemplate>
+                </CollectionView>
+            </VerticalStackLayout>
+        </ScrollView>
 
         <Button x:Name="LoadPOButton"
         Grid.Row="2"

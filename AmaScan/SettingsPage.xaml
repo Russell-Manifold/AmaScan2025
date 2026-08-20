@@ -3,35 +3,72 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              x:Class="AmaScan.SettingsPage"
              Title="Settings">
-    <VerticalStackLayout Padding="20" Spacing="20">
+    <ScrollView>
+        <VerticalStackLayout Padding="20" Spacing="8">
 
-        <Label Text="API Base URL:" FontAttributes="Bold" />
-        <Entry x:Name="ApiUrlEntry"
+            <Label Text="Default Picking Warehouse:" FontAttributes="Bold" />
+            <Picker x:Name="DefaultPickingWarehousePicker" Title="Select Default Picking Warehouse" />
+
+            <Label Text="Default Receiving Warehouse:" FontAttributes="Bold" />
+            <Picker x:Name="DefaultReceivingWarehousePicker" Title="Select Default Receiving Warehouse" />
+
+            <Label Text="Reject Warehouse 1:" FontAttributes="Bold" />
+            <Picker x:Name="WarehousePickerR1" Title="Reject Warehouse 1" />
+
+            <Label Text="Reject Warehouse 2:" FontAttributes="Bold" />
+            <Picker x:Name="WarehousePickerR2" Title="Reject Warehouse 2" />
+
+            <Label Text="Location:" FontAttributes="Bold" Margin="0,10,0,0"/>
+            <Grid ColumnDefinitions="Auto,Auto,*" RowDefinitions="Auto">
+                <Label Text="Off Site" Grid.Column="0" VerticalOptions="Center"/>
+                <Switch x:Name="LocationSwitch" Grid.Column="1" VerticalOptions="Center"/>
+                <Label Text="On Site" Grid.Column="2" VerticalOptions="Center"/>
+            </Grid>
+
+            <Label Text="API Base URL:" FontAttributes="Bold" />
+            <Entry x:Name="ApiUrlEntry"
                Placeholder="https://example.com/api/"
                Keyboard="Url"
-               HorizontalOptions="FillAndExpand" />
+               HorizontalOptions="FillAndExpand"
+                   IsEnabled="False"/>
+            
 
-        <Label Text="Default Warehouse:" FontAttributes="Bold" />
-        <Picker x:Name="WarehousePicker" Title="Select Warehouse" />
+            <Label Text="Returns Warehouse:" FontAttributes="Bold" />
+            <Picker x:Name="ReturnsWarehousePicker" Title="Select Returns Warehouse" />
 
-        <Label Text="Reject Warehouse:" FontAttributes="Bold" />
-        <Picker x:Name="WarehousePickerR" Title="Reject Warehouse" />
-        
-        <Button Text="Save"
+            <Button Text="Save"
                 Clicked="OnSaveClicked"
                 BackgroundColor="DarkGreen"
                 TextColor="White" />
 
-        <Label x:Name="ConfirmationLabel"
+            <Label x:Name="ConfirmationLabel"
                Text=""
                TextColor="Green"
                FontSize="12"
                IsVisible="False"/>
 
-        <Button Text="Update Stock Listing"
-        Clicked="OnUpdateStockClicked"
-        BackgroundColor="DarkBlue"
-        TextColor="White" />
+            <Button Text="Update Stock Listing"
+                Clicked="OnUpdateStockClicked"
+                BackgroundColor="DarkBlue"
+                TextColor="White" />
 
-    </VerticalStackLayout>
+            <Button Text="Data Reset"
+             Clicked="DataRest_Clicked"
+             BackgroundColor="DarkOrange"
+             TextColor="White" />
+
+            <!-- Lets a device that never updates be diagnosed remotely, without a trip to site. -->
+            <Button Text="Check for Updates"
+                Clicked="OnCheckUpdateClicked"
+                BackgroundColor="DarkSlateGray"
+                TextColor="White"
+                Margin="0,10,0,0" />
+
+            <Label x:Name="UpdateStatusLabel"
+                Text=""
+                FontSize="12"
+                TextColor="Gray" />
+
+        </VerticalStackLayout>
+    </ScrollView>
 </ContentPage>

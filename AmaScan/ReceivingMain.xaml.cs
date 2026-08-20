@@ -1,12 +1,10 @@
 using AmaScan.Classes;
+using AmaScan.Data;
 using AmaScan.sqliteModels;
 using Data.Model;
-using SQLite;
 using System.Diagnostics;
 using System.Net.Http.Json;
-using System.Reflection.PortableExecutable;
 using System.Text.Json;
-
 namespace AmaScan;
 
 public partial class ReceivingMain : ContentPage
@@ -14,6 +12,7 @@ public partial class ReceivingMain : ContentPage
     private readonly HttpClient _httpClient = new();
     private PurchaseOrderResponse _currentPoResponse;
     private PoHeader _poHeader;
+    private bool _isLoadingPo;
 
     public ReceivingMain()
 	{
@@ -27,18 +26,22 @@ public partial class ReceivingMain : ContentPage
         }
     }
 
-    protected override void OnAppearing()
+    protected override async void OnAppearing()
     {
         base.OnAppearing();
+
+        // Guard: default receiving warehouse must be set per device
+        string defaultWh = Preferences.Get("DefaultReceivingWarehouseCode", "");
+        if (string.IsNullOrWhiteSpace(defaultWh))
+        {
+            await DisplayAlert("Setup Required", "Please select a default receiving warehouse in Settings before receiving.", "OK");
+            await Shell.Current.GoToAsync(nameof(SettingsPage));
+            return;
+        }
 
         // Clear in-memory variables
         _currentPoResponse = null;
         _poHeader = null;
-
-        // Clear session state
-        ReceivingSession.CurrentPoHeader = null;
-        ReceivingSession.SupplierInvoice = null;
-        ReceivingSession.DeliveryNote = null;
 
         // Clear UI elements
         poEntry.Text = string.Empty;
@@ -66,41 +69,22 @@ public partial class ReceivingMain : ContentPage
 
         try
         {
-            // Clear session values related to header
-            ReceivingSession.CurrentPoHeader = null;
-            ReceivingSession.SupplierInvoice = null;
-            ReceivingSession.DeliveryNote = null;
+            // Step 1: Check local database first
+            var existingPo = await App.Db.GetPoHeaderByOrderNoAsync(poNumber);
 
-            string url = $"{AppConfig.ApiBaseUrl}GetPurchaseOrder/{Uri.EscapeDataString(poNumber)}";
-            _currentPoResponse = await _httpClient.GetFromJsonAsync<PurchaseOrderResponse>(url);
-
-            if (_currentPoResponse == null || _currentPoResponse.Lines == null || !_currentPoResponse.Lines.Any())
+            // Step 2: Fetch from API (either PO not found locally or user wants fresh data)
+            bool success = await FetchPoFromApiAsync(poNumber);
+            if (!success)
             {
-                await DisplayAlert("Not Found", "No data found for this PO.", "OK");
+                await DisplayAlert("Not Found", $"PO {poNumber} not found on server.", "OK");
                 return;
             }
 
-            _currentPoResponse.OrderNo = poNumber;
-
-            ReceivingSession.CurrentPoHeader = new PoHeader
+            // Step 3: If PO exists locally, merge fresh data with existing workflow data
+            if (existingPo != null)
             {
-                OrderNo = _currentPoResponse.OrderNo,
-                Status = "Started",
-                DueDate = _currentPoResponse.DueDate,
-                // Add more properties if needed
-            };
-
-            // Show header
-            supplierLabel.Text = $"Supplier: {_currentPoResponse.SupplierName}";
-            dueDateLabel.Text = $"Due Date: {_currentPoResponse.DueDate:yyyy-MM-dd}";
-            poHeaderFrame.IsVisible = true;
-
-            // Show lines
-            poLinesView.ItemsSource = _currentPoResponse.Lines;
-            poLinesView.IsVisible = true;
-
-            // Once the fetch is done, make the "Load PO" button visible
-            LoadPOButton.IsVisible = true;
+                await MergeFreshDataWithExistingAsync(poNumber);
+            }
         }
         catch (Exception ex)
         {
@@ -113,9 +97,161 @@ public partial class ReceivingMain : ContentPage
         }
     }
 
+    private async Task LoadExistingPoForDisplayAsync(string poNumber)
+    {
+        try
+        {
+            // Load existing PO header
+            var existingPo = await App.Db.GetPoHeaderByOrderNoAsync(poNumber);
+            if (existingPo == null) return;
+
+            // Load existing PO lines
+            var existingLines = await App.Db.GetPoLinesByOrderNoAsync(poNumber);
+            if (!existingLines.Any()) return;
+
+            // Convert PoLine to display format (similar to PurchaseOrderLine)
+            var displayLines = existingLines.Select(line => new PurchaseOrderLine
+            {
+                DocNum = line.OrderNo,
+                LineNo = line.LineNo,
+                ItemCode = line.ItemCode,
+                ItemDesc = line.ItemDesc,
+                ItemBarcode = line.ItemBarcode,
+                PackBarcode = line.PackBarcode,
+                PackSize = line.PackSize,
+                no_of_packs = line.NoOfPacks,
+                // No int casts here — PoLine stores these as decimal. Truncating produced a smaller
+                // "fresh" ordered qty, which the merge then read as a quantity DECREASE and wiped the
+                // line's scan progress.
+                OrderedQty = line.OrderedQty,
+                CostPrice = line.CostPrice,
+                CostPricePer = line.CostPricePer,
+                VatCode = line.VatCode,
+                VatRate = line.VatRate,
+                ScanAcceptQty = line.ScanAcceptQty,
+                ScanRejectQty = line.ScanRejectQty,
+                BinLocation = line.BinLocation,
+                WhID = line.WhID
+            }).ToList();
+
+            // Create display response - ensure we're using a fresh collection
+            _currentPoResponse = new PurchaseOrderResponse
+            {
+                OrderNo = existingPo.OrderNo,
+                SupplierName = existingPo.SupplierName,
+                DueDate = existingPo.DueDate,
+                Status = existingPo.Status,
+                Lines = displayLines
+            };
+
+            // Update UI on main thread
+            await MainThread.InvokeOnMainThreadAsync(() =>
+            {
+                // Show header
+                supplierLabel.Text = $"Supplier: {existingPo.SupplierName}";
+                dueDateLabel.Text = $"Due: {_currentPoResponse.DueDate:yyyy-MM-dd}";
+                poHeaderFrame.IsVisible = true;
+
+                // Clear and re-bind lines to prevent duplication
+                poLinesView.ItemsSource = null;
+                poLinesView.ItemsSource = _currentPoResponse.Lines;
+                poLinesView.IsVisible = true;
+
+                // Make the "Load PO" button visible
+                LoadPOButton.IsVisible = true;
+            });
+        }
+        catch (Exception ex)
+        {
+            await DisplayAlert("Error", $"Failed to load existing PO: {ex.Message}", "OK");
+        }
+    }
+
+    private async Task<bool> FetchPoFromApiAsync(string poNumber)
+    {
+        string url = $"{AppConfig.ApiBaseUrl}GetPurchaseOrder/{Uri.EscapeDataString(poNumber)}";
+        _currentPoResponse = await _httpClient.GetFromJsonAsync<PurchaseOrderResponse>(url);
+
+        if (_currentPoResponse == null || _currentPoResponse.Lines == null || !_currentPoResponse.Lines.Any())
+        {
+            return false;
+        }
+
+        _currentPoResponse.OrderNo = poNumber;
+
+        // Update UI on main thread
+        await MainThread.InvokeOnMainThreadAsync(() =>
+        {
+            // Show header
+            supplierLabel.Text = $"Supplier: {_currentPoResponse.SupplierName}";
+            dueDateLabel.Text = $"Due Date: {_currentPoResponse.DueDate:yyyy-MM-dd}";
+            poHeaderFrame.IsVisible = true;
+
+            // Show lines
+            poLinesView.ItemsSource = _currentPoResponse.Lines;
+            poLinesView.IsVisible = true;
+
+            // Make the "Load PO" button visible
+            LoadPOButton.IsVisible = true;
+        });
+
+        return true;
+    }
+
+    private async Task MergeFreshDataWithExistingAsync(string poNumber)
+    {
+        try
+        {
+            var existingLinesBefore = await App.Db.GetPoLinesByOrderNoAsync(poNumber);
+            var existingLineKeys = existingLinesBefore
+                .Select(l => $"{l.ItemCode}_{l.ItemBarcode}")
+                .ToHashSet();
+            var freshLineKeys = _currentPoResponse.Lines
+                .Select(l => $"{l.ItemCode}_{l.ItemBarcode}")
+                .ToHashSet();
+
+            // Merge fresh data with existing workflow data
+            await App.Db.MergePoDataAsync(_currentPoResponse);
+
+            // Get lines after merge for comparison
+            var existingLinesAfter = await App.Db.GetPoLinesByOrderNoAsync(poNumber);
+
+            // Calculate merge summary
+            var newLines = freshLineKeys.Except(existingLineKeys).Count();
+            var removedLines = existingLineKeys.Except(freshLineKeys).Count();
+            var updatedLines = existingLinesBefore.Count - removedLines;
+
+            // Reload the merged data for display
+            await LoadExistingPoForDisplayAsync(poNumber);
+
+            // Only show merge summary when something actually changed
+            if (newLines > 0 || removedLines > 0)
+            {
+                var summary = $"Merge Complete!\n\n" +
+                             $"{updatedLines} lines updated\n" +
+                             $"{newLines} new lines added\n" +
+                             $"{removedLines} lines removed\n\n" +
+                             $"Your received quantities have been preserved.";
+
+                if (removedLines > 0)
+                    await DisplayAlert("Merge Summary", summary + "\n\nNote: Removed lines have been deleted locally, even if they had progress.", "OK");
+                else
+                    await DisplayAlert("Merge Summary", summary, "OK");
+            }
+        }
+        catch (Exception ex)
+        {
+            if (!ex.Message.ToLower().ToString().Contains("same key")) await DisplayAlert("Merge Error", $"Failed to merge fresh data: {ex.Message}", "OK");
+        }
+    }
 
     private async void OnLoadPoClicked(object sender, EventArgs e)
     {
+        // Guard against a second tap landing while the first save is still running — that raced past
+        // the "already loaded" check and wrote the lines twice.
+        if (_isLoadingPo) return;
+        _isLoadingPo = true;
+
         try
         {
             if (_currentPoResponse == null)
@@ -125,39 +261,31 @@ public partial class ReceivingMain : ContentPage
             }
 
             string poNumber = _currentPoResponse.OrderNo;
-            var databaseHelper = new DatabaseHelper(new SQLiteAsyncConnection(Constants.DatabasePath, Constants.Flags));
-
-            #region Removef For Testing
-            var existingPo = await databaseHelper.GetPoHeaderByOrderNoAsync(poNumber);
-            ReceivingSession.CurrentPoHeader = existingPo;
+             var existingPo = await App.Db.GetPoHeaderByOrderNoAsync(poNumber);
             if (existingPo != null)
             {
-                bool goToReceiving = await DisplayAlert("Resume Receiving?", "This PO is already loaded. Would you like to resume receiving?", "Yes", "No");
-                if (goToReceiving)
-                {
-                    await Shell.Current.GoToAsync(nameof(ReceivingDocumentsPage));
-                    return;
-                }
-                else
-                {
-                    await DisplayAlert("Cancelled", "You chose not to resume receiving.", "OK");
-                    return;
-                }
+                // PO is already loaded and merged, just navigate
+                await Shell.Current.GoToAsync($"{nameof(ReceivingDocumentsPage)}?po={poNumber}");
+                return;
             }
-            #endregion
 
             await SaveToLocalDatabaseAsync(_currentPoResponse);
+
             await DisplayAlert("Success", "PO has been loaded for offline receiving.", "OK");
 
             bool startReceiving = await DisplayAlert("Start Receiving?", "Would you like to start receiving this PO now?", "Yes", "No");
             if (startReceiving)
             {
-                await Shell.Current.GoToAsync(nameof(ReceivingDocumentsPage));
+                await Shell.Current.GoToAsync($"{nameof(ReceivingDocumentsPage)}?po={poNumber}");
             }
         }
         catch (Exception ex)
         {
             await DisplayAlert("Error", $"Failed to load PO: {ex.Message}", "OK");
+        }
+        finally
+        {
+            _isLoadingPo = false;
         }
     }
 
@@ -166,86 +294,56 @@ public partial class ReceivingMain : ContentPage
         if (response == null || response.Lines == null || !response.Lines.Any())
             throw new ArgumentException("Invalid purchase order data.");
 
-        var databaseHelper = new DatabaseHelper(new SQLiteAsyncConnection(Constants.DatabasePath, Constants.Flags));
+        // Go through the merge rather than inserting blind. A straight Insert/InsertAll duplicated
+        // every line if this ran twice for the same PO (double-tap, or a stale "already loaded"
+        // check), because nothing in the schema prevents a second identical row. The merge is
+        // insert-or-update keyed on the PO, so loading the same PO again is now harmless.
+        // It also stores lines under response.OrderNo — the same key the header and every lookup
+        // use — instead of line.DocNum.
+        await App.Db.MergePoDataAsync(response);
+    }
 
-        //var existing = await databaseHelper.GetPoHeaderByOrderNoAsync(response.OrderNo);
-
-        //if (existing != null)
-        //{
-        //    throw new InvalidOperationException($"PO {response.OrderNo} is already loaded on this device.");
-        //}
-
-        // Save the PoHeader with the relevant fields
-        var poHeader = new PoHeader
-        {
-            OrderNo = response.OrderNo,
-            DueDate = response.DueDate,
-            Status = response.Status,
-            JsonData = JsonSerializer.Serialize(response), // store full response as Json
-            iscompleted = false // Assuming default is not completed
-        };
-
-        // Insert or update the PoHeader
-        await databaseHelper.InsertAsync(poHeader);
-
-        // Save each line as PoLine
-        foreach (var line in response.Lines)
-        {
-            var poLine = new PoLine
-            {
-                OrderNo = line.DocNum,
-                LineNo = line.LineNo,
-                ItemCode = line.ItemCode,
-                ItemDesc = line.ItemDesc,
-                ItemBarcode = line.ItemBarcode,
-                PackBarcode = line.PackBarcode,
-                PackSize = line.PackSize,
-                NoOfPacks = line.no_of_packs,
-                OrderedQty = line.OrderedQty,
-                ReceivedQty = 0, // default as 0
-                BinLocation = line.BinLocation,
-                WhID = line.WhID,
-                GRNum = null // to be updated during receiving process
-            };
-
-            // Insert each PoLine
-            await databaseHelper.InsertAsync(poLine);
-        }
+    private async void OnLogoutClicked(object sender, EventArgs e)
+    {
+        bool confirm = await DisplayAlert("Log Out", "Are you sure you want to log out?", "Yes", "No");
+        if (!confirm) return;
+        App.Services.GetRequiredService<UserSession>().CurrentUser = null;
+        await Navigation.PopToRootAsync();
     }
 
     private async void Reset_Clicked(object sender, EventArgs e)
     {
-        if (string.IsNullOrWhiteSpace(_currentPoResponse.OrderNo))
+        if (_currentPoResponse != null)
         {
-            await DisplayAlert("Error", "No PO loaded to reset.", "OK");
-            return;
-        }
+            if (string.IsNullOrWhiteSpace(_currentPoResponse.OrderNo))
+            {
+                await DisplayAlert("Error", "No PO loaded to reset.", "OK");
+                return;
+            }
+            bool confirm = await DisplayAlert("Reset PO", $"Are you sure you want to remove PO {_currentPoResponse.OrderNo} from this device?", "Yes", "No");
+            if (!confirm) return;
 
-        bool confirm = await DisplayAlert("Reset PO", $"Are you sure you want to remove PO {_currentPoResponse.OrderNo} from this device?", "Yes", "No");
-        if (!confirm) return;
+            try
+            {
+                // Delete from database
+                await App.Db.DeletePoAsync(_currentPoResponse.OrderNo);
 
-        try
-        {
-            // Delete from database
-             var databaseHelper = new DatabaseHelper(new SQLiteAsyncConnection(Constants.DatabasePath, Constants.Flags));
-            await databaseHelper.DeletePoAsync(_currentPoResponse.OrderNo);
+                _currentPoResponse = null;
 
-            ReceivingSession.SupplierInvoice = null;
-            ReceivingSession.DeliveryNote = null;
+                supplierLabel.Text = string.Empty;
+                dueDateLabel.Text = string.Empty;
+                poHeaderFrame.IsVisible = false;
+                LoadPOButton.IsVisible = false;
 
-            supplierLabel.Text = string.Empty;
-            dueDateLabel.Text = string.Empty;
-            poHeaderFrame.IsVisible = false;
-            LoadPOButton.IsVisible = false;
+                poLinesView.ItemsSource = null;
+                poLinesView.IsVisible = false;
 
-            poLinesView.ItemsSource = null;
-            poLinesView.IsVisible = false;
-
-            await DisplayAlert("Reset", "PO removed from device. You can fetch it again.", "OK");
-        }
-        catch (Exception ex)
-        {
-            await DisplayAlert("Error", $"Failed to reset PO. {ex.Message}", "OK");
+                await DisplayAlert("Reset", "PO removed from device. You can fetch it again.", "OK");
+            }
+            catch (Exception ex)
+            {
+                await DisplayAlert("Error", $"Failed to reset PO. {ex.Message}", "OK");
+            }
         }
     }
 }

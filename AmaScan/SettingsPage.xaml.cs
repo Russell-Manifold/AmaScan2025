@@ -1,8 +1,10 @@
 using AmaScan.Classes;
+using AmaScan.Data;
 using AmaScan.sqliteModels;
 using Newtonsoft.Json.Linq;
 using SQLite;
 using System.Net.Http.Json;
+using Microsoft.Maui.Dispatching;
 
 namespace AmaScan;
 
@@ -10,96 +12,139 @@ public partial class SettingsPage : ContentPage
 {
     private readonly HttpClient _httpClient = new();
     private readonly UserSession _userSession;
-
+    private List<Warehouse> _warehouseList = new();
     protected override void OnAppearing()
     {
         base.OnAppearing();
-        WarehousePicker.Items.Clear();
+        LoadWarehouses();
     }
 
     public SettingsPage()
     {
         InitializeComponent();
         ApiUrlEntry.Text = AppConfig.ApiBaseUrl;
+        ApiUrlEntry.IsEnabled = false;
+
+        // Set the LocationSwitch to reflect saved setting (default is OffSite/false, OnSite is true)
+        LocationSwitch.IsToggled = AppConfig.IsOnSite;
+
+        LocationSwitch.Toggled += LocationSwitch_Toggled;
         LoadWarehouses();
+    }
+
+    private void LocationSwitch_Toggled(object sender, ToggledEventArgs e)
+    {
+        AppConfig.IsOnSite = e.Value;
+        ApiUrlEntry.Text = AppConfig.ApiBaseUrl;
+        //ApiUrlEntry.Text = "http://175.25.97.2:8079/api/";
     }
 
     private async void LoadWarehouses()
     {
-        var _databaseHelper = new DatabaseHelper(new SQLiteAsyncConnection(Constants.DatabasePath, Constants.Flags));
         try
         {
-            var hasLocalWarehouses = await _databaseHelper.HasWarehousesAsync();
-
-            if (!hasLocalWarehouses)
+            // Run heavy operations on background thread
+            var result = await Task.Run(async () =>
             {
-                // First-time load from API
-                string url = $"{AppConfig.ApiBaseUrl}warehouses/get-warehouses";
-                var response = await new HttpClient().GetFromJsonAsync<WarehouseResponse>(url);
+                var hasLocalWarehouses = await App.Db.HasWarehousesAsync();
 
-                if (response?.data != null && response.data.Any())
+                if (!hasLocalWarehouses)
                 {
-                    await _databaseHelper.SaveWarehousesAsync(response.data);
-                    Preferences.Set("HasPopulatedWarehouses", true); // Optional: track explicitly
+                    // First-time load from API
+                    string url = $"{AppConfig.ApiBaseUrl}warehouses/get-warehouses";
+                    var response = await new HttpClient().GetFromJsonAsync<WarehouseResponse>(url);
+
+                    if (response?.data != null && response.data.Any())
+                    {
+                        await App.Db.SaveWarehousesAsync(response.data);
+                        Preferences.Set("HasPopulatedWarehouses", true); // Optional: track explicitly
+                    }
+                    else
+                    {
+                        return new { warehouses = new List<Warehouse>(), showAlert = true, alertMessage = "No warehouses found in API response." };
+                    }
                 }
-                else
+
+                // Load from local DB
+                var warehouses = await App.Db.GetWarehousesAsync();
+                var warehouseList = new List<Warehouse>
                 {
-                    await DisplayAlert("Info", "No warehouses found in API response.", "OK");
+                    new Warehouse { Code = "", Description = "Select Warehouse" }
+                };
+
+                if (warehouses != null && warehouses.Any())
+                {
+                    warehouseList.AddRange(warehouses);
                 }
-            }
 
-            // Load from local DB
-            var warehouses = await _databaseHelper.GetWarehousesAsync();
-            var warehouseList = new List<Warehouse>
+                return new { warehouses = warehouseList, showAlert = false, alertMessage = "" };
+            });
+
+            _warehouseList = result.warehouses;
+           
+            // Update UI on main thread
+            await MainThread.InvokeOnMainThreadAsync(() =>
             {
-                new Warehouse { Code = "", Description = "Select Warehouse" }
-            };
+                SetupWarehousePicker(DefaultPickingWarehousePicker, "DefaultPickingWarehouseCode");
+                SetupWarehousePicker(DefaultReceivingWarehousePicker, "DefaultReceivingWarehouseCode");
+                SetupWarehousePicker(WarehousePickerR1, "RejectWarehouse1Code");
+                SetupWarehousePicker(WarehousePickerR2, "RejectWarehouse2Code");
+                SetupWarehousePicker(ReturnsWarehousePicker, "ReturnsWarehouseCode");
+            });
 
-            if (warehouses != null && warehouses.Any())
+            if (result.showAlert)
             {
-                warehouseList.AddRange(warehouses);
+                await MainThread.InvokeOnMainThreadAsync(async () =>
+                {
+                    await DisplayAlert("Info", result.alertMessage, "OK");
+                });
             }
-            WarehousePicker.ItemsSource = warehouseList;
-            WarehousePicker.ItemDisplayBinding = new Binding("Description");
-
-            foreach (var w in warehouses)
-            {
-                Console.WriteLine($"Warehouse: {w.Code} - {w.Description}");
-            }
-
-            string savedWarehouseCode = Preferences.Get("DefaultWarehouseCode", "");
-            var selectedIndex = warehouseList.FindIndex(w => w.Code == savedWarehouseCode);
-            WarehousePicker.SelectedIndex = selectedIndex >= 0 ? selectedIndex : 0;
         }
         catch (Exception ex)
         {
-            await DisplayAlert("Error", $"Failed to load warehouses: {ex.Message}", "OK");
+            await MainThread.InvokeOnMainThreadAsync(async () =>
+            {
+                await DisplayAlert("Error", $"Failed to load warehouses: {ex.Message}", "OK");
+            });
         }
+    }
+
+    private void SetupWarehousePicker(Picker picker, string preferenceKey)
+    {
+        picker.ItemsSource = _warehouseList;
+        picker.ItemDisplayBinding = new Binding("Description");
+
+        string savedWarehouseCode = Preferences.Get(preferenceKey, "");
+        var selectedIndex = _warehouseList.FindIndex(w => w.Code == savedWarehouseCode);
+        picker.SelectedIndex = selectedIndex >= 0 ? selectedIndex : 0;
     }
 
     private void OnSaveClicked(object sender, EventArgs e)
     {
-        var newUrl = ApiUrlEntry.Text?.Trim();
-
-        if (!string.IsNullOrWhiteSpace(newUrl))
-        {
-            AppConfig.ApiBaseUrl = newUrl;
-
-            //var selectedWarehouse = WarehousePicker.SelectedItem as Warehouse;
-            //if (selectedWarehouse != null)
-            //{
-            //    Preferences.Set("DefaultWarehouseCode", selectedWarehouse.code);
-            //}
+        // No need to save ApiUrlEntry.Text, as URL is now controlled by the switch
+        ConfirmationLabel.Text = $"Location mode and Default Warehouse saved.";
+        ConfirmationLabel.IsVisible = true;
+            // Save all warehouse selections
+            SaveWarehouseSelection(DefaultPickingWarehousePicker, "DefaultPickingWarehouseCode");
+            SaveWarehouseSelection(DefaultReceivingWarehousePicker, "DefaultReceivingWarehouseCode");
+            SaveWarehouseSelection(WarehousePickerR1, "RejectWarehouse1Code");
+            SaveWarehouseSelection(WarehousePickerR2, "RejectWarehouse2Code");
+            SaveWarehouseSelection(ReturnsWarehousePicker, "ReturnsWarehouseCode");
 
             ConfirmationLabel.Text = "API URL and Default Warehouse saved.";
             ConfirmationLabel.IsVisible = true;
-        }
-        else
+        //ApiUrlEntry.IsEnabled = false;
+    }
+
+    private void SaveWarehouseSelection(Picker picker, string preferenceKey)
+    {
+        var selectedWarehouse = picker.SelectedItem as Warehouse;
+        if (selectedWarehouse != null)
         {
-            DisplayAlert("Validation", "Please enter a valid URL.", "OK");
+            Preferences.Set(preferenceKey, selectedWarehouse.Code);
         }
     }
-   
+
     private async void OnUpdateStockClicked(object sender, EventArgs e)
     {
         try
@@ -121,8 +166,7 @@ public partial class SettingsPage : ContentPage
                 return;
             }
             var allItems = valueArray.ToObject<List<StockItem>>();
-            var databaseHelper = new DatabaseHelper(new SQLiteAsyncConnection(Constants.DatabasePath, Constants.Flags));
-            await databaseHelper.SaveStockItemsAsync(allItems);
+            await App.Db.SaveStockItemsAsync(allItems);
 
             ConfirmationLabel.Text = $"Stock updated. {allItems.Count} items saved.";
         }
@@ -138,5 +182,77 @@ public partial class SettingsPage : ContentPage
         public List<Warehouse> data { get; set; }
     }
 
+    private async void DataRest_Clicked(object sender, EventArgs e)
+    {
+        await DbReset.fullResetAsync();
+        LoadWarehouses();
+        OnUpdateStockClicked(sender, EventArgs.Empty);
+        ConfirmationLabel.Text = "Database Successfully eset";
+    }
+
+    // Runs the same check the login screen runs, but reports the outcome either way — including
+    // the reason when no update is offered, which is otherwise invisible.
+    private async void OnCheckUpdateClicked(object sender, EventArgs e)
+    {
+        UpdateStatusLabel.TextColor = Colors.Gray;
+        UpdateStatusLabel.Text = "Checking…";
+
+        var update = await UpdateService.CheckForUpdateAsync();
+
+        string installed = AppInfo.VersionString;
+        string canInstall = UpdateService.CanInstallPackages()
+            ? "Install permission: granted"
+            : "Install permission: NOT granted — updates cannot install on this device";
+
+        if (update != null)
+        {
+            UpdateStatusLabel.TextColor = Colors.Green;
+            UpdateStatusLabel.Text = $"Update available: {update.Version} (installed {installed})\n{canInstall}";
+
+            bool install = await DisplayAlert(
+                "Update Available",
+                $"Version {update.Version} is available (you have {installed}).\n\nInstall it now?",
+                "Update Now",
+                "Later");
+
+            if (!install)
+                return;
+
+            if (!UpdateService.CanInstallPackages())
+            {
+                bool openSettings = await DisplayAlert(
+                    "Allow Updates",
+                    "To install updates, this device needs to allow AmaScan to install apps.\n\n" +
+                    "Tap Open Settings, switch on \"Allow from this source\", then press back and try again.",
+                    "Open Settings",
+                    "Cancel");
+
+                if (openSettings)
+                    UpdateService.OpenInstallPermissionSettings();
+
+                return;
+            }
+
+            try
+            {
+                var progress = new Progress<double>(fraction =>
+                    UpdateStatusLabel.Text = $"Downloading update… {fraction:P0}");
+
+                await UpdateService.DownloadAndInstallAsync(update, progress);
+                UpdateStatusLabel.Text = "Download complete — follow the prompts to install.";
+            }
+            catch (Exception ex)
+            {
+                UpdateStatusLabel.TextColor = Colors.OrangeRed;
+                UpdateStatusLabel.Text = $"Could not download the update: {ex.Message}";
+            }
+
+            return;
+        }
+
+        UpdateStatusLabel.TextColor = string.IsNullOrWhiteSpace(UpdateService.LastCheckError)
+            ? Colors.Gray : Colors.OrangeRed;
+        UpdateStatusLabel.Text = $"{UpdateService.LastCheckError}\nInstalled: {installed}\n{canInstall}";
+    }
 }
 

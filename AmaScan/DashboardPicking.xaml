@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="AmaScan.DashboardPicking"
+             Title="Picking and Packing">
+    
+    <ContentPage.ToolbarItems>
+        <ToolbarItem IconImageSource="mainiconlogin.png" Text="Log Out" Clicked="OnLogoutClicked" Order="Primary" Priority="1" />
+    </ContentPage.ToolbarItems>
+
+    <Grid>
+        <!-- Row Definitions for Fixed and Scrollable Content -->
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <!-- For User Info (fixed) -->
+            <RowDefinition Height="*" />
+            <!-- For ScrollView content (flexible) -->
+        </Grid.RowDefinitions>
+
+        <StackLayout Grid.Row="0" Padding="10">
+            <Label x:Name="UserNameLabel"
+               Text="{Binding UseNRole}"
+               FontSize="12"
+               HorizontalOptions="Start"
+               VerticalOptions="Center" />
+            <Label x:Name="WorkflowLabel"
+               Text="{Binding WorkflowDescription}"
+               FontSize="12"
+               HorizontalOptions="Start"
+               VerticalOptions="Center" />
+         </StackLayout>
+        <ScrollView Grid.Row="1" Padding="10">
+            <VerticalStackLayout Padding="10" Spacing="10" HorizontalOptions="Fill"  VerticalOptions="Start">
+
+                <!-- 🔘 Image Button 1 --><!--
+                <ImageButton x:Name="BtnReceiving" Source="receivestck.png" IsVisible="{Binding CanReceive}" 
+                         WidthRequest="50"
+                         HeightRequest="50"
+                         Clicked="OnPage1Clicked"/>
+                <Label Text="Receiving"
+                       HorizontalOptions="Center"
+                       VerticalOptions="Center"/>
+
+                --><!-- 🔘 Image Button 2 --><!--
+                <ImageButton x:Name="btnWhTrf" Source="whtrf.png" IsVisible="{Binding CanTransfer}"
+                         WidthRequest="50"
+                         HeightRequest="50"
+                         Clicked="OnPage2Clicked"/>
+                <Label Text="Warehouse Transfer"
+           HorizontalOptions="Center"
+           VerticalOptions="Center"/>-->
+
+                <!-- 🔘 Image Button 3 - Picking (company workflow + role) -->
+                <ImageButton x:Name="BtnPicking" Source="receivestck.png" IsVisible="{Binding ShowPicking}"
+                         WidthRequest="50"
+                         HeightRequest="50"
+                         Clicked="OnPage3Clicked"/>
+                <Label Text="Picking"
+                       HorizontalOptions="Center"
+                       VerticalOptions="Center"
+                       IsVisible="{Binding ShowPicking}"/>
+
+                <!-- 🔘 Image Button 4 - Packing (company workflow + role) -->
+                <ImageButton x:Name="BtnPacking" Source="receivestck.png" IsVisible="{Binding ShowPacking}"
+                         WidthRequest="50"
+                         HeightRequest="50"
+                         Clicked="OnPage4Clicked"/>
+                <Label Text="Packing"
+                       HorizontalOptions="Center"
+                       VerticalOptions="Center"
+                       IsVisible="{Binding ShowPacking}"/>
+
+                <!-- 🔘 Image Button 5 - Checking -->
+                <ImageButton x:Name="BtnChecking" Source="receivestck.png" IsVisible="{Binding CanCheck}"
+                         WidthRequest="50"
+                         HeightRequest="50"
+                         Clicked="OnPage5Clicked"/>
+                <Label Text="Checking"
+                       HorizontalOptions="Center"
+                       VerticalOptions="Center"
+                       IsVisible="{Binding CanCheck}"/>
+
+                <!-- TEMP (2026-05-21): Authorization phase moved out of this app for the
+                     current milestone. Restore this tile if/when authorization returns. -->
+                <!--
+                <ImageButton x:Name="BtnAuthorization" Source="receivestck.png" IsVisible="{Binding CanAuth}"
+                         WidthRequest="50"
+                         HeightRequest="50"
+                         Clicked="OnPage6Clicked"/>
+                <Label Text="Authorization"
+                       HorizontalOptions="Center"
+                       VerticalOptions="Center"
+                       IsVisible="{Binding CanAuth}"/>
+                -->
+
+
+
+            </VerticalStackLayout>
+        </ScrollView>
+    </Grid>
+</ContentPage>

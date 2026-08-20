@@ -1,0 +1,293 @@
+using AmaScan.Classes;
+using AmaScan.Data;
+using AmaScan.sqliteModels;
+using Data.Model;
+using Microsoft.Maui.Dispatching;
+using System.Net.Http.Json;
+
+namespace AmaScan;
+
+public partial class CheckingMain : ContentPage
+{
+    private readonly HttpClient _httpClient = new();
+    private SalesOrderResponse _currentSoResponse;
+    private SoHeader _soHeader;
+
+
+
+
+
+    public CheckingMain()
+    {
+        InitializeComponent();
+    }
+
+    protected override void OnAppearing()
+    {
+        base.OnAppearing();
+        ClearSessionAndUI();
+    }
+
+    private void ClearSessionAndUI()
+    {
+        // Clear in-memory variables
+        _currentSoResponse = null;
+        _soHeader = null;
+
+        // Clear session state
+        PickingWorkflowSession.Clear();
+
+        // Clear UI elements
+        soEntry.Text = string.Empty;
+        customerLabel.Text = string.Empty;
+        dueDateLabel.Text = string.Empty;
+        soHeaderFrame.IsVisible = false;
+        LoadSOButton.IsVisible = false;
+
+        soLinesView.ItemsSource = null;
+        soLinesView.IsVisible = false;
+    }
+
+    private async void OnFetchSOClicked(object sender, EventArgs e)
+    {
+        soEntry.Unfocus();
+        string soNumber = soEntry.Text?.Trim();
+        if (string.IsNullOrEmpty(soNumber))
+        {
+            await DisplayAlert("Validation", "Please enter a SO number.", "OK");
+            return;
+        }
+
+        await MainThread.InvokeOnMainThreadAsync(() =>
+        {
+            loadingIndicator.IsVisible = true;
+            loadingIndicator.IsRunning = true;
+        });
+
+        // Clear session values related to header
+        PickingWorkflowSession.Clear();
+
+        try
+        {
+            // Run heavy operations on background thread. Capture status + body so we can
+            // distinguish success, not-found, and the ambiguous "multiple matches" case.
+            var fetch = await Task.Run(async () =>
+            {
+                string url = $"{AppConfig.ApiBaseUrl}GetSalesOrder/{Uri.EscapeDataString($"IO{soNumber}")}";
+                var response = await _httpClient.GetAsync(url);
+                string body = await response.Content.ReadAsStringAsync();
+                return (IsSuccess: response.IsSuccessStatusCode, Status: response.StatusCode, Body: body);
+            });
+
+            // The trailing digits matched more than one order (server returns 409).
+            if (fetch.Status == System.Net.HttpStatusCode.Conflict)
+            {
+                await MainThread.InvokeOnMainThreadAsync(async () =>
+                {
+                    await DisplayAlert("Multiple Orders Found",
+                        "More than one sales order matches those digits.\n\n" +
+                        "Please enter more digits to identify the exact order.", "OK");
+                });
+                return;
+            }
+
+            if (!fetch.IsSuccess)
+            {
+                await MainThread.InvokeOnMainThreadAsync(async () =>
+                {
+                    await DisplayAlert("Not Found", $"SO {soNumber} not found on server.", "OK");
+                });
+                return;
+            }
+
+            _currentSoResponse = System.Text.Json.JsonSerializer.Deserialize<SalesOrderResponse>(
+                fetch.Body, new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+
+            if (_currentSoResponse == null || _currentSoResponse.Lines == null || !_currentSoResponse.Lines.Any())
+            {
+                await MainThread.InvokeOnMainThreadAsync(async () =>
+                {
+                    await DisplayAlert("Not Found", $"SO {soNumber} not found on server.", "OK");
+                });
+                return;
+            }
+
+            // Don't load an order whose previous stage isn't finished — tell the user why instead
+            // of letting them start checking against a zero picked/packed quantity.
+            string blocked = WorkflowGate.BlockChecking(_currentSoResponse);
+            if (blocked != null)
+            {
+                _currentSoResponse = null;
+                await MainThread.InvokeOnMainThreadAsync(async () =>
+                {
+                    await DisplayAlert(blocked,
+                        $"SO {soNumber} cannot be checked yet.\n\n{blocked} for this order.", "OK");
+                });
+                return;
+            }
+
+            // Use merge helper for normal operation
+            await SoMergeHelper.HandleSoFetchAndMergeAsync(soNumber, _currentSoResponse,
+                customerLabel, dueDateLabel, soHeaderFrame, soLinesView, LoadSOButton, "Checking");
+        }
+        catch (Exception ex)
+        {
+            await MainThread.InvokeOnMainThreadAsync(async () =>
+            {
+                await DisplayAlert("Error", $"Could not load SO: {soNumber} : Message:- {ex.Message}", "OK");
+            });
+        }
+        finally
+        {
+            await MainThread.InvokeOnMainThreadAsync(() =>
+            {
+                loadingIndicator.IsVisible = false;
+                loadingIndicator.IsRunning = false;
+            });
+        }
+    }
+
+    private async void OnLoadSOClicked(object sender, EventArgs e)
+    {
+        try
+        {
+            if (_currentSoResponse == null)
+            {
+                await DisplayAlert("Error", "No SO data to save.", "OK");
+                return;
+            }
+
+            string soNumber = _currentSoResponse.Reference;
+            if (string.IsNullOrEmpty(soNumber))
+            {
+                await DisplayAlert("Error", "Invalid SO number.", "OK");
+                return;
+            }
+
+            // Run database operations on background thread
+            var result = await Task.Run(async () =>
+            {
+                var existingSo = await App.Db.GetSoHeaderByOrderNoAsync(soNumber);
+                 if (existingSo != null) return new { hasExistingSo = true, existingSo, savedSo = (SoHeader)null };
+
+                await SaveToLocalDatabaseAsync(_currentSoResponse);
+                var savedSo = await App.Db.GetSoHeaderByOrderNoAsync(soNumber);
+                
+                return new { hasExistingSo = false, existingSo = (SoHeader)null, savedSo };
+            });
+
+            // Handle existing SO case
+            if (result.hasExistingSo)
+            {
+                bool goToChecking = await MainThread.InvokeOnMainThreadAsync(async () =>
+                {
+                    return await DisplayAlert("Resume Checking?",
+                        "This SO is already loaded. Would you like to resume checking?", "Yes", "No");
+                });
+
+                if (goToChecking)
+                {
+                    PickingWorkflowSession.CurrentSoHeader = result.existingSo;
+                    await MainThread.InvokeOnMainThreadAsync(async () =>
+                    {
+                        await Shell.Current.GoToAsync(nameof(CheckingDocumentsPage));
+                    });
+                    return;
+                }
+                else
+                {
+                    await MainThread.InvokeOnMainThreadAsync(async () =>
+                    {
+                        await DisplayAlert("Cancelled", "You chose not to resume checking.", "OK");
+                    });
+                    return;
+                }
+            }
+
+            // Handle new SO case
+            PickingWorkflowSession.CurrentSoHeader = result.savedSo;
+
+            await MainThread.InvokeOnMainThreadAsync(async () =>
+            {
+                await DisplayAlert("Success", "SO has been loaded for offline checking.", "OK");
+            });
+
+            bool startChecking = await MainThread.InvokeOnMainThreadAsync(async () =>
+            {
+                return await DisplayAlert("Start Checking?",
+                    "Would you like to start checking this SO now?", "Yes", "No");
+            });
+
+            if (startChecking)
+            {
+                await MainThread.InvokeOnMainThreadAsync(async () =>
+                {
+                    await Shell.Current.GoToAsync(nameof(CheckingDocumentsPage));
+                });
+            }
+        }
+        catch (Exception ex)
+        {
+            await MainThread.InvokeOnMainThreadAsync(async () =>
+            {
+                await DisplayAlert("Error", $"Failed to load SO: {ex.Message}", "OK");
+            });
+        }
+    }
+
+    private async Task SaveToLocalDatabaseAsync(SalesOrderResponse response)
+    {
+        if (response == null || response.Lines == null || !response.Lines.Any())
+            throw new ArgumentException("Invalid sales order data.");
+
+        string soNumber = response.Reference; // Use Reference as the SO number
+        if (string.IsNullOrEmpty(soNumber))
+            throw new ArgumentException("Invalid SO number.");
+
+        // Save the SoHeader with the relevant fields
+        var soHeader = new SoHeader
+        {
+            Reference = soNumber, // This is the SO number that matches the SQL table
+            CustomerOrderNo = response.CustomerOrderNo,
+            CustomerName = response.CustomerName,
+            AreaDescription = response.AreaDescription,
+            DueDate = response.DueDate,
+            OrderStatus = response.OrderStatus,
+            // Carry the server's stage flags so the local header agrees with what the gate just
+            // checked, rather than reading un-picked/un-packed on a freshly downloaded order.
+            Picked = response.Picked,
+            Packed = response.Packed,
+            JsonData = System.Text.Json.JsonSerializer.Serialize(response)
+        };
+
+        // Insert or update the SoHeader
+        await App.Db.InsertAsync(soHeader);
+
+        // Batch insert lines. CreateNewSoLine carries the server's pick/pack progress across —
+        // this used to hardcode PickedQty = 0, so a checker on a device that had not done the
+        // picking itself saw nothing picked and could not check the order at all.
+        var soLines = response.Lines.Select(line => App.Db.CreateNewSoLine(soNumber, line)).ToList();
+
+        // Insert each line individually
+        foreach (var line in soLines) await App.Db.InsertAsync(line);
+    }
+
+    private async void OnResetClicked(object sender, EventArgs e)
+    {
+        if (_currentSoResponse != null)
+        {
+            bool confirm = await DisplayAlert("Reset", "Are you sure you want to reset? This will clear all current data.", "Yes", "No");
+            if (confirm) ClearSessionAndUI();
+        }
+    }
+
+    private async void OnLogoutClicked(object sender, EventArgs e)
+    {
+        bool confirm = await DisplayAlert("Log Out", "Are you sure you want to log out?", "Yes", "No");
+        if (!confirm) return;
+        App.Services.GetRequiredService<UserSession>().CurrentUser = null;
+        // Reset the Shell navigation stack back to the login page. PopToRootAsync did
+        // nothing here because CheckingMain is the root of the current Shell stack.
+        await Shell.Current.GoToAsync("//MainPage");
+    }
+}
